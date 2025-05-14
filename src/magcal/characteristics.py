@@ -83,8 +83,7 @@ class GnosticsCharacteristics:
         self.s = np.where(S != 0, S, min_eps)
         self.s = np.where(S != np.inf, S, max_eps)
         self.q = self.R ** (2/self.s)
-        self.q = np.where(self.q != 0, self.q, min_eps)
-        self.q1 = np.where(np.abs(self.q) != 0, 1 / self.q, max_eps)
+        self.q1 = self.R ** (-2/self.s)
         return self.q, self.q1
         
     def _fi(self, q=None, q1=None):
@@ -158,7 +157,7 @@ class GnosticsCharacteristics:
         q1 = np.asarray(q1)
         if q.shape != q1.shape:
             raise ValueError("q and q1 must have the same shape")
-        h = (q - q1) / (q + q1)
+        h = (q - q1) / np.where((q + q1) != 0, (q + q1), np.finfo(float).min) 
         return h
 
     def _hj(self, q=None, q1=None):

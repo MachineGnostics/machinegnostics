@@ -96,6 +96,8 @@ class RobustRegressor(RegressionBase):
     >>> model = RobustRegressor(degree=3, mg_loss='hi', verbose=True)
     >>> model.fit(X_train, y_train)
     >>> y_pred = model.predict(X_test)
+    >>> print(model.coefficients)
+    >>> print(model.weights)
 
     Resource:
     --------
@@ -105,12 +107,11 @@ class RobustRegressor(RegressionBase):
     """
     def __init__(self,
                  degree: int = 2,
-                 max_iter: int = 1000,
-                 tol: float = 1e-3,
+                 max_iter: int = 100,
+                 tol: float = 1e-6,
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
-                 verbose: bool = False,
-                 history: bool = False):
+                 verbose: bool = False):
         '''
         Robust Regressor - Machine Gnostics
         
@@ -165,7 +166,10 @@ class RobustRegressor(RegressionBase):
         """
         For interval use only
         Compute q and q1."""
-        self.gc = GnosticsCharacteristics(z/z0)
+        eps = np.finfo(float).eps
+        z0_safe = np.where(np.abs(z0) < eps, eps, z0)
+        zz = z / z0_safe
+        self.gc = GnosticsCharacteristics(zz)
         q, q1 = self.gc._get_q_q1(S=s)     
         return q, q1
     
@@ -202,11 +206,19 @@ class RobustRegressor(RegressionBase):
         array-like
             Estimated coefficients
         """
+        eps = np.finfo(float).eps
+        # Add small regularization term
+        weights = np.clip(weights, eps, None)
         W = np.diag(weights)
         XtW = X_poly.T @ W
-        XtWX = XtW @ X_poly
+        XtWX = XtW @ X_poly + eps * np.eye(X_poly.shape[1])
         XtWy = XtW @ y
-        return np.linalg.solve(XtWX, XtWy)
+        
+        try:
+            return np.linalg.solve(XtWX, XtWy)
+        except np.linalg.LinAlgError:
+            # Fallback to pseudo-inverse for ill-conditioned matrices
+            return np.linalg.pinv(XtWX) @ XtWy
     
     def fit(self, X, y):
         '''
@@ -257,6 +269,7 @@ class RobustRegressor(RegressionBase):
         '''
         X = np.asarray(X)
         y = np.asarray(y)
+        eps = np.finfo(float).min
 
         # Validate dimensions of X
         if X.ndim == 1:
@@ -279,35 +292,58 @@ class RobustRegressor(RegressionBase):
         # Initialize weights
         self.weights = np.ones(len(y))
         
+        # Initialize coefficients to zeros
+        self.coefficients = np.zeros(self.degree + 1)
+        
         for _ in range(self.max_iter):
-            prev_coef = self.coefficients
+            prev_coef = self.coefficients.copy()
             
-            # Weighted least squares
-            self.coefficients = self._weighted_least_squares(X_poly, y, self.weights)
-            
-            # Update weights using gnostic approach
-            y0 = X_poly @ self.coefficients
-            residuals = y - y0
-            dc = DataConversion()
-            z = dc._convert_az(residuals)
-            gw = GnosticsWeights()
-            gw = gw._get_gnostic_weights(z)
-            new_weights = self.weights * gw
-            scale = ScaleParam()
-            s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
-            loss = self._gnostic_criterion(z, y0, s)
-            self._history.append(loss)
-            
-            # Normalize weights
-            self.weights = new_weights / np.mean(new_weights)
-            
-            # Check convergence
-            if len(self._history) > self.early_stopping:
-                recent_losses = self._history[-self.early_stopping:]
-                if np.all(np.abs(recent_losses - loss) < self.tol):
-                    break
-                if prev_coef is not None and np.all(np.abs(prev_coef - self.coefficients) < self.tol):
-                    break
+            try:
+                # Weighted least squares
+                self.coefficients = self._weighted_least_squares(X_poly, y, self.weights)
+                
+                # Update weights using gnostic approach
+                y0 = X_poly @ self.coefficients
+                residuals = y - y0
+                
+                # Ensure residuals are not too close to zero
+                # eps = np.finfo(float).eps
+                # residuals = np.where(np.abs(residuals) < eps, eps, residuals)
+                
+                dc = DataConversion()
+                z = dc._convert_az(residuals)
+                gw = GnosticsWeights()
+                gw = gw._get_gnostic_weights(z)
+                new_weights = self.weights * gw
+                # Compute scale and loss
+                scale = ScaleParam()
+                s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
+                loss = self._gnostic_criterion(z, y0, s)
+                self._history.append(loss)
+                # Ensure weights are positive and normalized
+                # new_weights = np.clip(new_weights, eps, None)
+                # self.weights = self.weights * (s*loss**-1)
+                self.weights = new_weights / np.mean(new_weights)
+                
+                
+                
+                # print loss
+                if self.verbose:
+                    print(f'Machine Gnostic loss - {self.mg_loss} : {np.round(loss, 4)}')
+                
+                # Check convergence
+                if len(self._history) > self.early_stopping:
+                    recent_losses = self._history[-self.early_stopping:]
+                    if np.all(np.abs(np.diff(recent_losses)) < self.tol):
+                        break
+                    if np.all(np.abs(prev_coef - self.coefficients) < self.tol):
+                        break
+                        
+            except (ZeroDivisionError, np.linalg.LinAlgError) as e:
+                if self.verbose:
+                    print(f"Warning: {str(e)}. Using previous coefficients.")
+                self.coefficients = prev_coef
+                break
                 
     def predict(self, X):
         """
