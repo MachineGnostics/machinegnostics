@@ -80,9 +80,10 @@ class GnosticsCharacteristics:
         """
         max_eps = np.finfo(float).max
         min_eps = np.finfo(float).eps
-        self.s = S
+        self.s = np.where(S != 0, S, min_eps)
+        self.s = np.where(S != np.inf, S, max_eps)
         self.q = self.R ** (2/self.s)
-        # avoid division by zero
+        self.q = np.where(self.q != 0, self.q, min_eps)
         self.q1 = np.where(np.abs(self.q) != 0, 1 / self.q, max_eps)
         return self.q, self.q1
         

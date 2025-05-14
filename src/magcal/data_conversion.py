@@ -27,7 +27,7 @@ class DataConversion:
     """
     
     @staticmethod
-    def _convert_az(a, lb, ub):
+    def _convert_az(a, lb=None, ub=None):
         """
         Converts additive data into the finite normalized multiplicative form.
 
@@ -51,11 +51,17 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(a)
+        if ub is None:
+            ub = np.max(a)
+
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         eps = 1e-6  # Small value to ensure strict inequality
         if lb >= ub:
             raise ZeroDivisionError("lb must be less than ub")
+        
         a = np.asarray(a)
         z = np.exp((2 * a - ub - lb) / (ub - lb) + eps)
         
@@ -64,7 +70,7 @@ class DataConversion:
         return z
     
     @staticmethod
-    def _convert_za(z, lb, ub):
+    def _convert_za(z, lb=None, ub=None):
         """
         Converts multiplicative data into the finite normalized additive form.
 
@@ -88,11 +94,17 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(a)
+        if ub is None:
+            ub = np.max(a)
+
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         eps = 1e-6  # Small value to ensure strict inequality
         if lb >= ub:
             raise ZeroDivisionError("lb must be less than ub")
+        
         z = np.asarray(z)
         a = (np.log(z) * (ub - lb) + lb + ub) / 2 - eps
         
