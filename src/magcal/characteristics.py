@@ -60,7 +60,8 @@ class GnosticsCharacteristics:
         Calculates the quantifying information.
     """
 
-    def __init__(self, R: np.ndarray):
+    def __init__(self, 
+                 R: np.ndarray):
         """
         Initializes the GnosticsCharacteristics class.
 
@@ -69,13 +70,22 @@ class GnosticsCharacteristics:
         R : np.ndarray
             The input matrix for the gnostics calculations (R = Z / Z0).
         """
+        self.R = R
+
+    def _get_q_q1(self, S:int=1):
+        """
+        Calculates the q and q1 for given z and z0
+
+        For internal use only
+        """
         max_eps = np.finfo(float).max
         min_eps = np.finfo(float).eps
-        self.R = R
-        self.q = R
+        self.s = S
+        self.q = self.R ** (2/self.s)
         # avoid division by zero
-        self.q1 = np.where(np.abs(R) > min_eps, 1 / R, max_eps)
-
+        self.q1 = np.where(np.abs(self.q) != 0, 1 / self.q, max_eps)
+        return self.q, self.q1
+        
     def _fi(self, q=None, q1=None):
         """
         Calculates the estimation weight.
