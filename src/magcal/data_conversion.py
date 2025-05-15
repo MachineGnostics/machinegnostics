@@ -59,11 +59,11 @@ class DataConversion:
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         eps = 1e-6  # Small value to ensure strict inequality
-        if lb >= ub:
-            raise ZeroDivisionError("lb must be less than ub")
+        # if lb >= ub:
+        #     raise ZeroDivisionError("lb must be less than ub")
         
         a = np.asarray(a)
-        z = np.exp((2 * a - ub - lb) / (ub - lb) + eps)
+        z = np.exp((2 * a - ub - lb) / ((ub - lb) + eps))
         
         if z.size == 1:
             return z.item()  # Return scalar if input was scalar

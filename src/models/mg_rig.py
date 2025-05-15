@@ -108,7 +108,7 @@ class RobustRegressor(RegressionBase):
     def __init__(self,
                  degree: int = 2,
                  max_iter: int = 100,
-                 tol: float = 1e-6,
+                 tol: float = 1e-8,
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False):
@@ -305,7 +305,6 @@ class RobustRegressor(RegressionBase):
                 # Update weights using gnostic approach
                 y0 = X_poly @ self.coefficients
                 residuals = y - y0
-                
                 # Ensure residuals are not too close to zero
                 # eps = np.finfo(float).eps
                 # residuals = np.where(np.abs(residuals) < eps, eps, residuals)
@@ -324,9 +323,7 @@ class RobustRegressor(RegressionBase):
                 # new_weights = np.clip(new_weights, eps, None)
                 # self.weights = self.weights * (s*loss**-1)
                 self.weights = new_weights / np.mean(new_weights)
-                
-                
-                
+                                                
                 # print loss
                 if self.verbose:
                     print(f'Machine Gnostic loss - {self.mg_loss} : {np.round(loss, 4)}')
@@ -377,6 +374,10 @@ class RobustRegressor(RegressionBase):
         """
         if self.coefficients is None:
             raise ValueError("Model has not been fitted yet.")
+        
+        X = np.asarray(X)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
             
         X_poly = self._generate_polynomial_features(X)
         return X_poly @ self.coefficients

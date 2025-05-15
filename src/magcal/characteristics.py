@@ -61,7 +61,8 @@ class GnosticsCharacteristics:
     """
 
     def __init__(self, 
-                 R: np.ndarray):
+                 R: np.ndarray,
+                 eps: float = 1e-10):
         """
         Initializes the GnosticsCharacteristics class.
 
@@ -69,21 +70,47 @@ class GnosticsCharacteristics:
         ----------
         R : np.ndarray
             The input matrix for the gnostics calculations (R = Z / Z0).
+        eps : float, default=1e-10
+            Small constant for numerical stability
         """
         self.R = R
+        self.eps = eps
 
     def _get_q_q1(self, S:int=1):
         """
         Calculates the q and q1 for given z and z0
 
         For internal use only
+
+        Parameters
+        ----------
+        R : np.ndarray
+            Input values (typically residuals)
+        s : int, optional
+            Override for shape parameter s
+
+        Returns
+        -------
+        tuple
+            (q, q1) computed characteristic values
         """
-        max_eps = np.finfo(float).max
-        min_eps = np.finfo(float).eps
-        self.s = np.where(S != 0, S, min_eps)
-        self.s = np.where(S != np.inf, S, max_eps)
-        self.q = self.R ** (2/self.s)
-        self.q1 = self.R ** (-2/self.s)
+        # Add small constant to prevent division by zero
+        R_safe = np.abs(self.R) + self.eps
+        
+        try:
+            # Compute power with safety checks
+            self.q = np.power(R_safe, 2/S)
+            self.q1 = np.power(R_safe, -2/S)
+            
+            # Ensure no negative or zero values
+            self.q = np.maximum(self.q, self.eps)
+            self.q1 = np.maximum(self.q1, self.eps)
+            
+        except RuntimeWarning:
+            # Handle any remaining warnings by clipping values
+            self.q = np.clip(np.power(R_safe, 2/S), self.eps, None)
+            self.q1 = np.clip(np.power(R_safe, -2/S), self.eps, None)
+        
         return self.q, self.q1
         
     def _fi(self, q=None, q1=None):
@@ -157,9 +184,16 @@ class GnosticsCharacteristics:
         q1 = np.asarray(q1)
         if q.shape != q1.shape:
             raise ValueError("q and q1 must have the same shape")
-        h = (q - q1) / np.where((q + q1) != 0, (q + q1), np.finfo(float).min) 
+        
+        eps = np.finfo(float).eps
+        denominator = q + q1
+        denominator = np.where(denominator != 0, denominator, eps)
+        
+        # Calculate ratio with clipping to prevent overflow
+        h = np.clip((q - q1) / denominator, -1.0, 1.0)
+        
         return h
-
+    
     def _hj(self, q=None, q1=None):
         """
         Calculates the quantification relevance.
