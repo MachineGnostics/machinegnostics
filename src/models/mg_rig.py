@@ -4,7 +4,7 @@ Copyright (C) 2025  ManGo Team
 
 This work is licensed under the terms of the GNU General Public License version 3.0.
 
-Author: ManGo Team, Nirmal Parmar
+Author: Nirmal Parmar
 Date: 2025-10-01
 Description: Machine Gnostics Robust Regression Machine Learning Model
 This module implements a machine learning model for robust regression using the ManGo library.
