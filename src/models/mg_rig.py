@@ -12,6 +12,7 @@ This model is designed to handle various types of data and is particularly usefu
 '''
 
 from src.magcal import RegressorParamBase
+import numpy as np
 
 class RobustRegressor(RegressorParamBase):
     """
@@ -185,7 +186,7 @@ class RobustRegressor(RegressorParamBase):
         - The gnostic weighting and loss computations depend on the choice of `mg_loss`
         (e.g., `'hi'` or `'hj'`), which influences the robustness behavior.
         '''
-        return self._fit(X, y)
+        return super()._fit(X, y)
     
                 
     def predict(self, X):
@@ -218,5 +219,21 @@ class RobustRegressor(RegressorParamBase):
         - Ensure `fit` has been called before using `predict`, otherwise `self.coefficients` will be `None`.
         - Input `X` will be converted to a NumPy array if it isn't already.
         """
-        return self._predict(X)
+        # # Input validation and reshaping
+        # X = np.asarray(X)
+        # if X.ndim == 1:
+        #     X = X.reshape(-1, 1)
+            
+        # # Verify feature dimensions match training data
+        # n_features_trained = (len(self.coefficients) - 1) // (self.degree + 1)
+        # n_features_input = X.shape[1]
+        
+        # if n_features_trained != n_features_input:
+        #     raise ValueError(
+        #         f"Model was trained with {n_features_trained} feature(s) but "
+        #         f"received {n_features_input} feature(s) for prediction."
+        #     )
+        
+        # Call base class prediction method
+        return super()._predict(X)
         

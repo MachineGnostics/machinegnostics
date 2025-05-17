@@ -12,6 +12,7 @@ This model is designed to handle various types of data and is particularly usefu
 '''
 
 import numpy as np
+from itertools import combinations_with_replacement
 from src.magcal import RegressorBase, GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights
 
 class RegressorParamBase(RegressorBase):
@@ -79,54 +80,76 @@ class RegressorParamBase(RegressorBase):
         self.verbose = verbose
         self._history = []
         self._params = {}
-    def _process_input(self, X, y):
+
+    def _process_input(self, X, y=None):
         '''
         Processing input
+
+        Parameters:
+            X: array-like, DataFrame, or Spark DataFrame
+            y: array-like, DataFrame, Spark DataFrame, or None
+        
+        Returns:
+            X: np.ndarray, shape (n_samples, n_features)
+            y: np.ndarray or None, shape (n_samples,)
         '''
-        # check 
+        import numpy as np
+
         # Identify input types
         is_pandas = False
         is_spark = False
 
         try:
             import pandas as pd
-            if isinstance(X, (pd.DataFrame, pd.Series)) and isinstance(y, (pd.Series, pd.DataFrame)):
+            if isinstance(X, (pd.DataFrame, pd.Series)):
                 is_pandas = True
         except ImportError:
             pass
 
         try:
             from pyspark.sql import DataFrame as SparkDF
-            if isinstance(X, SparkDF) and isinstance(y, SparkDF):
+            if isinstance(X, SparkDF):
                 is_spark = True
         except ImportError:
             pass
 
-        # Convert to NumPy for processing
+        # Convert X to NumPy array
         if is_pandas:
             X_np = X.to_numpy()
-            y_np = y.to_numpy().flatten()
         elif is_spark:
             raise NotImplementedError("Processing Spark DataFrames requires distributed-safe logic. Consider collecting to Pandas first.")
         else:
             X_np = np.asarray(X)
-            y_np = np.asarray(y)
 
-        # Validate dimensions of X
-        if X.ndim == 1:
-            X = X.reshape(-1, 1)
-        elif X.ndim != 2 or X.shape[1] != 1:
-            raise ValueError("X must be 1D or 2D with shape (n_samples,) or (n_samples, 1).")
+        # Reshape X if needed
+        if X_np.ndim == 1:
+            X_np = X_np.reshape(-1, 1)
+        elif X_np.ndim != 2:
+            raise ValueError("X must be a 2D array with shape (n_samples, n_features).")
 
-        # Validate y
-        if y.ndim != 1:
-            raise ValueError("y must be a 1D array of shape (n_samples,).")
+        # Process y if provided
+        if y is not None:
+            if is_pandas:
+                y_np = y.to_numpy().flatten()
+            elif is_spark:
+                raise NotImplementedError("Processing Spark DataFrames requires distributed-safe logic. Consider collecting to Pandas first.")
+            else:
+                y_np = np.asarray(y).flatten()
 
-        # Check for consistent sample sizes
-        if X.shape[0] != y.shape[0]:
-            raise ValueError(f"Number of samples in X and y must match. Got {X.shape[0]} and {y.shape[0]}.")
-      
-        return X, y
+            # Validate y shape
+            if y_np.ndim != 1:
+                raise ValueError("y must be a 1D array of shape (n_samples,).")
+
+            # Check samples consistency
+            if X_np.shape[0] != y_np.shape[0]:
+                raise ValueError(f"Number of samples in X and y must match. Got {X_np.shape[0]} and {y_np.shape[0]}.")
+
+            return X_np, y_np
+
+        else:
+            # y is None, just return processed X and None
+            return X_np
+
     
     def _process_output(self):
         '''
@@ -141,23 +164,30 @@ class RegressorParamBase(RegressorBase):
 
     def _generate_polynomial_features(self, X):
         """
-        Generate polynomial features up to specified degree.
-        
+        Generate polynomial features for multivariate input up to specified degree.
+
         Parameters:
         -----------
-        X : array-like of shape (n_samples, 1)
+        X : array-like of shape (n_samples, n_features)
             Input features
-            
+
         Returns:
         --------
-        array-like of shape (n_samples, degree + 1)
-            Polynomial features including bias term
+        X_poly : ndarray of shape (n_samples, n_output_features)
+            Polynomial features including interaction terms
         """
-        n_samples = len(X)
-        X_poly = np.ones((n_samples, self.degree + 1))
-        for d in range(1, self.degree + 1):
-            X_poly[:, d] = X.ravel() ** d
+        n_samples, n_features = X.shape
+        combinations = []
+        for degree in range(self.degree + 1):
+            combinations += list(combinations_with_replacement(range(n_features), degree))
+
+        X_poly = np.ones((n_samples, len(combinations)))
+        for i, comb in enumerate(combinations):
+            X_poly[:, i] = np.prod(X[:, comb], axis=1)
+        
         return X_poly
+
+
     
     def _compute_q(self, z, z0, s:int = 1):
         """
@@ -274,9 +304,10 @@ class RegressorParamBase(RegressorBase):
         self.weights = np.ones(len(y))
         
         # Initialize coefficients to zeros
-        self.coefficients = np.zeros(self.degree + 1)
+        self.coefficients = np.zeros(X_poly.shape[1])
         
-        for _ in range(self.max_iter):
+        for self._iter in range(self.max_iter):
+            self._iter += 1
             prev_coef = self.coefficients.copy()
             
             try:
@@ -328,40 +359,31 @@ class RegressorParamBase(RegressorBase):
                 
     def _predict(self, X):
         """
-        Predict target values using the trained Robust Regressor model.
-
-        This method applies the learned polynomial regression model to new input data
-        and returns predicted values. It assumes that the `fit` method has already been
-        called to estimate the model coefficients.
-
+        Internal prediction method for base class.
+        
         Parameters
         ----------
-        X : array-like of shape (n_samples,) or (n_samples, 1)
-            Input feature values for which predictions are to be made. Can be a 1D array
-            or a single-column 2D array.
-
+        X : array-like of shape (n_samples, n_features)
+            Input features to predict for.
+            
         Returns
         -------
-        y_pred : ndarray of shape (n_samples,)
-            Predicted target values corresponding to the input samples.
-
-        Raises
-        ------
-        ValueError
-            If the model has not been fitted or if the input shape is incompatible.
-
-        Notes
-        -----
-        - This method expands the input features into the same polynomial basis as used during training.
-        - Ensure `fit` has been called before using `predict`, otherwise `self.coefficients` will be `None`.
-        - Input `X` will be converted to a NumPy array if it isn't already.
+        ndarray of shape (n_samples,)
+            Predicted values.
         """
         if self.coefficients is None:
             raise ValueError("Model has not been fitted yet.")
         
-        X = np.asarray(X)
-        if X.ndim == 1:
-            X = X.reshape(-1, 1)
-            
-        X_poly = self._generate_polynomial_features(X)
+        # Process input and generate features
+        X_processed = self._process_input(X)
+        X_poly = self._generate_polynomial_features(X_processed)
+        
+        # Validate dimensions
+        n_features_model = X_poly.shape[1]
+        if n_features_model != len(self.coefficients):
+            raise ValueError(
+                f"Feature dimension mismatch. Model expects {len(self.coefficients)} "
+                f"features but got {n_features_model} after polynomial expansion."
+            )
+        
         return X_poly @ self.coefficients
