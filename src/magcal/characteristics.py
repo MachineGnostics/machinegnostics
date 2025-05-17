@@ -365,4 +365,3 @@ class GnosticsCharacteristics:
         epsilon = 1e-8
         Ij = -p_j * np.log(p_j) - (1 - p_j) * np.log(1 - p_j)
         return Ij
-    

@@ -6,9 +6,8 @@ This work is licensed under the terms of the GNU General Public License version 
 
 Author: Nirmal Parmar
 Date: 2025-10-01
-Description: Machine Gnostics Robust Regression Machine Learning Model
-This module implements a machine learning model for robust regression using the ManGo library.
-This model is designed to handle various types of data and is particularly useful for applications in machine gnostics.
+Description:
+
 '''
 
 import numpy as np
