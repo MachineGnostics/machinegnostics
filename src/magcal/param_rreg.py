@@ -149,7 +149,6 @@ class RegressorParamBase(RegressorBase):
         else:
             # y is None, just return processed X and None
             return X_np
-
     
     def _process_output(self):
         '''
@@ -160,7 +159,6 @@ class RegressorParamBase(RegressorBase):
         self._params['w'] = self.weights
         self._params['c'] = self.coefficients
         self._params[f'{self.mg_loss}'] = self._history
-
 
     def _generate_polynomial_features(self, X):
         """
@@ -186,8 +184,6 @@ class RegressorParamBase(RegressorBase):
             X_poly[:, i] = np.prod(X[:, comb], axis=1)
         
         return X_poly
-
-
     
     def _compute_q(self, z, z0, s:int = 1):
         """
