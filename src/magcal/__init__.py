@@ -7,4 +7,8 @@ from src.magcal.mg_weights import GnosticsWeights
 from src.magcal.param_rreg import RegressorParamBase
 from src.magcal.gmed import gmedian
 from src.magcal.sample_characteristics import GnosticCharacteristicsSample
-from src.magcal.modulus import gmodulus
+from src.magcal.gmodulus import gmodulus
+from src.magcal.gacov import gautocovariance
+from src.magcal.gvar import gvariance
+from src.magcal.gcov import gcovariance
+from src.magcal.gcor import gcorrelation

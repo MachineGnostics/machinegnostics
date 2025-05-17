@@ -10,7 +10,7 @@ Description: Calculates Gnostics Variance of the sample data Mc, c={i,j}
 import numpy as np
 from src.magcal.sample_characteristics import GnosticCharacteristicsSample
 
-def gvar(data:np.ndarray, case:str = 'i'):
+def gvariance(data:np.ndarray, case:str = 'i'):
     """
     Calculate the Gnostic variance (H) of a data sample.
     
@@ -55,5 +55,5 @@ def gvar(data:np.ndarray, case:str = 'i'):
     >>> var_j = gvar(data, case='j')
     """
     gcs = GnosticCharacteristicsSample(data=data)
-    gvariance = gcs._gnostic_variance(case=case)
+    gvariance = gcs._gnostic_variance(case=case, data=data)
     return gvariance

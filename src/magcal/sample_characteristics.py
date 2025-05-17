@@ -264,18 +264,19 @@ class GnosticCharacteristicsSample:
             warnings.warn(f"Error in modulus calculation: {str(e)}. Returning 0.0")
             return 0.0
         
-    def _gnostic_variance(self, case:str = 'i'):
+    def _gnostic_variance(self, data:np.ndarray, case:str = 'i'):
         """
         To calculate gnostic variance of the given sample data.
 
         For internal use only
         
         """
+        data = self.data
         # Validate case parameter
         if case not in ['i', 'j']:
             raise ValueError("case must be either 'i' or 'j'")
         
-        z_min, z_max = np.min(self.data), np.max(self.data)
+        z_min, z_max = np.min(data), np.max(data)
         if z_min == z_max:
             return 0
         
@@ -283,7 +284,7 @@ class GnosticCharacteristicsSample:
         z0_result = self._gnostic_median(case=case)
         z0 = z0_result.root
         # Get the gnostic characteristics
-        gc = GnosticsCharacteristics(self.data/z0)
+        gc = GnosticsCharacteristics(data/z0)
         q, q1 = gc._get_q_q1()
         
         # Calculate relevance (F) and irrelevance (H) based on case
@@ -307,3 +308,167 @@ class GnosticCharacteristicsSample:
             ValueError("case must be either 'i' or 'j'")
             
         return H
+    
+    def _gnostic_autocovariance(self, K: int, case: str = 'i') -> float:
+        """
+        Calculate the gnostic autocovariance according to equation 14.19.
+        
+        Autocovariance measures the correlation between data points separated by K positions
+        within the same data sample.
+        
+        Parameters
+        ----------
+        K : int
+            Lag parameter, must be between 1 and N-1
+        case : str, default='i'
+            The type of covariance to calculate:
+            - 'i': Estimation case using Hi irrelevance
+            - 'j': Quantification case using Hj irrelevance
+        
+        Returns
+        -------
+        float
+            The calculated autocovariance value
+        
+        Notes
+        -----
+        Implementation of equation 14.19:
+        acov_c := 1/(N-K) * sum(h_c(2*Omega_i) * h_c(2*Omega_(i+k)))
+        where:
+        - N is the sample size
+        - K is the lag parameter
+        - h_c is the irrelevance function (Hi or Hj)
+        - Omega_i are the data angles
+        
+        References
+        ----------
+        Equation 14.19 in Mathematical Gnostics
+        """
+        # Validate inputs
+        N = len(self.data)
+        if not 1 <= K <= N-1:
+            raise ValueError(f"K must be between 1 and {N-1}")
+        
+        # Get G-median for angle calculations
+        z0_result = self._gnostic_median(case=case)
+        z0 = z0_result.root
+        
+        # Calculate characteristics
+        gc = GnosticsCharacteristics(self.data/z0)
+        q, q1 = gc._get_q_q1()
+        
+        # Get irrelevance values based on case
+        if case == 'i':
+            h_values = gc._hi(q, q1)
+        elif case == 'j':
+            h_values = gc._hj(q, q1)
+        else:
+            raise ValueError("case must be either 'i' or 'j'")
+        
+        # Calculate autocovariance using equation 14.19
+        acov = 0.0
+        for i in range(N-K):
+            acov += h_values[i] * h_values[i+K]
+        
+        return acov / (N-K)
+    
+    def _gnostic_crosscovariance(self, other_data: np.ndarray, case: str = 'i') -> float:
+        """
+        Calculate the gnostic crosscovariance according to equation 14.20.
+    
+        Crosscovariance measures the correlation between two different data samples
+        of the same size.
+    
+        Parameters
+        ----------
+        other_data : np.ndarray
+            Second data sample to compare with self.data
+        case : str, default='i'
+            The type of covariance to calculate:
+            - 'i': Estimation case using Hi irrelevance
+            - 'j': Quantification case using Hj irrelevance
+    
+        Returns
+        -------
+        float
+            The calculated crosscovariance value
+    
+        Notes
+        -----
+        Implementation of equation 14.20:
+        ccov_c := 1/N * sum(h_c(2*Omega_n,A) * h_c(2*Omega_n,B))
+        where:
+        - N is the sample size
+        - h_c is the irrelevance function (Hi or Hj)
+        - Omega_n,A and Omega_n,B are angles from samples A and B
+    
+        References
+        ----------
+        Equation 14.20 in Mathematical Gnostics
+        """
+        other_data = np.asarray(other_data)
+        if len(self.data) != len(other_data):
+            raise ValueError("Both data samples must have the same length")
+    
+        N = len(self.data)
+    
+        # Calculate G-medians for both samples
+        z0_A = self._gnostic_median(case=case).root
+        gcs_B = GnosticCharacteristicsSample(other_data)
+        z0_B = gcs_B._gnostic_median(case=case).root
+    
+        # Calculate characteristics for both samples
+        z_A = self.data / z0_A
+        z_B = other_data / z0_B
+        gc_A = GnosticsCharacteristics(z_A)
+        gc_B = GnosticsCharacteristics(z_B)
+        q_A, q1_A = gc_A._get_q_q1()
+        q_B, q1_B = gc_B._get_q_q1()
+    
+        # Get irrelevance values based on case (return full arrays, not means)
+        if case == 'i':
+            fi_A = gc_A._fi(q_A, q1_A)
+            scale_A = ScaleParam()
+            s_A = scale_A._gscale_loc(np.mean(fi_A))
+            s_A = np.where(s_A > self.tol, s_A, 1)
+            q_A, q1_A = gc_A._get_q_q1(S=s_A)
+            h_values_A = gc_A._hi(q_A, q1_A)
+    
+            fi_B = gc_B._fi(q_B, q1_B)
+            scale_B = ScaleParam()
+            s_B = scale_B._gscale_loc(np.mean(fi_B))
+            s_B = np.where(s_B > self.tol, s_B, 1)
+            q_B, q1_B = gc_B._get_q_q1(S=s_B)
+            h_values_B = gc_B._hi(q_B, q1_B)
+        elif case == 'j':
+            fj_A = gc_A._fj(q_A, q1_A)
+            scale_A = ScaleParam()
+            s_A = scale_A._gscale_loc(np.mean(fj_A))
+            s_A = np.where(s_A > self.tol, s_A, 1)
+            q_A, q1_A = gc_A._get_q_q1(S=s_A)
+            h_values_A = gc_A._hj(q_A, q1_A)
+    
+            fj_B = gc_B._fj(q_B, q1_B)
+            scale_B = ScaleParam()
+            s_B = scale_B._gscale_loc(np.mean(fj_B))
+            s_B = np.where(s_B > self.tol, s_B, 1)
+            q_B, q1_B = gc_B._get_q_q1(S=s_B)
+            h_values_B = gc_B._hj(q_B, q1_B)
+        else:
+            raise ValueError("case must be either 'i' or 'j'")
+    
+        # Calculate crosscovariance using equation 14.20
+        ccov = np.sum(h_values_A * h_values_B) / N
+    
+        return ccov
+    
+    def _gnostic_correlation(self, other_data:np.ndarray, case:str = 'i') -> float:
+        '''
+        Calculated gnostic correlation from gnostic variance and cross-covariance
+        '''
+        d_vars_1 = self._gnostic_variance(case=case, data=self.data)
+        d_vars_2 = self._gnostic_variance(case=case, data=other_data)
+        n_ccov_12 = self._gnostic_crosscovariance(other_data=other_data, case=case)
+
+        cor = n_ccov_12 / (d_vars_1 / d_vars_2)
+        return cor
