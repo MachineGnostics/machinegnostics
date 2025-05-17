@@ -145,8 +145,8 @@ class GnosticCharacteristicsSample:
             fi = gc._fi()
             scale = ScaleParam()
             s = scale._gscale_loc(np.mean(fi))
-            # s = np.where(s > self.tol, s, 1)
-            # q, q1 = gc._get_q_q1(S=s)
+            s = np.where(s > self.tol, s, 1)
+            q, q1 = gc._get_q_q1(S=s)
             F = np.mean(gc._fi(q, q1))
             H = np.mean(gc._hi(q, q1))
             c = -1  # For case 'i'
@@ -155,8 +155,8 @@ class GnosticCharacteristicsSample:
             fj = gc._fj()
             scale = ScaleParam()
             s = scale._gscale_loc(np.mean(fj))
-            # s = np.where(s > self.tol, s, 1)
-            # q, q1 = gc._get_q_q1(S=s)
+            s = np.where(s > self.tol, s, 1)
+            q, q1 = gc._get_q_q1(S=s)
             F = np.mean(gc._fj(q, q1))
             H = np.mean(gc._hj(q, q1))
             c = 1  # For case 'j'
@@ -263,3 +263,47 @@ class GnosticCharacteristicsSample:
         except ValueError as e:
             warnings.warn(f"Error in modulus calculation: {str(e)}. Returning 0.0")
             return 0.0
+        
+    def _gnostic_variance(self, case:str = 'i'):
+        """
+        To calculate gnostic variance of the given sample data.
+
+        For internal use only
+        
+        """
+        # Validate case parameter
+        if case not in ['i', 'j']:
+            raise ValueError("case must be either 'i' or 'j'")
+        
+        z_min, z_max = np.min(self.data), np.max(self.data)
+        if z_min == z_max:
+            return 0
+        
+        # gmedian
+        z0_result = self._gnostic_median(case=case)
+        z0 = z0_result.root
+        # Get the gnostic characteristics
+        gc = GnosticsCharacteristics(self.data/z0)
+        q, q1 = gc._get_q_q1()
+        
+        # Calculate relevance (F) and irrelevance (H) based on case
+        if case == 'i':
+            # Estimation case
+            fi = gc._fi()
+            scale = ScaleParam()
+            s = scale._gscale_loc(np.mean(fi))
+            s = np.where(s > self.tol, s, 1)
+            q, q1 = gc._get_q_q1(S=s)
+            H = np.mean(gc._hi(q, q1))
+        elif case == 'j':
+            # Quantification case
+            fj = gc._fj()
+            scale = ScaleParam()
+            s = scale._gscale_loc(np.mean(fj))
+            s = np.where(s > self.tol, s, 1)
+            q, q1 = gc._get_q_q1(S=s)
+            H = np.mean(gc._hj(q, q1))
+        else:
+            ValueError("case must be either 'i' or 'j'")
+            
+        return H

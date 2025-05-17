@@ -13,8 +13,6 @@ Description:
 import numpy as np
 from src.magcal import GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights 
 
-// ...existing code...
-
 class EvaluationMetrics:
     """
     Class to calculate evaluation metrics for robust regression models.
