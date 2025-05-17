@@ -8,11 +8,11 @@ Description: Implementation of Gnostic Median calculations
 '''
 
 import numpy as np
-from src.magcal.location_para import LocationParameter
+from src.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 def gmedian(data, case='i', z_range=None, tol=1e-8):
     """
-    Calculate the Gnostic Median of a data sample.
+    Calculate the Gnostic Characteristics (Modulus, Median, Correlation, Auto-correlation, etc.) of a data sample.
     
     The G-median is defined as the value Z_med for which the sum of irrelevances equals zero.
     Implements both quantifying and estimating cases based on equations 14.23 and 14.24.
@@ -70,6 +70,9 @@ def gmedian(data, case='i', z_range=None, tol=1e-8):
 
     # Initialize z_range with progressive widening strategy
     z_min, z_max = np.min(data), np.max(data)
+    if z_min == z_max:
+        return z_max
+    
     range_buffers = [0.1, 0.25, 0.5]  # Progressive buffer sizes
     
     for attempt, buffer in enumerate(range_buffers, 1):
@@ -85,7 +88,7 @@ def gmedian(data, case='i', z_range=None, tol=1e-8):
                 current_z_range = z_range
             
             # Initialize LocationParameter
-            lp = LocationParameter(data=data, tol=tol)
+            lp = GnosticCharacteristicsSample(data=data, tol=tol)
             
             # Attempt G-median calculation
             result = lp._gnostic_median(case=case, z_range=current_z_range)

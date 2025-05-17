@@ -6,4 +6,5 @@ from src.magcal.scale_param import ScaleParam
 from src.magcal.mg_weights import GnosticsWeights
 from src.magcal.param_rreg import RegressorParamBase
 from src.magcal.gmed import gmedian
-from src.magcal.location_para import LocationParameter
+from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from src.magcal.modulus import gmodulus
