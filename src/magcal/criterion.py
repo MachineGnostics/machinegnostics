@@ -15,7 +15,7 @@ class GnosticCriterion:
     """
 
     @staticmethod
-    def compute_error(case:str, f_j=None, f_i=None, h_j=None, h_i=None):
+    def _compute_error(case:str, f_j=None, f_i=None, h_j=None, h_i=None):
         """
         Compute the error function based on the specified case.
 
@@ -63,7 +63,7 @@ class GnosticCriterion:
             raise ValueError(f"Invalid case: {case}. Valid cases are 'Q1', 'E1', 'Q2', 'E2', 'Q3', 'E3'.")
 
     @staticmethod
-    def get_filtering_weight(case:str, f_j=None, f_i=None):
+    def _get_filtering_weight(case:str, f_j=None, f_i=None):
         """
         Calculate the filtering weight based on the specified case.
 

@@ -1,9 +1,16 @@
 from abc import ABCMeta, abstractmethod
 
 # regression base class
-class RegressionBase(metaclass=ABCMeta):
+class RegressorBase(metaclass=ABCMeta):
     """
     Abstract base class for regression models.
+
+    Abstract Methods:
+    ----------------
+
+    - fit(X, y)
+
+    - predict(X)
     """
 
     @abstractmethod
