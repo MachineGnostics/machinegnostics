@@ -13,6 +13,7 @@ def hc(y_true, y_pred, case:str='i'):
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
 
     i  - for estimating gnostic relevance
+    
     j  - for estimating gnostic irrelevance
 
     The HC metric is used to evaluate the performance of a model by comparing
