@@ -4,7 +4,9 @@ Welcome to ManGo, a Python library implementing Machine Gnostics principles for 
 
 ManGo is an open-source initiative to build a machine learning library that works on alternative mathematical foundations. While conventional ML libraries primarily use probabilistic and statistical methods, ManGo explores the power of deterministic algebraic structures, information theory, and geometric approaches to create more robust analysis tools.
 
-![Machine Gnostics](images/mg3.jpg)
+<p align="center">
+  <img src="images/mg3.jpg" alt="Machine Gnostics" width="300"/>
+</p>
 
 ## Index
 
