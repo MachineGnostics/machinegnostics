@@ -6,3 +6,5 @@ pyspark
 mlflow
 scikit-learn
 joblib
+mkdocs
+mkdocs-material
