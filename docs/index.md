@@ -12,7 +12,6 @@ ManGo is an open-source initiative to build a machine learning library that work
 * [Foundation]()
 * [Installation]()
 * [Usage]()
-* [License]()
 
 ## Overview
 
