@@ -11,10 +11,13 @@ This module implements a machine learning model for robust regression using the 
 This model is designed to handle various types of data and is particularly useful for applications in machine gnostics.
 '''
 
-from src.magcal import RegressorParamBase
+import os
+import joblib
+import mlflow
 import numpy as np
+from src.magcal import RegressorParamBase
 
-class RobustRegressor(RegressorParamBase):
+class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
     """
     ## RobustRegressor: A Polynomial Regression Model Based on Machine Gnostics
 
@@ -37,6 +40,8 @@ class RobustRegressor(RegressorParamBase):
     - Custom weighting and scaling strategy
     - Early stopping and convergence control
     - Modular design for extensibility
+    - mlflow integration for model tracking and deployment
+    - Save and load model using joblib
 
     Parameters
     ----------
@@ -120,6 +125,8 @@ class RobustRegressor(RegressorParamBase):
                          mg_loss, 
                          early_stopping, 
                          verbose)
+        self.coefficients = None
+        self.weights = None
         '''
         Robust Regressor - Machine Gnostics
         
@@ -186,7 +193,9 @@ class RobustRegressor(RegressorParamBase):
         - The gnostic weighting and loss computations depend on the choice of `mg_loss`
         (e.g., `'hi'` or `'hj'`), which influences the robustness behavior.
         '''
-        return super()._fit(X, y)
+        super()._fit(X, y)
+        self.coefficients = self.coefficients
+        self.weights = self.weights
     
                 
     def predict(self, X):
@@ -236,4 +245,18 @@ class RobustRegressor(RegressorParamBase):
         
         # Call base class prediction method
         return super()._predict(X)
+    
+    def save_model(self, path):
+        """
+        Save the model to the specified path using joblib.
+        """
+        os.makedirs(path, exist_ok=True)
+        joblib.dump(self, os.path.join(path, "model.pkl"))
+
+    @classmethod
+    def load_model(cls, path):
+        """
+        Load the model from the specified path using joblib.
+        """
+        return joblib.load(os.path.join(path, "model.pkl"))
         

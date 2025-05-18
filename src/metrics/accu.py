@@ -4,24 +4,41 @@ def accuracy_score(y_true, y_pred):
     """
     Computes the classification accuracy.
 
+    The classification accuracy is the ratio of correctly predicted class labels to the total number of predictions. 
+    It is a commonly used metric for evaluating the performance of classification models. The accuracy score ranges 
+    from 0 to 1, where:
+    - 1 indicates perfect accuracy (all predictions are correct).
+    - 0 indicates no correct predictions.
+
     Parameters
     ----------
     y_true : array-like
-        True class labels.
+        True class labels. Must be a 1D array-like object (e.g., list, tuple, or numpy array) containing the ground truth labels.
     y_pred : array-like
-        Predicted class labels.
+        Predicted class labels. Must be a 1D array-like object (e.g., list, tuple, or numpy array) containing the predicted labels.
 
     Returns
     -------
     float
-        Accuracy (0 to 1).
+        The classification accuracy as a float value between 0 and 1.
 
     Raises
     ------
     ValueError
-        If y_true and y_pred have different lengths or are empty.
+        - If `y_true` and `y_pred` have different lengths.
+        - If `y_true` or `y_pred` are empty.
     TypeError
-        If y_true or y_pred are not array-like.
+        - If `y_true` or `y_pred` are not array-like (e.g., list, tuple, or numpy array).
+
+    Notes
+    -----
+    - The function converts `y_true` and `y_pred` to numpy arrays internally for efficient computation.
+    - The comparison `y_true == y_pred` is performed element-wise, and the mean of the resulting boolean array is computed to determine accuracy.
+
+    - The function does not handle multi-class classification or multi-label classification scenarios. It assumes binary classification.
+
+    - Made for research purposes, and may not be suitable for production use without further validation and testing.
+
     """
     # Validate input types
     if not isinstance(y_true, (list, tuple, np.ndarray)):

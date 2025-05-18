@@ -3,3 +3,6 @@ scipy
 matplotlib
 pandas
 pyspark
+mlflow
+scikit-learn
+joblib
