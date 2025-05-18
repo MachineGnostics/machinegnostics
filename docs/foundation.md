@@ -2,7 +2,7 @@
 
 Mathematical Gnostics (MG) offers a fundamentally different approach to data analysis and uncertainty compared to traditional mathematical statistics. Understanding these differences is crucial for users of the ManGo library, as it shapes the philosophy, algorithms, and practical outcomes of gnostic-based data analysis.
 
-![Machine Gnostics](images/mg2.png)
+![Machine Gnostics](images/mg1.png)
 
 ---
 
