@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1747560742166
+current_stage: None
+description: null
+last_updated_timestamp: 1747560742166
+name: GnosticRobustRegressor
+run_id: 189967f5c5fd4fc180c54fe6064f0aab
+run_link: null
+source: file:///Users/nirmal/Documents/np_research/ManGo_code/ManGo/tests/models/mlruns/979150444010914846/189967f5c5fd4fc180c54fe6064f0aab/artifacts/robust_regressor
+status: READY
+status_message: null
+storage_location: file:///Users/nirmal/Documents/np_research/ManGo_code/ManGo/tests/models/mlruns/979150444010914846/189967f5c5fd4fc180c54fe6064f0aab/artifacts/robust_regressor
+user_id: null
+version: 3

@@ -1,0 +1,18 @@
+artifact_path: robust_regressor
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.1
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.11.12
+    streamable: false
+mlflow_version: 2.22.0
+model_size_bytes: 3978
+model_uuid: 6663a8be769f4154b95b6b8aaa6fa873
+prompts: null
+run_id: 4b921a8750ee49548187cf290602ed2d
+utc_time_created: '2025-05-18 09:27:51.987749'

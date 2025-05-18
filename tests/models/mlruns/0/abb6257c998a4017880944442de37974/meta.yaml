@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/nirmal/Documents/np_research/ManGo_code/ManGo/tests/models/mlruns/0/abb6257c998a4017880944442de37974/artifacts
+end_time: 1747560629831
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: abb6257c998a4017880944442de37974
+run_name: unequaled-fly-39
+run_uuid: abb6257c998a4017880944442de37974
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1747560627903
+status: 3
+tags: []
+user_id: nirmal
