@@ -81,7 +81,12 @@ class CriteriaEvaluator:
 
     def _gmmfe(self):
         epsilon = 1e-10  # Small value to prevent division by zero
-        log_ratios = np.abs(np.log(self.y / (self.y_fit + epsilon)))
+        # avoid log failure
+        zz = self.y / (self.y_fit + epsilon)
+        zz = np.clip(zz, epsilon, None)  # Clip values to avoid invalid log
+        log_ratios = np.abs(np.log(zz))
+        # avoid exp failure
+        log_ratios = np.clip(log_ratios, None, 100)  # Clip values to avoid invalid exp
         self.gmmfe = np.exp(np.mean(log_ratios))
         return self.gmmfe
 
@@ -89,8 +94,11 @@ class CriteriaEvaluator:
         gcs_y = GnosticCharacteristicsSample(data=self.y)
         gcs_y_fit = GnosticCharacteristicsSample(data=self.y_fit)
 
-        y_median = gcs_y._gnostic_median(case='i').root
-        y_fit_median = gcs_y_fit._gnostic_median(case='i').root
+        # y_median = gcs_y._gnostic_median(case='i').root
+        # y_fit_median = gcs_y_fit._gnostic_median(case='i').root
+
+        y_median = np.median(self.y) # Using numpy median for simplicity NOTE
+        y_fit_median = np.median(self.y_fit)
 
         zy = self.y / y_median
         zf = self.y_fit / y_fit_median
