@@ -5,3 +5,4 @@ from src.metrics.mse import mean_squared_error
 from src.metrics.r2 import r2_score
 from src.metrics.robr2 import robr2
 from src.metrics.gmmfe import gmmfe
+from src.metrics.divi import divI
