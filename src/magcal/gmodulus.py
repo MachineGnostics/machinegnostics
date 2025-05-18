@@ -37,12 +37,6 @@ def gmodulus(data:np.ndarray, case:str='i'):
         - H_c is the irrelevance function
         - c is the case parameter ('i' or 'j')  
                     
-        Examples
-        --------
-        >>> data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        >>> gcs = GnosticCharacteristicsSample(data)
-        >>> modulus = gcs.get_sample_modulus(case='i')
-        >>> print(f"Sample modulus: {modulus:.4f}")
         """
         gcs = GnosticCharacteristicsSample(data=data)
         try:

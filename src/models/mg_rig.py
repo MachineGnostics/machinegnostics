@@ -99,7 +99,7 @@ class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
 
     Example
     -------
-    >>> from mango import RobustRegressor
+    >>> from mango.models import RobustRegressor
     >>> model = RobustRegressor(degree=3, mg_loss='hi', verbose=True)
     >>> model.fit(X_train, y_train)
     >>> y_pred = model.predict(X_test)

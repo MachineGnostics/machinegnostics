@@ -7,3 +7,4 @@ from src.metrics.robr2 import robr2
 from src.metrics.gmmfe import gmmfe
 from src.metrics.divi import divI
 from src.metrics.evalmet import evalMet
+from src.metrics.hc import hc

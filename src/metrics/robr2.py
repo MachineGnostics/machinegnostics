@@ -63,7 +63,7 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     Example
     -------
     >>> import numpy as np
-    >>> from src.metrics.robr2 import robr2
+    >>> from mango.metrics import robr2
     >>> y = np.array([1.0, 2.0, 3.0, 4.0])
     >>> y_fit = np.array([1.1, 1.9, 3.2, 3.8])
     >>> w = np.array([1.0, 1.0, 1.0, 1.0])
