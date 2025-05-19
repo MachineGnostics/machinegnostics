@@ -1,19 +1,15 @@
 # ManGo: Machine Gnostics
 
-Welcome to ManGo, a Python library implementing Machine Gnostics principles for robust data analysis, modeling, and inference. Unlike traditional statistical approaches that rely on probabilistic assumptions, ManGo leverages deterministic algebraic and geometric structures to provide exceptional resilience to outliers, noise, and corrupted data.
+Welcome to **ManGo**, an innovative Python library designed to implement the principles of **Machine Gnostics** for robust data analysis, modeling, and inference. Unlike traditional statistical approaches that depend heavily on probabilistic assumptions, ManGo harnesses deterministic algebraic and geometric structures. This unique foundation enables the library to deliver exceptional resilience against outliers, noise, and corrupted data, making it a powerful tool for challenging real-world scenarios.
 
-ManGo is an open-source initiative to build a machine learning library that works on alternative mathematical foundations. While conventional ML libraries primarily use probabilistic and statistical methods, ManGo explores the power of deterministic algebraic structures, information theory, and geometric approaches to create more robust analysis tools.
+ManGo is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, ManGo explores alternative paradigms—drawing from deterministic algebra, information theory, and geometric methods. This approach opens new avenues for building robust, interpretable, and reliable analysis tools that can withstand the limitations of traditional models.
+
+!!! note
+    As a pioneering project, ManGo invites users to adopt a fresh perspective and develop a new understanding of machine learning. The library is currently in its infancy, and as such, some features may require refinement and fixes. We are actively working to expand its capabilities, with new models and methods planned for the near future. Community support and collaboration are essential to realizing ManGo’s full potential. Together, let’s build a new AI grounded in a rational and resilient paradigm.
 
 <p align="center">
   <img src="images/mg3.jpg" alt="Machine Gnostics" width="300"/>
 </p>
-
-## Index
-
-* [Information]()
-* [Foundation]()
-* [Installation]()
-* [Usage]()
 
 ## Overview
 
