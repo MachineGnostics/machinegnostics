@@ -18,7 +18,7 @@ Machine Gnostics is an open-source initiative that seeks to redefine the mathema
 
 ```python
 # Create a new virtual environment named 'machine-gnostics-env'
-python3 -m venv machinegnostics-env
+python3 -m venv machine-gnostics-env
 
 # Activate the environment (macOS/Linux)
 source machine-gnostics-env/bin/activate
