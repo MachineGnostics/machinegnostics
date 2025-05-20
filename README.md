@@ -10,6 +10,25 @@ Machine Gnostics is an open-source initiative that seeks to redefine the mathema
 
 *More information at [Machine Gnostics](https://machinegnostics.info/)*
 
+*Machine Gnostics [foundation](https://machinegnostics.info/foundation/) and [architecture](https://machinegnostics.info/architecture/)*
+
+*Detailed installation [information](https://machinegnostics.info/installation/)*
+
+> Quick installation
+
+```python
+# Create a new virtual environment named 'machine-gnostics-env'
+python3 -m venv machinegnostics-env
+
+# Activate the environment (macOS/Linux)
+source machine-gnostics-env/bin/activate
+
+# (On Windows, use: machine-gnostics-env\Scripts\activate)
+
+# install machine gnostics
+pip install machinegnostics
+```
+
 ## Overview
 
 Machine Gnostics offers a comprehensive suite of tools for robust analysis:
