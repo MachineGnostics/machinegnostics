@@ -58,6 +58,7 @@ def gcovariance(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i'):
     Examples
     --------
     >>> import numpy as np
+    >>> from machinegnostics.magcal.gcov import gcovariance
     >>> x = np.array([1.0, 2.0, 3.0, 4.0])
     >>> y = np.array([1.1, 1.9, 3.2, 3.8])
     >>> # Robust estimation crosscovariance

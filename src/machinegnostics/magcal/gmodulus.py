@@ -36,6 +36,13 @@ def gmodulus(data:np.ndarray, case:str='i'):
         - F_c is the relevance function
         - H_c is the irrelevance function
         - c is the case parameter ('i' or 'j')  
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from machinegnostics.magcal.gmodulus import gmodulus
+        >>> data = np.random.rand(100)
+        >>> gmodulus(data, case='i')
                     
         """
         gcs = GnosticCharacteristicsSample(data=data)

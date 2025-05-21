@@ -1,6 +1,6 @@
 import numpy as np
 
-def train_test_split(X, y=None, test_size=0.25, shuffle=True, random_seed=None):
+def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_seed=None):
     """
     Splits arrays or matrices into random train and test subsets.
 

@@ -61,7 +61,7 @@ def gcorrelation(data_1:np.ndarray, data_2:np.ndarray, case:str = 'i'):
     >>> y = np.array([0.9, 2.1, 2.9, 4.2, 4.8])
     >>> gcor = gcorrelation(x, y, case='i')
     >>> print(f"Estimation correlation: {gcor:.3f}")
-    
+    >>> from machinegnostics.magcal.gcor import gcorrelation
     >>> # Inherent variability analysis
     >>> measurements_A = np.array([10.1, 10.3, 9.8, 10.2, 10.0])
     >>> measurements_B = np.array([5.1, 5.2, 4.9, 5.3, 5.0])

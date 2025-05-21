@@ -43,7 +43,7 @@ class CrossValidator:
     >>> print("Mean Score:", np.mean(scores))
     """
 
-    def __init__(self, model, X, y, k=5, shuffle=True, random_seed=None):
+    def __init__(self, model , X:np.ndarray, y:np.ndarray, k=5, shuffle=True, random_seed=None):
         self.model = model
         self.X = np.array(X)
         self.y = np.array(y)

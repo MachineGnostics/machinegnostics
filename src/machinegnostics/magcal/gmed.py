@@ -48,6 +48,13 @@ def gmedian(data, case='i', z_range=None, tol=1e-8):
     -------
     float
         The calculated G-median value
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magcal.gmed import gmedian
+    >>> data = np.random.rand(100)
+    >>> gmedian(data, case='i')
         
     References
     ----------

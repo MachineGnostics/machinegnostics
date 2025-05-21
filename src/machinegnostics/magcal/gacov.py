@@ -52,6 +52,7 @@ def gautocovariance(data: np.ndarray, case: str = 'i', K: int = 1):
     Examples
     --------
     >>> import numpy as np
+    >>> from machinegnostics.magcal.gacov import gautocovariance
     >>> data = np.random.rand(100)
     >>> gautocovariance(data, case='i', K=1)
     0.0024
