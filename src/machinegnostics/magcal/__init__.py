@@ -12,3 +12,5 @@ from machinegnostics.magcal.gacov import gautocovariance
 from machinegnostics.magcal.gvar import gvariance
 from machinegnostics.magcal.gcov import gcovariance
 from machinegnostics.magcal.gcor import gcorrelation
+from machinegnostics.magcal.mg_lrig_mf import _LinearRegressor
+from machinegnostics.magcal.mg_rig_mf import _RobustRegressor

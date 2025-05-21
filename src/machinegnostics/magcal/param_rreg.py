@@ -1,13 +1,13 @@
 '''
-ManGo - Machine Gnostics Library
-Copyright (C) 2025  ManGo Team
+Machine Gnostics - Machine Gnostics Library
+Copyright (C) 2025  Machine Gnostics Team
 
 This work is licensed under the terms of the GNU General Public License version 3.0.
 
 Author: Nirmal Parmar
 Date: 2025-10-01
 Description: Machine Gnostics Robust Regression Machine Learning Model
-This module implements a machine learning model for robust regression using the ManGo library.
+This module implements a machine learning model for robust regression using the Machine Gnostics library.
 This model is designed to handle various types of data and is particularly useful for applications in machine gnostics.
 '''
 
@@ -42,7 +42,7 @@ class RegressorParamBase(RegressorBase):
     _process_output()
     '''
     def __init__(self,
-                 degree: int = 2,
+                 degree: int = 1,
                  max_iter: int = 100,
                  tol: float = 1e-8,
                  mg_loss: str = 'hi',

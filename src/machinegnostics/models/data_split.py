@@ -38,6 +38,7 @@ def train_test_split(X, y=None, test_size=0.25, shuffle=True, random_seed=None):
     Example
     -------
     >>> import numpy as np
+    >>> from machinegnostics.models import train_test_split
     >>> X = np.arange(20).reshape(10, 2)
     >>> y = np.arange(10)
     >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, shuffle=True, random_seed=42)

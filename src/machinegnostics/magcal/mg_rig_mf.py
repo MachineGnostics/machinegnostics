@@ -1,5 +1,5 @@
 '''
-Machine Gnostics - Machine Gnostics Library
+ManGo - Machine Gnostics Library
 Copyright (C) 2025  Machine Gnostics Team
 
 This work is licensed under the terms of the GNU General Public License version 3.0.
@@ -7,7 +7,7 @@ This work is licensed under the terms of the GNU General Public License version 
 Author: Nirmal Parmar
 Date: 2025-10-01
 Description: Machine Gnostics Robust Regression Machine Learning Model
-This module implements a machine learning model for robust regression using the Machine Gnostics library.
+This module implements a machine learning model for robust regression using the ManGo library.
 This model is designed to handle various types of data and is particularly useful for applications in machine gnostics.
 '''
 
@@ -15,22 +15,11 @@ import os
 import joblib
 import mlflow
 import numpy as np
-from machinegnostics.magcal import _RobustRegressor
+from machinegnostics.magcal import RegressorParamBase
 
-class RobustRegressor(_RobustRegressor):
+class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
     """
     ## RobustRegressor: A Polynomial Regression Model Based on Machine Gnostics
-
-    This class implements a robust regression model grounded in the principles of 
-    Mathematical Gnostics — a non-statistical, deterministic framework for learning 
-    from data. Unlike traditional statistical models that rely on probabilistic 
-    assumptions, this approach uses algebraic and geometric structures to model 
-    data while maintaining resilience to outliers, noise, and corrupted samples.
-
-    The model fits a polynomial regression function to the input data, adjusting
-    the influence of each data point through a gnostically-derived weighting scheme.
-    It iteratively optimizes the regression coefficients using a custom criterion
-    that minimizes a gnostic loss (e.g., `hi` or `hj`).
 
     Key Features
     ------------
@@ -96,29 +85,14 @@ class RobustRegressor(_RobustRegressor):
     predict(X)
         Predict output values for new input samples using the trained model.
 
-
-    Example
-    -------
-    >>> from machinegnostics.models import RobustRegressor
-    >>> model = RobustRegressor(degree=3, mg_loss='hi', verbose=True)
-    >>> model.fit(X_train, y_train)
-    >>> y_pred = model.predict(X_test)
-    >>> print(model.coefficients)
-    >>> print(model.weights)
-
-    Resource:
-    --------
-    More information: https://machinegnostics.info/ 
-
-    Github: https://github.com/MachineGnostics/Machine Gnostics
     """
     def __init__(self, 
-                 degree:int = 2, 
-                 max_iter:int = 100, 
-                 tol:int = 1e-8, 
-                 mg_loss:str = 'hi', 
-                 early_stopping:bool = True, 
-                 verbose:bool = False):
+                 degree = 2, 
+                 max_iter = 100, 
+                 tol = 1e-8, 
+                 mg_loss = 'hi', 
+                 early_stopping = True, 
+                 verbose = False):
         super().__init__(degree, 
                          max_iter, 
                          tol, 
@@ -160,14 +134,6 @@ class RobustRegressor(_RobustRegressor):
         This method trains the regression model on the given dataset `(X, y)` by iteratively applying
         weighted least squares. The weights are updated at each iteration using a mathematical
         gnostics-based approach that makes the model robust to noise and outliers.
-
-        The process involves:
-        - Expanding the input features into a polynomial basis.
-        - Solving the weighted least squares problem to estimate model coefficients.
-        - Computing residuals and transforming them into a gnostic space (via z-values).
-        - Computing gnostic weights to adjust the influence of each data point.
-        - Updating and normalizing the weights.
-        - Evaluating convergence based on changes in loss and coefficient values.
 
         Parameters
         ----------

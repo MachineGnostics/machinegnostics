@@ -28,6 +28,19 @@ class CrossValidator:
     ----------
     folds : list of tuple
         List of (train_indices, test_indices) for each fold.
+
+    Example
+    -------
+    >>> from machinegnostics.models import CrossValidator
+    >>> from machinegnostics.models import LinearRegressor
+    >>> from sklearn.metrics import mean_squared_error
+    >>> X = np.random.rand(100, 10)
+    >>> y = np.random.rand(100)
+    >>> model = LinearRegression()
+    >>> cv = CrossValidator(model, X, y, k=5, shuffle=True, random_seed=42)
+    >>> scores = cv.evaluate(mean_squared_error)
+    >>> print("Cross-Validation Scores:", scores)
+    >>> print("Mean Score:", np.mean(scores))
     """
 
     def __init__(self, model, X, y, k=5, shuffle=True, random_seed=None):
