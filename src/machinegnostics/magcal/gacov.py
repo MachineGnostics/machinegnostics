@@ -7,7 +7,7 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 def gautocovariance(data: np.ndarray, case: str = 'i', K: int = 1):
     """

@@ -9,8 +9,8 @@ Description: Implementation of Gnostic Median, and intervals calculations
 
 import numpy as np
 from scipy.optimize import root_scalar
-from src.magcal.characteristics import GnosticsCharacteristics
-from src.magcal.scale_param import ScaleParam
+from machinegnostics.magcal.characteristics import GnosticsCharacteristics
+from machinegnostics.magcal.scale_param import ScaleParam
 import warnings
 
 class GnosticCharacteristicsSample:

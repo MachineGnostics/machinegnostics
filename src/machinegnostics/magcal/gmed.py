@@ -8,7 +8,7 @@ Description: Implementation of Gnostic Median calculations
 '''
 
 import numpy as np
-from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 def gmedian(data, case='i', z_range=None, tol=1e-8):
     """

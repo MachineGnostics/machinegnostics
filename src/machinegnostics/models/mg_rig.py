@@ -15,7 +15,7 @@ import os
 import joblib
 import mlflow
 import numpy as np
-from src.magcal import RegressorParamBase
+from machinegnostics.magcal import RegressorParamBase
 
 class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
     """
@@ -149,7 +149,7 @@ class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         '''
         pass
 
-    def fit(self, X, y):
+    def fit(self, X:np.ndarray, y:np.ndarray) -> None:
         '''
         Fit the Robust Regressor model using gnostic weights and polynomial features.
 
@@ -198,7 +198,7 @@ class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         self.weights = self.weights
     
                 
-    def predict(self, X):
+    def predict(self, model_input:np.ndarray)->np.ndarray:
         """
         Predict target values using the trained Robust Regressor model.
 
@@ -244,6 +244,15 @@ class RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         #     )
         
         # Call base class prediction method
+        # Handle pandas DataFrame
+        if hasattr(model_input, "values"):
+            X = model_input.values
+        # Handle pyspark DataFrame (convert to pandas, then to numpy)
+        elif "pyspark.sql.dataframe.DataFrame" in str(type(model_input)):
+            X = model_input.toPandas().values
+        # Assume it's already a numpy array
+        else:
+            X = np.asarray(model_input)
         return super()._predict(X)
     
     def save_model(self, path):

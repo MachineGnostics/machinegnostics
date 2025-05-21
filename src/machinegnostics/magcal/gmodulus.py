@@ -7,7 +7,7 @@ This work is licensed under the terms of the GNU General Public License version 
 Description: Calculates Modulus of the sample data Mc, c={i,j}
 '''
 import numpy as np
-from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 def gmodulus(data:np.ndarray, case:str='i'):
         """

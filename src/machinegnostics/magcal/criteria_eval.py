@@ -7,8 +7,8 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from src.magcal.characteristics import GnosticsCharacteristics
-from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal.characteristics import GnosticsCharacteristics
+from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 class CriteriaEvaluator:
     """

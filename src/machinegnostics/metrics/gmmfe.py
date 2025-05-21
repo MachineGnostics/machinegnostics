@@ -7,7 +7,7 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from src.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
 
 def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
     """

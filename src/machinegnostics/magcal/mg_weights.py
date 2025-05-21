@@ -7,7 +7,7 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from src.magcal import GnosticsCharacteristics, ScaleParam
+from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 
 class GnosticsWeights():
     '''

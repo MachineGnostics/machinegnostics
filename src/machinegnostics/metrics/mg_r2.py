@@ -11,7 +11,7 @@ Description:
 '''
 
 import numpy as np
-from src.magcal import GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights 
+from machinegnostics.magcal import GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights 
 
 class EvaluationMetrics:
     """

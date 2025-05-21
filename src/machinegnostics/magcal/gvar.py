@@ -8,7 +8,7 @@ Description: Calculates Gnostics Variance of the sample data Mc, c={i,j}
 '''
 
 import numpy as np
-from src.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
 def gvariance(data:np.ndarray, case:str = 'i'):
     """

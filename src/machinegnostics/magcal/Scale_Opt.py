@@ -8,7 +8,7 @@ This work is licensed under the terms of the GNU General Public License version 
 import numpy as np
 from scipy.optimize import minimize
 from typing import Union
-from src.magcal.characteristics import GnosticsCharacteristics
+from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 
 class ScaleOptimization(GnosticsCharacteristics):
     """

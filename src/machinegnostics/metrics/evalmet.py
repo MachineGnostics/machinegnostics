@@ -7,14 +7,14 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from src.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
 
-def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
+def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     """
-    Compute the Divergence Information (DivI) for evaluating the fit between observed data and model predictions.
+    Compute the Evaluation Metric (EvalMet) for evaluating the fit between observed data and model predictions.
 
-    The DivI is a statistical metric that measures the divergence between the distributions of the observed and fitted values
-    using gnostic characteristics. It is particularly useful for assessing the quality of model fits in various applications.
+    The EvalMet is a composite metric that combines Robust R-squared (RobR2), Geometric Mean of Model Fit Error (GMMFE),
+    and Divergence Information (DivI) to provide a comprehensive assessment of model performance.
 
     Parameters
     ----------
@@ -22,11 +22,13 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
         The observed data (ground truth). Must be a 1D array of numerical values.
     y_fit : np.ndarray
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
+    w : np.ndarray, optional
+        Weights for the data points. If not provided, an array of ones is used.
 
     Returns
     -------
     float
-        The computed Divergence Information (DivI) value. 
+        The computed Evaluation Metric (EvalMet) value. 
 
     Raises
     ------
@@ -39,24 +41,28 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
 
     Notes
     -----
-    - The DivI is calculated using gnostic characteristics, which provide a robust way to measure divergence between distributions.
-    
+    - The EvalMet is calculated as:
+      EvalMet = RobR2 / (GMMFE . DivI)
+      where:
+        - RobR2 = Robust R-squared value
+        - GMMFE = Geometric Mean of Model Fit Error
+        - DivI = Divergence Information
+
     References
     ----------
     - Kovanic P., Humber M.B (2015) The Economics of Information - Mathematical Gnostics for Data Analysis, Chapter 19.3.4
 
     Example
     -------
+    >>> from mango.metrics.evalmet import evalMet
     >>> import numpy as np
-    >>> from src.metrics.divi import divI
     >>> y = np.array([
     ...     1.0, 2.0, 3.0, 4.0
     ... ])
     >>> y_fit = np.array([
     ...     1.1, 1.9, 3.2, 3.8
     ... ])
-    >>> divI(y, y_fit)
-    0.06666666666666667
+    >>> evalMet(y, y_fit, weights)
     """
     # Ensure y and y_fit are 1D arrays
     if y.ndim != 1 or y_fit.ndim != 1:
@@ -66,8 +72,16 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
     if y.shape != y_fit.shape:
         raise ValueError("y and y_fit must have the same shape.")
     
-    # Compute the Divergence Information (DivI)
-    evaluator = CriteriaEvaluator(y, y_fit)
-    divI_value = evaluator._divI()
+    # If weights are not provided, use an array of ones
+    if w is None:
+        w = np.ones_like(y)
     
-    return divI_value
+    # Ensure weights have the same shape as y
+    if w.shape != y.shape:
+        raise ValueError("Weights must have the same shape as y.")
+    
+    # Compute the Evaluation Metric (EvalMet)
+    evaluator = CriteriaEvaluator(y, y_fit, w)
+    evalmet = evaluator._evalmet()
+    
+    return evalmet

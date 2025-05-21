@@ -1,3 +1,33 @@
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "machinegnostics"
+version = "0.0.0"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "joblib"
+]
+authors = [
+  { name="Nirmal Parmar", email="machinegnostics@gmail.com" },
+]
+
+description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from deterministic algebra, information theory, and geometric methods. This approach opens new avenues for building robust, interpretable, and reliable analysis tools that can withstand the limitations of traditional models."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Development Status :: 1 - Beta"
+]
+license = "GPL-3.0-only"
+license-files = ["LICEN[CS]E*"]
+keywords = ['machine learning', 'AI', 'data science', 'data analysis', 'deep learning', 'neural networks', 'ML']
+
+[project.urls]
+Homepage = "https://github.com/MachineGnostics"
+Issues = "https://github.com/MachineGnostics/machinegnostics"

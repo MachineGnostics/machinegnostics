@@ -13,7 +13,7 @@ This model is designed to handle various types of data and is particularly usefu
 
 import numpy as np
 from itertools import combinations_with_replacement
-from src.magcal import RegressorBase, GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights
+from machinegnostics.magcal import RegressorBase, GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights
 
 class RegressorParamBase(RegressorBase):
     '''

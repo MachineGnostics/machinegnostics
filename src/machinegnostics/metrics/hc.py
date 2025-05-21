@@ -6,7 +6,7 @@ This work is licensed under the terms of the GNU General Public License version 
 '''
 
 import numpy as np
-from src.magcal.characteristics import GnosticsCharacteristics
+from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 
 def hc(y_true, y_pred, case:str='i'):
     """

@@ -11,7 +11,7 @@ ideas:
 - VarS
 '''
 import numpy as np
-from src.magcal import GnosticsCharacteristics
+from machinegnostics.magcal import GnosticsCharacteristics
 
 class ScaleParam():
     """
