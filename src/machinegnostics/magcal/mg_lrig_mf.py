@@ -116,7 +116,7 @@ class _LinearRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         self.weights = self.weights
     
 
-    def predict(self, model_input):
+    def predict(self, model_input)-> np.ndarray:
         """
         Predict target values using the trained Linear Regressor model.
 

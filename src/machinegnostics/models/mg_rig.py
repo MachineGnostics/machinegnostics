@@ -110,7 +110,7 @@ class RobustRegressor(_RobustRegressor):
     --------
     More information: https://machinegnostics.info/ 
 
-    Github: https://github.com/MachineGnostics/Machine Gnostics
+    Github: https://github.com/MachineGnostics/machinegnostics
     """
     def __init__(self, 
                  degree:int = 2, 
