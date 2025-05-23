@@ -18,6 +18,10 @@ def gcorrelation(data_1:np.ndarray, data_2:np.ndarray, case:str = 'i'):
     correlation. It is less sensitive to outliers and makes no assumptions about
     the underlying distribution of the data.
 
+    If self.data is 2D (shape: [n_samples, n_features]), 
+    computes correlation for each feature column with other_data.
+    If self.data is 1D, computes correlation directly.
+
     Parameters
     ----------
     data_1 : np.ndarray

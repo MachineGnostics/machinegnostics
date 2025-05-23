@@ -56,9 +56,19 @@ class GnosticCharacteristicsSample:
         ----------
         .. [1] Kovanic P., Humber M.B (2015) The Economics of Information - Mathematical
             Gnostics for Data Analysis. http://www.math-gnostics.eu/books/
-        """        
+        """
+        # If all data is identical, return the common value immediately
+        if np.all(self.data == self.data[0]):
+            class Result:
+                def __init__(self, root):
+                    self.root = root
+                    self.converged = True
+            return Result(self.data[0])
+            
         if z_range is None:
             z_range = (np.min(self.data), np.max(self.data))
+
+        z_min, z_max = np.min(self.data), np.max(self.data)
         
         def _hc_sum(z_med):
             # define GC
@@ -83,15 +93,35 @@ class GnosticCharacteristicsSample:
                 return np.sum(hj)
         
         # Find root of irrelevance sum to get G-median
-        result = root_scalar(_hc_sum, 
-                            bracket=z_range,
-                            method='brentq',
-                            rtol=self.tol)
+        # result = root_scalar(_hc_sum, 
+        #                     bracket=z_range,
+        #                     method='brentq',
+        #                     rtol=self.tol)
         
-        if not result.converged:
-            raise RuntimeError("G-median calculation did not converge")
-            
-        return result
+        # Try up to 50% expansion (1% increments) if not converged
+        expansion_steps = 50
+        expansion_factor = 0.01
+        for step in range(expansion_steps + 1):
+            try:
+                result = root_scalar(_hc_sum, bracket=(z_min, z_max), method='brentq', rtol=self.tol)
+                if result.converged:
+                    return result
+            except Exception:
+                pass  # Try expanding the bracket
+
+            # Expand z_min and z_max by 1% each side
+            range_width = z_max - z_min
+            z_min_exp = z_min - expansion_factor * (step + 1) * range_width
+            z_max_exp = z_max + expansion_factor * (step + 1) * range_width
+            # Avoid negative or zero z_med if data is strictly positive
+            if np.all(self.data > 0):
+                z_min = max(z_min_exp, self.tol)
+                z_max = max(z_max_exp, z_min + self.tol)
+            else:
+                z_min = z_min_exp
+                z_max = z_max_exp
+
+        raise RuntimeError("G-median calculation did not converge after expanding the bracket by up to 50%.")
     
     def _calculate_modulus(self, case='i'):
         """
@@ -466,9 +496,37 @@ class GnosticCharacteristicsSample:
         '''
         Calculated gnostic correlation from gnostic variance and cross-covariance
         '''
-        d_vars_1 = self._gnostic_variance(case=case, data=self.data)
-        d_vars_2 = self._gnostic_variance(case=case, data=other_data)
-        n_ccov_12 = self._gnostic_crosscovariance(other_data=other_data, case=case)
+        data = np.asarray(self.data)
+        other_data = np.asarray(other_data)
 
-        cor = n_ccov_12 / (d_vars_1 / d_vars_2)
-        return cor
+        # If other_data is 2D with one column, reduce to 1D
+        if other_data.ndim == 2 and other_data.shape[1] == 1:
+            other_data = other_data.ravel()
+
+        # If data is a pandas DataFrame, convert to numpy array
+        if hasattr(data, "values"):
+            data = data.values
+
+        # If other_data is a pandas DataFrame/Series, convert to numpy array
+        if hasattr(other_data, "values"):
+            other_data = other_data.values
+
+        # If data is 1D, just compute as before
+        if data.ndim == 1:
+            d_vars_1 = self._gnostic_variance(case=case, data=data)
+            d_vars_2 = self._gnostic_variance(case=case, data=other_data)
+            n_ccov_12 = self._gnostic_crosscovariance(other_data=other_data, case=case)
+            cor = n_ccov_12 / np.sqrt(d_vars_1 * d_vars_2)
+            return cor
+
+        # If data is 2D, compute for each column
+        corrs = []
+        for i in range(data.shape[1]):
+            xi = data[:, i]
+            gcs_xi = self.__class__(xi, tol=self.tol)
+            d_vars_1 = gcs_xi._gnostic_variance(case=case, data=xi)
+            d_vars_2 = gcs_xi._gnostic_variance(case=case, data=other_data)
+            n_ccov_12 = gcs_xi._gnostic_crosscovariance(other_data=other_data, case=case)
+            cor = n_ccov_12 / np.sqrt(d_vars_1 * d_vars_2)
+            corrs.append(cor)
+        return np.array(corrs)
