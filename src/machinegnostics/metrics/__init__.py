@@ -8,3 +8,4 @@ from machinegnostics.metrics.gmmfe import gmmfe
 from machinegnostics.metrics.divi import divI
 from machinegnostics.metrics.evalmet import evalMet
 from machinegnostics.metrics.hc import hc
+from machinegnostics.metrics.gcorrelation import gcorrelation

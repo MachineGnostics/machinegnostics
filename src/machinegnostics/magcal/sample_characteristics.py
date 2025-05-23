@@ -64,7 +64,7 @@ class GnosticCharacteristicsSample:
                     self.root = root
                     self.converged = True
             return Result(self.data[0])
-            
+        
         if z_range is None:
             z_range = (np.min(self.data), np.max(self.data))
 
@@ -99,7 +99,7 @@ class GnosticCharacteristicsSample:
         #                     rtol=self.tol)
         
         # Try up to 50% expansion (1% increments) if not converged
-        expansion_steps = 50
+        expansion_steps = 5
         expansion_factor = 0.01
         for step in range(expansion_steps + 1):
             try:

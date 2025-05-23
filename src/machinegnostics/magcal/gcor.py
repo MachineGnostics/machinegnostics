@@ -7,83 +7,59 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
-from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
+from machinegnostics.magcal import DataConversion, GnosticsWeights
 
-def gcorrelation(data_1:np.ndarray, data_2:np.ndarray, case:str = 'i'):
+def __gcorrelation(data_1:np.ndarray, data_2:np.ndarray) -> float:
     """
-    Calculate the Gnostic correlation between two data samples.
-    
-    Gnostic correlation measures the relationship between two data samples using
-    irrelevance functions, providing a robust alternative to classical Pearson
-    correlation. It is less sensitive to outliers and makes no assumptions about
-    the underlying distribution of the data.
+    Calculate the Gnostic correlation between two data samples using robust irrelevance-based weighting.
 
-    If self.data is 2D (shape: [n_samples, n_features]), 
-    computes correlation for each feature column with other_data.
-    If self.data is 1D, computes correlation directly.
+    This function implements the robust gnostic correlation as described in Kovanic & Humber (2015).
+    The method uses irrelevance functions to construct weights,
+    providing a robust alternative to classical Pearson correlation. It is less sensitive to outliers,
+    does not assume normality.
 
-    Parameters
-    ----------
-    data_1 : np.ndarray
-        First data sample
-    data_2 : np.ndarray
-        Second data sample to compare with data_1
-        Must have the same length as data_1
-    case : str, default='i'
-        The type of correlation to calculate:
-        - 'i': Estimation case - Used when data contains measurement errors
-              Returns values in [-1, 1], similar to Pearson correlation
-        - 'j': Quantification case - Used for inherent data variability
-              Returns positive values, indicating strength of relationship
     
-    Returns
-    -------
-    float
-        The calculated Gnostic correlation coefficient
-        For case='i': Range [-1, 1]
-        For case='j': Range [0, ∞)
-    
-    Notes
-    -----
-    The Gnostic correlation:
-    1. Is robust against outliers
-    2. Does not assume normal distribution
-    3. Handles both estimation and quantification scenarios
-    4. Preserves data type characteristics
-    5. Uses G-median as location parameter
-
-    Key differences from Pearson correlation:
-    - More robust to outliers
-    - Two different interpretations (i/j cases)
-    - No distributional assumptions
-    - Better handles non-linear relationships
-    
-    Examples
-    --------
-    >>> # Linear relationship with noise
-    >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    >>> y = np.array([0.9, 2.1, 2.9, 4.2, 4.8])
-    >>> gcor = gcorrelation(x, y, case='i')
-    >>> print(f"Estimation correlation: {gcor:.3f}")
-    >>> from machinegnostics.magcal.gcor import gcorrelation
-    >>> # Inherent variability analysis
-    >>> measurements_A = np.array([10.1, 10.3, 9.8, 10.2, 10.0])
-    >>> measurements_B = np.array([5.1, 5.2, 4.9, 5.3, 5.0])
-    >>> gcor = gcorrelation(measurements_A, measurements_B, case='j')
-    >>> print(f"Quantification correlation: {gcor:.3f}")
-    
-    Raises
-    ------
-    ValueError
-        If input arrays have different lengths
-        If case is not 'i' or 'j'
-        If input arrays are empty
-        
-    References
-    ----------
-    .. [1] Kovanic P., Humber M.B (2015) The Economics of Information - Mathematical
-           Gnostics for Data Analysis, Chapter 14.3.3
     """
-    gcs = GnosticCharacteristicsSample(data=data_1)
-    cor = gcs._gnostic_correlation(other_data=data_2, case=case)
-    return cor
+    if len(data_1) != len(data_2):
+        raise ValueError("Input arrays must have the same length.")
+    if len(data_1) == 0 or len(data_2) == 0:
+        raise ValueError("Input arrays must not be empty.")
+    if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
+        raise ValueError("Input arrays must be numpy arrays.")
+    
+    zx = data_1 / np.mean(data_1)
+    zy = data_2 / np.mean(data_2)
+
+    dc = DataConversion()
+    x_norm = dc._convert_az(zx)
+    y_norm = dc._convert_az(zy)
+
+    gwx = GnosticsWeights()
+    wx = gwx._get_gnostic_weights(x_norm)
+    gwy = GnosticsWeights()
+    wy = gwy._get_gnostic_weights(y_norm)
+
+    W = np.sqrt(wx * wy)
+
+    numerator = np.sum(x_norm * W * W * y_norm)
+    denominator = np.sqrt(np.sum(x_norm * W * W * x_norm) * np.sum(y_norm * W * W * y_norm))
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+# def gcorrelation(data_1: np.ndarray, data_2: np.ndarray) -> np.ndarray:
+#     if data_1.ndim == 1:
+#         data_1 = data_1[np.newaxis, :]
+#     if data_2.ndim == 1:
+#         data_2 = data_2[np.newaxis, :]
+#     if data_1.shape[1] != data_2.shape[1]:
+#         raise ValueError("Each row in data_1 and data_2 must have the same number of samples (columns).")
+
+#     n_x, n_samples = data_1.shape
+#     n_y = data_2.shape[0]
+#     corr_matrix = np.zeros((n_x, n_y))
+
+#     for i in range(n_x):
+#         for j in range(n_y):
+#             corr_matrix[i, j] = __gcorrelation(data_1[i], data_2[j])
+#     return corr_matrix
