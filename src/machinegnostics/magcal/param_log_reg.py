@@ -46,8 +46,7 @@ class _LogisticRegressorParamBase(RegressorBase):
         s = scale._gscale_loc(np.mean(fi))
         q, q1 = gc._get_q_q1(S=s)
         h = gc._hi(q, q1)
-        # p = gc._idistfun(h)
-        p = (1 - h)/2
+        p = gc._idistfun(h)
         return p
 
     def _process_input(self, X, y=None):
@@ -97,8 +96,8 @@ class _LogisticRegressorParamBase(RegressorBase):
             linear_pred = X_poly @ self.coefficients
             # p = self._sigmoid(linear_pred)
             zz = linear_pred - y
-            # p = self._gnostic_prob(zz)
-            p = self._sigmoid(zz)  # Apply sigmoid to get probabilities
+            # p = self._gnostic_prob(linear_pred)  # Use gnostic probability instead of sigmoid
+            p = self._sigmoid(linear_pred)  # Apply sigmoid to get probabilities
             # W = np.diag(p * (1 - p))
             # Gnostic-style weights 
             dc = DataConversion()
@@ -124,7 +123,7 @@ class _LogisticRegressorParamBase(RegressorBase):
             # Convergence check: coefficients and log loss
             coef_converged = np.all(np.abs(self.coefficients - prev_coef) < self.tol)
             logloss_converged = np.abs(log_loss - prev_log_loss) < self.tol
-            if coef_converged and logloss_converged:
+            if coef_converged or logloss_converged:
                 if self.verbose:
                     print(f"Converged at iteration {it+1}: coef change={np.max(np.abs(self.coefficients - prev_coef)):.4e}, log loss change={np.abs(log_loss - prev_log_loss):.4e}")
                 break
