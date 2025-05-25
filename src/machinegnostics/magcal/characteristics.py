@@ -240,7 +240,7 @@ class GnosticsCharacteristics:
         if fi.shape != fj.shape:
             raise ValueError("fi and fj must have the same shape")
         entropy = fj - fi
-        if entropy < 0: #means something is wrong
+        if (entropy < 0).any(): #means something is wrong
             raise ValueError("Entropy cannot be negative")
         return entropy
     
