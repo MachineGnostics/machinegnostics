@@ -10,7 +10,6 @@ class _LogisticRegressorParamBase(RegressorBase):
                  degree: int = 1,
                  max_iter: int = 100,
                  tol: float = 1e-8,
-                 re_tol: float = 1e-1,
                  verbose: bool = False,
                  scale: [str, float, int] = 'auto', # if auto then automatically select scale based on the data else user can give float value between 0 to 2
                  early_stopping: bool = True,
@@ -26,7 +25,6 @@ class _LogisticRegressorParamBase(RegressorBase):
         self.scale = scale
         self.early_stopping = early_stopping
         self.proba = proba
-        self.re_tol = re_tol
 
         if self.proba not in ['gnostic', 'sigmoid']:
             raise ValueError("proba must be either 'gnostic' or 'sigmoid'.")
@@ -173,6 +171,7 @@ class _LogisticRegressorParamBase(RegressorBase):
             elif self.proba == 'sigmoid':
                 # Sigmoid probability calculation
                 p = self._sigmoid(linear_pred)
+                _, info, re = self._gnostic_prob(z)
 
             # IRLS update
             try:
@@ -188,12 +187,9 @@ class _LogisticRegressorParamBase(RegressorBase):
             log_loss = -np.mean(y * np.log(proba_pred) + (1 - y) * np.log(1 - proba_pred))
             
             # history update for gnostic vs sigmoid
-            if self.proba == 'gnostic':
-                re = np.mean(re)
-                info = np.mean(info)
-            else:
-                re = 0
-                info = 0
+            re = np.mean(re)
+            info = np.mean(info)
+
             self._history.append({
                 'iteration': it + 1,
                 'log_loss': log_loss,
@@ -201,31 +197,20 @@ class _LogisticRegressorParamBase(RegressorBase):
                 'information': info,
                 'rentropy': re,
             })
-
-
-            # --- Convergence check ---
-            if self.proba == 'gnostic' and it > 0:
-                if self.early_stopping:
-                    prev_re = self._history[-2]['rentropy'] if len(self._history) > 1 else None
-                    curr_re = np.mean(re)
-                    prev_re_val = np.mean(prev_re) if prev_re is not None else None
-                    # Stop if entropy increases or becomes constant (within tolerance)
-                    if prev_re_val is not None:
-                        if np.abs(curr_re - prev_re_val) < self.re_tol:
-                            if self.verbose:
-                                print(f"Converged at iteration {it + 1} (early stop): mean rentropy change below tolerance.")
-                            break
-            elif self.proba == 'sigmoid' and it > 0:
-                # Early stopping: stop if log loss change is within tolerance
-                if self.early_stopping and np.abs(log_loss - prev_log_loss) < self.tol:
+            
+            # --- Unified convergence check: stop if mean rentropy change is within tolerance ---
+            if it > 0 and self.early_stopping:
+                prev_re = self._history[-2]['rentropy'] if len(self._history) > 1 else None
+                curr_re = np.mean(re)
+                prev_re_val = np.mean(prev_re) if prev_re is not None else None
+                if prev_re_val is not None and np.abs(curr_re - prev_re_val) < self.tol:
                     if self.verbose:
-                        print(f"Converged at iteration {it + 1} (early stop): log loss change below tolerance.")
+                        print(f"Converged at iteration {it + 1} (early stop): mean rentropy change below tolerance.")
                     break
-                if self.verbose:
-                    print(f"Iteration {it + 1}, Log Loss: {log_loss:.6f}")
-            else:
-                if self.verbose:
-                    print(f"Iteration {it + 1}, Log Loss: {log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
+            if self.verbose:
+                print(f"Iteration {it + 1}, Log Loss: {log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
+
+           
         return self
 
     def predict_proba(self, X):
