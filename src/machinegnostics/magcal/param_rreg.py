@@ -47,7 +47,10 @@ class RegressorParamBase(RegressorBase):
                  tol: float = 1e-8,
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 scale: [str, int, float] = 'auto',
+                 history: bool = True,
+                 data_form: str = 'a'):
         super().__init__()
     
         '''
@@ -78,8 +81,34 @@ class RegressorParamBase(RegressorBase):
         self.early_stopping = early_stopping
         self.mg_loss = mg_loss
         self.verbose = verbose
-        self._history = []
-        self._params = {}
+        self.data_form = data_form
+         # --- Scale input handling ---
+        if isinstance(scale, str):
+            if scale != 'auto':
+                raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+            self.scale_value = 'auto'
+        elif isinstance(scale, (int, float)):
+            if not (0 <= scale <= 2):
+                raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+            self.scale_value = float(scale)
+        else:
+            raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+        # data form check additive or multiplicative
+        if self.data_form not in ['a', 'm']:
+            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
+        # history option
+        if history:
+            self._history = []
+            # default history content
+            self._history.append({
+                'iteration': 0,
+                'h_loss': None,
+                'coefficients': None,
+                'rentropy': None,
+                'weights': None,
+            })
+        else:
+            self._history = None
 
     def _process_input(self, X, y=None):
         '''
@@ -156,9 +185,15 @@ class RegressorParamBase(RegressorBase):
 
         For internal use only
         '''
-        self._params['w'] = self.weights
-        self._params['c'] = self.coefficients
-        self._params[f'{self.mg_loss}'] = self._history
+        # capturing history
+        if self._history is not None:
+            self._history.append({
+                'iteration': self._iter,
+                'h_loss': None,  # Placeholder for loss, to be computed later
+                'coefficients': self.coefficients.copy(),
+                'rentropy': None,  # Placeholder for rentropy, to be computed later
+                'weights': self.weights.copy(),
+            })
 
     def _generate_polynomial_features(self, X):
         """
@@ -206,10 +241,27 @@ class RegressorParamBase(RegressorBase):
         q, q1 = self._compute_q(z, z0, s)
         if self.mg_loss == 'hi':
             hi = self.gc._hi(q, q1)
-            return np.sum(hi ** 2)
+            fi = self.gc._fi(q, q1)
+            fj = self.gc._fj(q, q1)
+            re = self.gc._rentropy(fi, fj)
+            H = np.sum(hi ** 2)
+            return H, re.mean()
         elif self.mg_loss == 'hj':
             hj = self.gc._hj(q, q1)
-            return np.sum(hj**2)
+            fi = self.gc._fi(q, q1)
+            fj = self.gc._fj(q, q1)
+            re = self.gc._rentropy(fi, fj)
+            H = np.sum(hj ** 2)
+            return H, re.mean()
+    
+    def _data_conversion(self, z):
+        dc = DataConversion()
+        if self.data_form == 'a':
+            return dc._convert_az(z)
+        elif self.data_form == 'm':
+            return dc._convert_mz(z)
+        else:
+            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
 
     def _weighted_least_squares(self, X_poly, y, weights):
         """
@@ -317,16 +369,21 @@ class RegressorParamBase(RegressorBase):
                 # eps = np.finfo(float).eps
                 # residuals = np.where(np.abs(residuals) < eps, eps, residuals)
                 
-                dc = DataConversion()
-                z = dc._convert_az(residuals)
+                # dc = DataConversion()
+                # z = dc._convert_az(residuals)
+                z = self._data_conversion(residuals)
                 gw = GnosticsWeights()
                 gw = gw._get_gnostic_weights(z)
                 new_weights = self.weights * gw
+
                 # Compute scale and loss
-                scale = ScaleParam()
-                s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
-                loss = self._gnostic_criterion(z, y0, s)
-                self._history.append(loss)
+                if self.scale_value == 'auto':
+                    scale = ScaleParam()
+                    s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
+                else:
+                    s = self.scale_value
+
+                loss, re = self._gnostic_criterion(z, y0, s)
                 # Ensure weights are positive and normalized
                 # new_weights = np.clip(new_weights, eps, None)
                 # self.weights = self.weights * (s*loss**-1)
@@ -334,18 +391,31 @@ class RegressorParamBase(RegressorBase):
                                                 
                 # print loss
                 if self.verbose:
-                    print(f'Machine Gnostic loss - {self.mg_loss} : {np.round(loss, 4)}')
+                    print(f'Iteration: {self._iter} - Machine Gnostic loss - {self.mg_loss} : {np.round(loss, 4)}, rentropy: {np.round(re, 4)}')
                 
                 # processing output
-                self._process_output()
+                # capture history and append to history
+                if self._history is not None:
+                    self._history.append({
+                        'iteration': self._iter+1,
+                        'h_loss': loss,
+                        'coefficients': self.coefficients.copy(),
+                        'rentropy': re,
+                        'weights': self.weights.copy(),
+                    })
 
-                # Check convergence
-                if len(self._history) > self.early_stopping:
-                    recent_losses = self._history[-self.early_stopping:]
-                    if np.all(np.abs(np.diff(recent_losses)) < self.tol):
-                        break
-                    if np.all(np.abs(prev_coef - self.coefficients) < self.tol):
-                        break
+                # Check convergence with early stopping and rentropy
+                # if entropy value is increasing, stop
+                if self.early_stopping and self._history is not None:
+                    if len(self._history) > 1:
+                        prev_loss = self._history[-2]['h_loss']
+                        prev_re = self._history[-2]['rentropy']
+                        if (prev_loss is not None) and (prev_re is not None):
+                            if (np.abs(loss - prev_loss) < self.tol) or (np.abs(re - prev_re) < self.tol):
+                                if self.verbose:
+                                    print(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
+                                break
+
                         
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 if self.verbose:

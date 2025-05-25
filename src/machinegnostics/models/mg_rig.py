@@ -38,55 +38,59 @@ class RobustRegressor(_RobustRegressor):
     - Polynomial feature expansion (up to configurable degree)
     - Gnostic-based iterative loss minimization
     - Custom weighting and scaling strategy
-    - Early stopping and convergence control
+    - Early stopping and convergence control - h loss and residual entropy
     - Modular design for extensibility
     - mlflow integration for model tracking and deployment
     - Save and load model using joblib
 
     Parameters
     ----------
-    degree : int, default=2
-        Degree of the polynomial used to expand input features. A value of `2` fits
-        a quadratic model; higher values increase model flexibility.
+    degree : int, default=1
+        Degree of the polynomial for feature expansion. Must be >= 1.
 
-    max_iter : int, default=1000
-        Maximum number of iterations for the training process.
+    max_iter : int, default=100
+        Maximum number of training iterations.
 
-    tol : float, default=1e-3
-        Convergence threshold. Iteration stops if the change in loss or coefficients
-        is below this tolerance for `early_stopping` consecutive iterations.
+    tol : float, default=1e-8
+        Convergence threshold for loss or coefficient changes.
 
-    mg_loss : str, default='hi'\
+    mg_loss : str, default='hi'
         Type of gnostic loss to use. Options:
-            - `'hi'` : Estimation relevance loss
-            - `'hj'` : Joint relevance loss
-        Determines how residuals are transformed and weighted during training.
+            - 'hi': Estimation relevance loss
+            - 'hj': Joint relevance loss
 
-    early_stopping : int or bool, default=True
-        Number of iterations over which to check for convergence. If set to `True`, 
-        uses a default internal threshold (e.g., 10). If an integer, uses that value
-        directly.
+    early_stopping : bool or int, default=True
+        If True, enables early stopping with a default window. If int, specifies the window size.
 
     verbose : bool, default=False
-        If `True`, prints debug and progress messages during training.
+        If True, prints progress and debug information during training.
 
-    history : bool, default=False
-        If `True`, stores the history of gnostic loss values across training iterations
-        in `self._history`.
-    
-    params : bool, default=False,
-        If 'True', store weights, coefficients, and gnostic loss in params
+    scale : {'auto', float}, default='auto'
+        Scaling strategy for the gnostic loss. 'auto' selects automatically.
+
+    history : bool, default=True
+        If True, records the training history (loss, coefficients, weights, etc.) at each iteration.
+
+    data_form : str, default='a'
+        Indicates the form of the input data:
+            - 'a': Additive (default)
+            - 'm': Multiplicative
 
     Attributes
     ----------
-    coefficients : ndarray of shape (degree + 1,)
-        Final learned polynomial coefficients after training.
+    coefficients : ndarray of shape (n_coeffs,)
+        Final learned polynomial regression coefficients.
 
     weights : ndarray of shape (n_samples,)
-        Final weights assigned to each sample based on gnostic transformations.
+        Final sample weights after convergence.
 
-    _history : list of float
-        List of gnostic loss values recorded at each iteration (if `history=True`).
+    _history : list of dict
+        Training history. Each entry contains:
+            - 'iteration': int, iteration number
+            - 'h_loss': float, gnostic loss value
+            - 'coefficients': list, regression coefficients at this iteration
+            - 'rentropy': float, rentropy value
+            - 'weights': list, sample weights at this iteration
 
     Methods
     -------
@@ -96,35 +100,52 @@ class RobustRegressor(_RobustRegressor):
     predict(X)
         Predict output values for new input samples using the trained model.
 
+    save_model(path)
+        Save the trained model to disk using joblib.
+
+    load_model(path)
+        Load a previously saved model from disk.
 
     Example
     -------
     >>> from machinegnostics.models import RobustRegressor
-    >>> model = RobustRegressor(degree=3, mg_loss='hi', verbose=True)
+    >>> model = RobustRegressor(degree=2, mg_loss='hi', verbose=True)
     >>> model.fit(X_train, y_train)
     >>> y_pred = model.predict(X_test)
     >>> print(model.coefficients)
     >>> print(model.weights)
+    >>> # Save and load
+    >>> model.save_model('./my_model')
+    >>> loaded = RobustRegressor.load_model('./my_model')
+    >>> y_pred2 = loaded.predict(X_test)
 
-    Resource:
-    --------
-    More information: https://machinegnostics.info/ 
+    Notes
+    -----
+    - The model is robust to outliers and is suitable for datasets with non-Gaussian noise.
+    - Training history can be accessed via `model._history` for analysis and plotting.
+    - For more information, visit: https://machinegnostics.info/
 
     Github: https://github.com/MachineGnostics/machinegnostics
     """
-    def __init__(self, 
-                 degree:int = 2, 
-                 max_iter:int = 100, 
-                 tol:int = 1e-8, 
-                 mg_loss:str = 'hi', 
-                 early_stopping:bool = True, 
-                 verbose:bool = False):
+    def __init__(self,
+                 degree: int = 1,
+                 max_iter: int = 100,
+                 tol: float = 1e-8,
+                 mg_loss: str = 'hi',
+                 early_stopping: bool = True,
+                 verbose: bool = False,
+                 scale: [str, int, float] = 'auto',
+                 history: bool = True,
+                 data_form: str = 'a'):
         super().__init__(degree, 
                          max_iter, 
                          tol, 
                          mg_loss, 
                          early_stopping, 
-                         verbose)
+                         verbose,
+                         scale,
+                         history,
+                         data_form)
         self.coefficients = None
         self.weights = None
         '''
@@ -202,7 +223,7 @@ class RobustRegressor(_RobustRegressor):
         self.weights = self.weights
     
                 
-    def predict(self, model_input:np.ndarray)->np.ndarray:
+    def predict(self, model_input:np.ndarray, context=None, params=None)->np.ndarray:
         """
         Predict target values using the trained Robust Regressor model.
 

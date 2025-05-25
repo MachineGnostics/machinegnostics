@@ -60,7 +60,7 @@ class _LogisticRegressorParamBase(RegressorBase):
                 'coefficients': None,
                 'information': None,
                 'rentropy': None,
-                'converged': False
+                'weights': None,
             })
         else:
             self._history = None

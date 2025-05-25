@@ -39,33 +39,63 @@ class LinearRegressor(_LinearRegressor):
 
     Parameters
     ----------
-    max_iter : int, default=1
-        Number of iterations (kept for interface compatibility; not used).
+    max_iter : int, default=100
+        Maximum number of training iterations.
 
     tol : float, default=1e-8
-        Convergence threshold (not used in linear regression).
+        Convergence threshold for loss or coefficient changes.
+
+    mg_loss : str, default='hi'
+        Type of gnostic loss to use. Options:
+            - 'hi': Estimation relevance loss
+            - 'hj': Joint relevance loss
+
+    early_stopping : bool or int, default=True
+        If True, enables early stopping with a default window. If int, specifies the window size.
 
     verbose : bool, default=False
-        If `True`, prints debug and progress messages during training.
+        If True, prints progress and debug information during training.
+
+    scale : {'auto', float}, default='auto'
+        Scaling strategy for the gnostic loss. 'auto' selects automatically.
+
+    history : bool, default=True
+        If True, records the training history (loss, coefficients, weights, etc.) at each iteration.
+
+    data_form : str, default='a'
+        Indicates the form of the input data:
+            - 'a': Additive (default)
+            - 'm': Multiplicative
 
     Attributes
     ----------
-    coefficients : ndarray of shape (n_features + 1,)
-        Learned linear regression coefficients (including intercept).
+    coefficients : ndarray of shape (n_coeffs,)
+        Final learned polynomial regression coefficients.
+
+    weights : ndarray of shape (n_samples,)
+        Final sample weights after convergence.
+
+    _history : list of dict
+        Training history. Each entry contains:
+            - 'iteration': int, iteration number
+            - 'h_loss': float, gnostic loss value
+            - 'coefficients': list, regression coefficients at this iteration
+            - 'rentropy': float, rentropy value
+            - 'weights': list, sample weights at this iteration
 
     Methods
     -------
     fit(X, y)
-        Fit the model to training data using least squares estimation.
+        Fit the model to training data using polynomial expansion and gnostic loss minimization.
 
     predict(X)
         Predict output values for new input samples using the trained model.
 
     save_model(path)
-        Save the trained model to disk.
+        Save the trained model to disk using joblib.
 
     load_model(path)
-        Load a trained model from disk.
+        Load a previously saved model from disk.
 
     Example
     -------
@@ -75,22 +105,34 @@ class LinearRegressor(_LinearRegressor):
     >>> y_pred = model.predict(X_test)
     >>> print(model.coefficients)
 
-    Resource:
-    ---------
-    More information: https://machinegnostics.info/
+    Notes
+    -----
+    - The model is robust to outliers and is suitable for datasets with non-Gaussian noise.
+    - Training history can be accessed via `model._history` for analysis and plotting.
+    - For more information, visit: https://machinegnostics.info/
+
     Github: https://github.com/MachineGnostics/machinegnostics
+
     """
-    def __init__(self,  
-                 tol:int = 1e-8, 
-                 mg_loss:str = 'hi', 
-                 early_stopping:bool = True, 
-                 verbose:bool = False):
+    def __init__(self,
+                 max_iter: int = 100,
+                 tol: float = 1e-8,
+                 mg_loss: str = 'hi',
+                 early_stopping: bool = True,
+                 verbose: bool = False,
+                 scale: [str, int, float] = 'auto',
+                 history: bool = True,
+                 data_form: str = 'a'):
         super().__init__(
-                         tol=tol, 
-                         mg_loss=mg_loss, 
-                         early_stopping=early_stopping, 
-                         verbose=verbose
-                         )
+                        max_iter=max_iter,
+                        tol=tol, 
+                        mg_loss=mg_loss, 
+                        early_stopping=early_stopping, 
+                        verbose=verbose,
+                        scale=scale,
+                        history=history,
+                        data_form=data_form
+                        )
         '''
         Robust Linear Regressor - Machine Gnostics
         

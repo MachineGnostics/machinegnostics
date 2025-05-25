@@ -60,17 +60,23 @@ class _LinearRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         Load a trained model from disk.
 
     """
-    def __init__(self, 
-                 max_iter:int = 100, 
-                 tol = 1e-8, 
-                 mg_loss = 'hi', 
-                 early_stopping = True, 
-                 verbose = False):
+    def __init__(self,
+                 max_iter: int = 100,
+                 tol: float = 1e-8,
+                 mg_loss: str = 'hi',
+                 early_stopping: bool = True,
+                 verbose: bool = False,
+                 scale: [str, int, float] = 'auto',
+                 history: bool = True,
+                 data_form: str = 'a'):
         super().__init__(max_iter=max_iter, 
                          tol=tol, 
                          mg_loss=mg_loss, 
                          early_stopping=early_stopping, 
-                         verbose=verbose)
+                         verbose=verbose,
+                         scale=scale,
+                         history=history,
+                         data_form=data_form)
         self.coefficients = None
         self.weights = None
         self.degree = 1 # linear regression
