@@ -163,11 +163,11 @@ class RobustRegressor(_RobustRegressor):
 
         The process involves:
         - Expanding the input features into a polynomial basis.
-        - Solving the weighted least squares problem to estimate model coefficients.
-        - Computing residuals and transforming them into a gnostic space (via z-values).
+        - Solving the gnostic influenced weighted least squares problem to estimate model coefficients.
+        - Computing residuals and transforming them into a gnostic space.
         - Computing gnostic weights to adjust the influence of each data point.
         - Updating and normalizing the weights.
-        - Evaluating convergence based on changes in loss and coefficient values.
+        - Evaluating convergence based on changes in loss and coefficient values. 
 
         Parameters
         ----------

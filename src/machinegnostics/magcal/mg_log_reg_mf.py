@@ -27,8 +27,21 @@ class _LogisticRegressor(_LogisticRegressorParamBase, mlflow.pyfunc.PythonModel)
     - Use fit(X, y) for training and predict(X) or predict_proba(X) for inference.
     - Use save_model(path) and load_model(path) for model persistence.
     """
+    def __init__(self, degree=1, max_iter=100, tol=1e-8, verbose=False,
+                 scale='auto', early_stopping=True, history=True,
+                 proba='gnostic', data_form='a'):
+        """
+        Initialize the logistic regression model with parameters.
+        """
+        super().__init__(degree=degree, max_iter=max_iter, tol=tol,
+                         verbose=verbose, scale=scale,
+                         early_stopping=early_stopping, history=history,
+                         proba=proba, data_form=data_form)
+        self.coefficients = None
+        self.weights = None
 
-    def fit(self, X, y):
+
+    def _fit(self, X, y):
         """
         Fit the logistic regression model using the parent class logic.
         """
@@ -38,7 +51,7 @@ class _LogisticRegressor(_LogisticRegressorParamBase, mlflow.pyfunc.PythonModel)
         self.weights = self.weights
         return self
 
-    def predict(self, model_input):
+    def _predict(self, model_input, context=None, params=None) -> np.ndarray:
         """
         Predict class labels for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.
@@ -51,7 +64,7 @@ class _LogisticRegressor(_LogisticRegressorParamBase, mlflow.pyfunc.PythonModel)
             X = np.asarray(model_input)
         return super().predict(X)
 
-    def predict_proba(self, model_input):
+    def _predict_proba(self, model_input) -> np.ndarray:
         """
         Predict probabilities for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.
