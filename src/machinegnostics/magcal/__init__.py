@@ -15,3 +15,4 @@ from machinegnostics.magcal.gcor import __gcorrelation
 from machinegnostics.magcal.mg_lrig_mf import _LinearRegressor
 from machinegnostics.magcal.mg_rig_mf import _RobustRegressor
 from machinegnostics.magcal.param_log_reg import _LogisticRegressorParamBase
+from machinegnostics.magcal.param_log_reg_mf import _LogisticRegressor

@@ -91,14 +91,17 @@ class _LogisticRegressorParamBase(RegressorBase):
     def _sigmoid(self, z):
         return 1 / (1 + np.exp(-z))
     
-    def _gnostic_prob(self, z):
+    def _data_conversion(self, z):
         dc = DataConversion()
         if self.data_form == 'a':
-            zz = dc._convert_az(z)
+            return dc._convert_az(z)
         elif self.data_form == 'm':
-            zz = dc._convert_mz(z)
+            return dc._convert_mz(z)
         else:
             raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
+    
+    def _gnostic_prob(self, z):
+        zz = self._data_conversion(z)
         gc = GnosticsCharacteristics(zz)
 
         # q, q1
@@ -167,8 +170,7 @@ class _LogisticRegressorParamBase(RegressorBase):
             linear_pred = X_poly @ self.coefficients
             zz = linear_pred - y
             # Gnostic-style weights 
-            dc = DataConversion()
-            z = dc._convert_az(zz)
+            z = self._data_conversion(zz)
             gw = GnosticsWeights()
             gw = gw._get_gnostic_weights(z)
             sample_weights = self.weights * gw
@@ -206,6 +208,7 @@ class _LogisticRegressorParamBase(RegressorBase):
                 'coefficients': self.coefficients.copy(),
                 'information': info,
                 'rentropy': re,
+                'weights': sample_weights.copy(),
             })
             
             # --- Unified convergence check: stop if mean rentropy change is within tolerance ---
