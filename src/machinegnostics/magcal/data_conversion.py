@@ -113,6 +113,75 @@ class DataConversion:
         return a
     
     @staticmethod
+    def _convert_mz(m, lb, ub):
+        """
+        Converts multiplicative data into the finite normalized multiplicative form.
+
+        Parameters:
+        ----------
+        m : scalar or numpy.ndarray
+            Input multiplicative data.
+        lb : float
+            Lower bound (must be a scalar).
+        ub : float
+            Upper bound (must be a scalar).
+
+        Returns:
+        -------
+        z : scalar or numpy.ndarray
+            Data converted into finite normalized multiplicative form,
+            same type as 'm'.
+
+        Raises:
+        ------
+        ValueError:
+            If lb or ub is not a scalar.
+        """
+        if not np.isscalar(lb) or not np.isscalar(ub):
+            raise ValueError("lb and ub must be scalars")
+        
+        m = np.asarray(m)
+        a = np.log(m / lb) * (2.0 / np.log(ub / lb)) - 1
+        z = np.exp(a)
+        
+        if z.size == 1:
+            return z.item()  # Return scalar if input was scalar
+        return z
+   
+    @staticmethod
+    def _convert_zm(z, lb, ub):
+        """
+        Converts normalized multiplicative data z back to the original multiplicative form.
+
+        Parameters
+        ----------
+        z : scalar or numpy.ndarray
+            Normalized multiplicative data.
+        lb : float
+            Lower bound (must be a scalar).
+        ub : float
+            Upper bound (must be a scalar).
+
+        Returns
+        -------
+        m : scalar or numpy.ndarray
+            Data converted back to multiplicative form, same type as 'z'.
+
+        Raises
+        ------
+        ValueError:
+            If lb or ub is not a scalar.
+        """
+        if not np.isscalar(lb) or not np.isscalar(ub):
+            raise ValueError("lb and ub must be scalars")
+        v = np.sqrt(ub / lb)
+        z = np.asarray(z)
+        m = lb * v * z ** np.log(v)
+        if m.size == 1:
+            return m.item()  # Return scalar if input was scalar
+        return m
+    
+    @staticmethod
     def convert_data(data,to_multiplicative=True):
         """
         Converts data between additive and multiplicative forms.
@@ -172,4 +241,71 @@ class DataConversion:
         lb = np.min(data)
         ub = np.max(data)
         return lb, ub
+    
+    @staticmethod
+    def _convert_fininf(z_fin, lb, ub):
+        """
+        Converts data from the finite normalized multiplicative form into the infinite interval.
+
+        Parameters:
+        ----------
+        z_fin : scalar or numpy.ndarray
+            Input data in finite normalized multiplicative form.
+        lb : float
+            Lower bound (must be a scalar).
+        ub : float
+            Upper bound (must be a scalar).
+
+        Returns:
+        -------
+        z_inf : scalar or numpy.ndarray
+            Converted data in infinite interval form, same type as z_fin.
+
+        Raises:
+        ------
+        ValueError:
+            If lb or ub is not a scalar.
+        """
+        if not np.isscalar(lb) or not np.isscalar(ub):
+            raise ValueError("lb and ub must be scalars")
+
+        # Adjust the logic to ensure the result is strictly less than ub
+        epsilon = 1e-6  # Small value to ensure strict inequality
+        z_inf = lb + (ub - lb - epsilon) * z_fin
+        return z_inf
+
+    @staticmethod
+    def _convert_inffin(z_inf, lb, ub):
+        """
+        Converts data from the infinite interval into the finite normalized multiplicative form.
+
+        Parameters:
+        ----------
+        z_inf : scalar or numpy.ndarray
+            Input data in infinite interval form.
+        lb : float
+            Lower bound (must be a scalar).
+        ub : float
+            Upper bound (must be a scalar).
+
+        Returns:
+        -------
+        z_fin : scalar or numpy.ndarray
+            Data converted into finite normalized multiplicative form, 
+            same type as z_inf.
+
+        Raises:
+        ------
+        ValueError:
+            If lb or ub is not a scalar.
+        """
+        if not np.isscalar(lb) or not np.isscalar(ub):
+            raise ValueError("lb and ub must be scalars")
+        
+        z_inf = np.asarray(z_inf)
+        z_fin = (z_inf + lb) / (1 + z_inf / ub)
+        
+        if z_fin.size == 1:
+            return z_fin.item()  # Return scalar if input was scalar
+        return z_fin
     

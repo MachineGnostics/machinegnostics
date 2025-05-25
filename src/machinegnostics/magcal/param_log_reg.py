@@ -14,7 +14,8 @@ class _LogisticRegressorParamBase(RegressorBase):
                  scale: [str, float, int] = 'auto', # if auto then automatically select scale based on the data else user can give float value between 0 to 2
                  early_stopping: bool = True,
                  history: bool = True,
-                 proba: str = 'gnostic',):
+                 proba: str = 'gnostic',
+                 data_form:str = 'a'):
         super().__init__()
         self.degree = degree
         self.max_iter = max_iter
@@ -25,6 +26,7 @@ class _LogisticRegressorParamBase(RegressorBase):
         self.scale = scale
         self.early_stopping = early_stopping
         self.proba = proba
+        self.data_form = data_form
 
         if self.proba not in ['gnostic', 'sigmoid']:
             raise ValueError("proba must be either 'gnostic' or 'sigmoid'.")
@@ -44,6 +46,9 @@ class _LogisticRegressorParamBase(RegressorBase):
             self.scale_value = float(scale)
         else:
             raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+        # data form check additive or multiplicative
+        if self.data_form not in ['a', 'm']:
+            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
         
         # history option
         if history:
@@ -88,7 +93,12 @@ class _LogisticRegressorParamBase(RegressorBase):
     
     def _gnostic_prob(self, z):
         dc = DataConversion()
-        zz = dc._convert_az(z)
+        if self.data_form == 'a':
+            zz = dc._convert_az(z)
+        elif self.data_form == 'm':
+            zz = dc._convert_mz(z)
+        else:
+            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
         gc = GnosticsCharacteristics(zz)
 
         # q, q1
