@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from src.metrics import robr2, divI, evalMet, gmmfe
-from src.magcal import gautocovariance, gcorrelation, gcovariance, gmedian, gmodulus
+from machinegnostics.metrics import robr2, divI, evalMet, gmmfe
 
 class TestMetricsFunctions:
     
