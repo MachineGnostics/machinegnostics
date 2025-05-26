@@ -124,59 +124,58 @@ class RegressorParamBase(RegressorBase):
         '''
         import numpy as np
 
-        # Identify input types
+        # Handle pandas DataFrame/Series
         is_pandas = False
         is_spark = False
-
         try:
             import pandas as pd
-            if isinstance(X, (pd.DataFrame, pd.Series)):
+            if isinstance(X, pd.DataFrame):
+                X_np = X.values
                 is_pandas = True
+            elif isinstance(X, pd.Series):
+                X_np = X.values.reshape(-1, 1)
+                is_pandas = True
+            else:
+                X_np = np.asarray(X)
         except ImportError:
-            pass
+            X_np = np.asarray(X)
 
+        # Handle Spark DataFrame (raise for now)
         try:
             from pyspark.sql import DataFrame as SparkDF
             if isinstance(X, SparkDF):
                 is_spark = True
+                raise NotImplementedError("Processing Spark DataFrames requires distributed-safe logic. Consider collecting to Pandas first.")
         except ImportError:
             pass
 
-        # Convert X to NumPy array
-        if is_pandas:
-            X_np = X.to_numpy()
-        elif is_spark:
-            raise NotImplementedError("Processing Spark DataFrames requires distributed-safe logic. Consider collecting to Pandas first.")
-        else:
-            X_np = np.asarray(X)
-
-        # Reshape X if needed
-        if X_np.ndim == 1:
+        # Ensure X is 2D (n_samples, n_features)
+        if X_np.ndim == 0:
+            X_np = X_np.reshape(1, 1)
+        elif X_np.ndim == 1:
             X_np = X_np.reshape(-1, 1)
-        elif X_np.ndim != 2:
-            raise ValueError("X must be a 2D array with shape (n_samples, n_features).")
+        elif X_np.ndim > 2:
+            raise ValueError("X must be a 1D or 2D array-like structure.")
 
         # Process y if provided
+        y_np = None
         if y is not None:
-            if is_pandas:
-                y_np = y.to_numpy().flatten()
-            elif is_spark:
-                raise NotImplementedError("Processing Spark DataFrames requires distributed-safe logic. Consider collecting to Pandas first.")
-            else:
+            try:
+                import pandas as pd
+                if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
+                    y_np = np.asarray(y).flatten()
+                else:
+                    y_np = np.asarray(y).flatten()
+            except ImportError:
                 y_np = np.asarray(y).flatten()
 
-            # Validate y shape
             if y_np.ndim != 1:
                 raise ValueError("y must be a 1D array of shape (n_samples,).")
-
-            # Check samples consistency
             if X_np.shape[0] != y_np.shape[0]:
                 raise ValueError(f"Number of samples in X and y must match. Got {X_np.shape[0]} and {y_np.shape[0]}.")
 
             return X_np, y_np
-
         else:
-            # y is None, just return processed X and None
             return X_np
     
     def _process_output(self):

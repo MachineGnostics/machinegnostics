@@ -177,7 +177,7 @@ class LogisticRegressor(_LogisticRegressor):
         """
         return super()._fit(X, y)
 
-    def predict(self, model_input, context=None, params=None)-> np.ndarray:
+    def predict(self, model_input)-> np.ndarray:
         """
         Predict class labels for input samples.
 

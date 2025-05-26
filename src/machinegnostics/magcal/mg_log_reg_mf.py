@@ -51,7 +51,7 @@ class _LogisticRegressor(_LogisticRegressorParamBase, mlflow.pyfunc.PythonModel)
         self.weights = self.weights
         return self
 
-    def _predict(self, model_input, context=None, params=None) -> np.ndarray:
+    def _predict(self, model_input) -> np.ndarray:
         """
         Predict class labels for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.

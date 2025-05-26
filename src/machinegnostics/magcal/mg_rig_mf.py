@@ -174,7 +174,7 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         self.weights = self.weights
     
                 
-    def predict(self, model_input:np.ndarray)->np.ndarray:
+    def predict(self, model_input)->np.ndarray:
         """
         Predict target values using the trained Robust Regressor model.
 

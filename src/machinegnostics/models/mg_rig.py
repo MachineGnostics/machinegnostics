@@ -13,7 +13,7 @@ This model is designed to handle various types of data and is particularly usefu
 
 import os
 import joblib
-import mlflow
+import pandas as pd
 import numpy as np
 from machinegnostics.magcal import _RobustRegressor
 
@@ -223,7 +223,7 @@ class RobustRegressor(_RobustRegressor):
         self.weights = self.weights
     
                 
-    def predict(self, model_input:np.ndarray, context=None, params=None)->np.ndarray:
+    def predict(self, model_input)->np.ndarray:
         """
         Predict target values using the trained Robust Regressor model.
 
@@ -253,31 +253,7 @@ class RobustRegressor(_RobustRegressor):
         - Ensure `fit` has been called before using `predict`, otherwise `self.coefficients` will be `None`.
         - Input `X` will be converted to a NumPy array if it isn't already.
         """
-        # # Input validation and reshaping
-        # X = np.asarray(X)
-        # if X.ndim == 1:
-        #     X = X.reshape(-1, 1)
-            
-        # # Verify feature dimensions match training data
-        # n_features_trained = (len(self.coefficients) - 1) // (self.degree + 1)
-        # n_features_input = X.shape[1]
-        
-        # if n_features_trained != n_features_input:
-        #     raise ValueError(
-        #         f"Model was trained with {n_features_trained} feature(s) but "
-        #         f"received {n_features_input} feature(s) for prediction."
-        #     )
-        
-        # Call base class prediction method
-        # Handle pandas DataFrame
-        if hasattr(model_input, "values"):
-            X = model_input.values
-        # Handle pyspark DataFrame (convert to pandas, then to numpy)
-        elif "pyspark.sql.dataframe.DataFrame" in str(type(model_input)):
-            X = model_input.toPandas().values
-        # Assume it's already a numpy array
-        else:
-            X = np.asarray(model_input)
+        X = model_input
         return super()._predict(X)
     
     def save_model(self, path):

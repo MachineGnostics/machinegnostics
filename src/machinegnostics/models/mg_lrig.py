@@ -13,7 +13,6 @@ This model is designed to handle various types of data and is particularly usefu
 
 import os
 import joblib
-import mlflow
 import numpy as np
 from machinegnostics.magcal import _LinearRegressor
 
