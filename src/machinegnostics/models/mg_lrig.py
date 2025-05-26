@@ -47,7 +47,7 @@ class LinearRegressor(_LinearRegressor):
     mg_loss : str, default='hi'
         Type of gnostic loss to use. Options:
             - 'hi': Estimation relevance loss
-            - 'hj': Joint relevance loss
+            - 'hj': Quantification irrelevance loss
 
     early_stopping : bool or int, default=True
         If True, enables early stopping with a default window. If int, specifies the window size.

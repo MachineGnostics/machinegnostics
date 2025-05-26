@@ -57,7 +57,7 @@ class RobustRegressor(_RobustRegressor):
     mg_loss : str, default='hi'
         Type of gnostic loss to use. Options:
             - 'hi': Estimation relevance loss
-            - 'hj': Joint relevance loss
+            - 'hj': Quantification irrelevance loss
 
     early_stopping : bool or int, default=True
         If True, enables early stopping with a default window. If int, specifies the window size.
@@ -259,6 +259,11 @@ class RobustRegressor(_RobustRegressor):
     def save_model(self, path):
         """
         Save the model to the specified path using joblib.
+
+        Parameters
+        ----------
+        path : str
+            Directory path where the model will be saved.
         """
         os.makedirs(path, exist_ok=True)
         joblib.dump(self, os.path.join(path, "model.pkl"))
@@ -267,6 +272,15 @@ class RobustRegressor(_RobustRegressor):
     def load_model(cls, path):
         """
         Load the model from the specified path using joblib.
+
+        Parameters
+        ----------
+        path : str
+            Directory path where the model is saved.
+        Returns
+        -------
+        LinearRegressor
+            An instance of the LinearRegressor class with the loaded model.
         """
         return joblib.load(os.path.join(path, "model.pkl"))
         

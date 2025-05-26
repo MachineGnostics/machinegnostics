@@ -20,8 +20,8 @@ from machinegnostics.magcal.mg_log_reg_mf import _LogisticRegressor
 
 class LogisticRegressor(_LogisticRegressor):
     """
-    LogisticRegressor: Robust Logistic Regression with Machine Gnostics and MLflow Integration
-
+    ## LogisticRegressor: Robust Logistic Regression with Machine Gnostics
+    
     This class implements a robust logistic regression model for binary classification, leveraging
     the Machine Gnostics framework. It is designed to be resilient to outliers and heavy-tailed
     distributions, and supports polynomial feature expansion, custom weighting, and early stopping.
