@@ -9,7 +9,7 @@ class _LogisticRegressorParamBase(RegressorBase):
     def __init__(self,
                  degree: int = 1,
                  max_iter: int = 100,
-                 tol: float = 1e-8,
+                 tol: float = 1e-3,
                  verbose: bool = False,
                  scale: [str, float, int] = 'auto', # if auto then automatically select scale based on the data else user can give float value between 0 to 2
                  early_stopping: bool = True,
@@ -123,7 +123,9 @@ class _LogisticRegressorParamBase(RegressorBase):
         p = gc._idistfun(h)
         info = gc._info_i(p)
         re = gc._rentropy(fi, fj)
-        return p, info, re
+        # nomalized re
+        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re))
+        return p, info, re_norm
 
     def _process_input(self, X, y=None):
         import numpy as np

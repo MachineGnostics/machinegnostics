@@ -89,7 +89,7 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
     def __init__(self, 
                  degree = 2, 
                  max_iter = 100, 
-                 tol = 1e-8, 
+                 tol = 1e-3, 
                  mg_loss = 'hi', 
                  early_stopping = True, 
                  verbose = False,

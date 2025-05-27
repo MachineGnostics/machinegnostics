@@ -95,9 +95,9 @@ class DataConversion:
             If lb or ub is not a scalar.
         """
         if lb is None:
-            lb = np.min(a)
+            lb = np.min(z)
         if ub is None:
-            ub = np.max(a)
+            ub = np.max(z)
 
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
@@ -113,7 +113,7 @@ class DataConversion:
         return a
     
     @staticmethod
-    def _convert_mz(m, lb, ub):
+    def _convert_mz(m, lb=None, ub=None):
         """
         Converts multiplicative data into the finite normalized multiplicative form.
 
@@ -137,6 +137,11 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(m)
+        if ub is None:
+            ub = np.max(m)
+
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         
@@ -149,7 +154,7 @@ class DataConversion:
         return z
    
     @staticmethod
-    def _convert_zm(z, lb, ub):
+    def _convert_zm(z, lb=None, ub=None):
         """
         Converts normalized multiplicative data z back to the original multiplicative form.
 
@@ -172,6 +177,11 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(z)
+        if ub is None:
+            ub = np.max(z)
+
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         v = np.sqrt(ub / lb)
@@ -243,7 +253,7 @@ class DataConversion:
         return lb, ub
     
     @staticmethod
-    def _convert_fininf(z_fin, lb, ub):
+    def _convert_fininf(z_fin, lb=None, ub=None):
         """
         Converts data from the finite normalized multiplicative form into the infinite interval.
 
@@ -266,6 +276,11 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(z_fin)
+        if ub is None:
+            ub = np.max(z_fin)
+        
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
 
@@ -275,7 +290,7 @@ class DataConversion:
         return z_inf
 
     @staticmethod
-    def _convert_inffin(z_inf, lb, ub):
+    def _convert_inffin(z_inf, lb=None, ub=None):
         """
         Converts data from the infinite interval into the finite normalized multiplicative form.
 
@@ -299,6 +314,11 @@ class DataConversion:
         ValueError:
             If lb or ub is not a scalar.
         """
+        if lb is None:
+            lb = np.min(a)
+        if ub is None:
+            ub = np.max(a)
+        
         if not np.isscalar(lb) or not np.isscalar(ub):
             raise ValueError("lb and ub must be scalars")
         

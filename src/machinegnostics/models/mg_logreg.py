@@ -122,7 +122,7 @@ class LogisticRegressor(_LogisticRegressor):
     def __init__(self,
                  degree: int = 1,
                  max_iter: int = 100,
-                 tol: float = 1e-8,
+                 tol: float = 1e-3,
                  verbose: bool = False,
                  scale: [str, float, int] = 'auto', # if auto then automatically select scale based on the data else user can give float value between 0 to 2
                  early_stopping: bool = True,

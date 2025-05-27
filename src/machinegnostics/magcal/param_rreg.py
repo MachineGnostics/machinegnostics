@@ -243,15 +243,17 @@ class RegressorParamBase(RegressorBase):
             fi = self.gc._fi(q, q1)
             fj = self.gc._fj(q, q1)
             re = self.gc._rentropy(fi, fj)
+            re_norm = (re - np.min(re)) / (np.max(re) - np.min(re))
             H = np.sum(hi ** 2)
-            return H, re.mean()
+            return H, np.mean(re_norm)
         elif self.mg_loss == 'hj':
             hj = self.gc._hj(q, q1)
             fi = self.gc._fi(q, q1)
             fj = self.gc._fj(q, q1)
             re = self.gc._rentropy(fi, fj)
             H = np.sum(hj ** 2)
-            return H, re.mean()
+            re_norm = (re - np.min(re)) / (np.max(re) - np.min(re))
+            return H, np.mean(re_norm)
     
     def _data_conversion(self, z):
         dc = DataConversion()

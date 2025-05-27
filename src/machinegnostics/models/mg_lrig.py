@@ -115,7 +115,7 @@ class LinearRegressor(_LinearRegressor):
     """
     def __init__(self,
                  max_iter: int = 100,
-                 tol: float = 1e-8,
+                 tol: float = 1e-3,
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
