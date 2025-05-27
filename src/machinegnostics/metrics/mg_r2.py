@@ -28,8 +28,8 @@ class EvaluationMetrics:
             y_pred (np.ndarray): Predicted target values
             weights (np.ndarray, optional): Weights for each observation. Defaults to None.
         """
-        self.y_true = np.asarray(y_true)
-        self.y_pred = np.asarray(y_pred)
+        self.y_true = np.asarray(y_true).ravel()
+        self.y_pred = np.asarray(y_pred).ravel()
         self.weights = np.ones_like(y_true) if weights is None else np.asarray(weights)
         self.N = len(y_true)
         

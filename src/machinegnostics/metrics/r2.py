@@ -28,8 +28,8 @@ def r2_score(y_true, y_pred):
     if not isinstance(y_pred, (list, tuple, np.ndarray)):
         raise TypeError("y_pred must be array-like.")
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
 
     if y_true.shape != y_pred.shape:
         raise ValueError(f"Shape mismatch: y_true shape {y_true.shape} != y_pred shape {y_pred.shape}")

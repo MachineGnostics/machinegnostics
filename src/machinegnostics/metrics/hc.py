@@ -70,4 +70,8 @@ def hc(y_true, y_pred, case:str='i'):
     else:
         raise ValueError("Invalid case. Use 'i' or 'j'.")
 
-    return np.sum(hc)
+    hcsr = np.sum(hc**2)
+
+    # normalize the result
+    hcsr = hcsr / len(y_true)
+    return hcsr
