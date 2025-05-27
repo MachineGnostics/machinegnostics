@@ -7,6 +7,7 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 '''
 
 import numpy as np
+import pandas as pd
 from machinegnostics.magcal import __gcorrelation
 
 
@@ -54,37 +55,70 @@ def gcorrelation(data_1: np.ndarray, data_2: np.ndarray) -> np.ndarray:
     Examples
     --------
     >>> import numpy as np
-    >>> from machinegnostics.magcal.gcor import gcorrelation
+    >>> from machinegnostics.metrics import gcorrelation
     >>> # Example 1: Linear relationship with noise (estimation case)
     >>> x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     >>> y = np.array([0.9, 2.1, 2.9, 4.2, 4.8])
-    >>> gcor = gcorrelation(x, y, case='i')
+    >>> gcor = gcorrelation(x, y)
     >>> print(f"Estimation correlation: {gcor:.3f}")
     Estimation correlation: 0.999
-    >>> # Example 2: Inherent variability analysis (quantification case)
-    >>> measurements_A = np.array([10.1, 10.3, 9.8, 10.2, 10.0])
-    >>> measurements_B = np.array([5.1, 5.2, 4.9, 5.3, 5.0])
-    >>> gcor = gcorrelation(measurements_A, measurements_B, case='j')
-    >>> print(f"Quantification correlation: {gcor:.3f}")
-    Quantification correlation: 0.999
  
     References
     ----------
     .. [1] Kovanic P., Humber M.B (2015) The Economics of Information - Mathematical
-           Gnostics for Data Analysis, Chapter 14.3.3
+           Gnostics for Data Analysis, Chapter 14
     """
+    # Save original column names if pandas
+    x_names = None
+    y_names = None
+    is_pandas = False
+
+    if isinstance(data_1, pd.DataFrame):
+        x_names = data_1.columns.tolist()
+        data_1 = data_1.values
+        is_pandas = True
+    elif isinstance(data_1, pd.Series):
+        x_names = [data_1.name if data_1.name is not None else "x"]
+        data_1 = data_1.values
+        is_pandas = True
+
+    if isinstance(data_2, pd.DataFrame):
+        y_names = data_2.columns.tolist()
+        data_2 = data_2.values
+        is_pandas = True
+    elif isinstance(data_2, pd.Series):
+        y_names = [data_2.name if data_2.name is not None else "y"]
+        data_2 = data_2.values
+        is_pandas = True
+
+    # check if inputs are numpy arrays
+    if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
+        raise ValueError("Input data must be numpy arrays or pandas DataFrame/Series.")
+
+    # Convert 1D to 2D (variables as columns)
     if data_1.ndim == 1:
-        data_1 = data_1[np.newaxis, :]
+        data_1 = data_1.reshape(-1, 1)
     if data_2.ndim == 1:
-        data_2 = data_2[np.newaxis, :]
-    if data_1.shape[1] != data_2.shape[1]:
+        data_2 = data_2.reshape(-1, 1)
+
+    if data_1.shape[0] != data_2.shape[0]:
         raise ValueError("Each row in data_1 and data_2 must have the same number of samples (columns).")
 
-    n_x, n_samples = data_1.shape
-    n_y = data_2.shape[0]
+    n_x = data_1.shape[1]
+    n_y = data_2.shape[1]
     corr_matrix = np.zeros((n_x, n_y))
 
     for i in range(n_x):
         for j in range(n_y):
-            corr_matrix[i, j] = __gcorrelation(data_1[i], data_2[j])
+            corr_matrix[i, j] = __gcorrelation(data_1[:, i], data_2[:, j])
+    
+    # If input was pandas, return DataFrame with column names
+    if is_pandas:
+        if x_names is None:
+            x_names = [f"x{i}" for i in range(n_x)]
+        if y_names is None:
+            y_names = [f"y{j}" for j in range(n_y)]
+        df_corr = pd.DataFrame(corr_matrix, index=x_names, columns=y_names)
+        return df_corr
+
     return corr_matrix

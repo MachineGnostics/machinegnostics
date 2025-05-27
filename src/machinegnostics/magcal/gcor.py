@@ -20,12 +20,12 @@ def __gcorrelation(data_1:np.ndarray, data_2:np.ndarray) -> float:
 
     
     """
-    if len(data_1) != len(data_2):
-        raise ValueError("Input arrays must have the same length.")
-    if len(data_1) == 0 or len(data_2) == 0:
-        raise ValueError("Input arrays must not be empty.")
-    if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
-        raise ValueError("Input arrays must be numpy arrays.")
+    # if len(data_1) != len(data_2):
+    #     raise ValueError("Input arrays must have the same length.")
+    # if len(data_1) == 0 or len(data_2) == 0:
+    #     raise ValueError("Input arrays must not be empty.")
+    # if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
+    #     raise ValueError("Input arrays must be numpy arrays.")
     
     zx = data_1 / np.mean(data_1)
     zy = data_2 / np.mean(data_2)
