@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def accuracy_score(y_true, y_pred):
+def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     """
     Computes the accuracy classification score.
 
@@ -42,8 +42,9 @@ def accuracy_score(y_true, y_pred):
     if isinstance(y_pred, pd.Series):
         y_pred = y_pred.values
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
         raise ValueError("Shape of y_true and y_pred must be the same.")

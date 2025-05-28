@@ -43,9 +43,9 @@ def hc(y_true, y_pred, case:str='i'):
     >>> print(hc_value)
     """
     
-    # Ensure inputs are numpy arrays
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     # Check if the lengths of y_true and y_pred match
     if len(y_true) != len(y_pred):

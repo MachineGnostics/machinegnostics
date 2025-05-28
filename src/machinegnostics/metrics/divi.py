@@ -66,6 +66,10 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
     if y.shape != y_fit.shape:
         raise ValueError("y and y_fit must have the same shape.")
     
+    # Convert to numpy arrays and flatten
+    y = np.asarray(y).flatten()
+    y_fit = np.asarray(y_fit).flatten()
+    
     # Compute the Divergence Information (DivI)
     evaluator = CriteriaEvaluator(y, y_fit)
     divI_value = evaluator._divI()

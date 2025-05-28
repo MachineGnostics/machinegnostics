@@ -19,7 +19,10 @@ class EvaluationMetrics:
     Implements RobR², GMMFE, DivI, and EvalMet calculations.
     """
     
-    def __init__(self, y_true, y_pred, weights=None):
+    def __init__(self, 
+                 y_true: np.ndarray, 
+                 y_pred: np.ndarray, 
+                 weights=None):
         """
         Initialize the evaluation metrics calculator.
         

@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 
-def f1_score(y_true, y_pred, average='binary', labels=None):
+def f1_score(y_true:np.ndarray | pd.Series | list,
+             y_pred:np.ndarray | pd.Series | list,
+             average='binary', 
+             labels=None):
     """
     Computes the F1 score for classification tasks.
 
@@ -53,8 +56,9 @@ def f1_score(y_true, y_pred, average='binary', labels=None):
     if isinstance(y_pred, pd.Series):
         y_pred = y_pred.values
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
         raise ValueError("Shape of y_true and y_pred must be the same.")

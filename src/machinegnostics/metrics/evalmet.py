@@ -80,6 +80,10 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     if w.shape != y.shape:
         raise ValueError("Weights must have the same shape as y.")
     
+    # Convert to numpy arrays and flatten
+    y = np.asarray(y).flatten()
+    y_fit = np.asarray(y_fit).flatten()
+    
     # Compute the Evaluation Metric (EvalMet)
     evaluator = CriteriaEvaluator(y, y_fit, w)
     evalmet = evaluator._evalmet()

@@ -1,6 +1,6 @@
 import numpy as np
 
-def r2_score(y_true, y_pred):
+def r2_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     """
     Computes the coefficient of determination (R² score).
 
@@ -46,7 +46,7 @@ def r2_score(y_true, y_pred):
 
     return float(1 - ss_res / ss_tot)
 
-def adjusted_r2_score(y_true, y_pred, n_features):
+def adjusted_r2_score(y_true:np.ndarray, y_pred:np.ndarray, n_features:int) -> float:
     """
     Computes the adjusted R² score.
 

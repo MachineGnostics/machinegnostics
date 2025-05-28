@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 
-def precision_score(y_true, y_pred, average='binary', labels=None):
+def precision_score(y_true:np.ndarray, 
+                    y_pred:np.ndarray, 
+                    average='binary', 
+                    labels=None):
     """
     Computes the precision classification score.
 
@@ -53,8 +56,9 @@ def precision_score(y_true, y_pred, average='binary', labels=None):
     if isinstance(y_pred, pd.Series):
         y_pred = y_pred.values
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
         raise ValueError("Shape of y_true and y_pred must be the same.")

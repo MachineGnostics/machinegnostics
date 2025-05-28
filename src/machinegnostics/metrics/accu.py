@@ -1,6 +1,6 @@
 import numpy as np
 
-def accuracy_score(y_true, y_pred):
+def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     """
     Computes the classification accuracy.
 
@@ -46,8 +46,9 @@ def accuracy_score(y_true, y_pred):
     if not isinstance(y_pred, (list, tuple, np.ndarray)):
         raise TypeError("y_pred must be array-like (list, tuple, or numpy array).")
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     # Check for matching shapes
     if y_true.shape != y_pred.shape:

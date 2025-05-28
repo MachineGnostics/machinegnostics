@@ -88,6 +88,10 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     if y.ndim != 1 or y_fit.ndim != 1:
         raise ValueError("y and y_fit must be 1D arrays")
     
+        # Convert to numpy arrays and flatten
+    y_true = np.asarray(y).flatten()
+    y_pred = np.asarray(y_fit).flatten()
+    
     # CE
     ce = CriteriaEvaluator(y=y, y_fit=y_fit, w=w)
 

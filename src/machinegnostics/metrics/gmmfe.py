@@ -71,6 +71,10 @@ def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
     # Ensure y and y_fit have the same shape
     if y.shape != y_fit.shape:
         raise ValueError("y and y_fit must have the same shape.")
+    
+    # Convert to numpy arrays and flatten
+    y = np.asarray(y).flatten()
+    y_fit = np.asarray(y_fit).flatten()
             
     # generate the GMMFE value
     ce = CriteriaEvaluator(y, y_fit)

@@ -1,6 +1,6 @@
 import numpy as np
 
-def root_mean_squared_error(y_true, y_pred):
+def root_mean_squared_error(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     """
     Computes the Root Mean Squared Error (RMSE).
 
@@ -29,9 +29,9 @@ def root_mean_squared_error(y_true, y_pred):
     if not isinstance(y_pred, (list, tuple, np.ndarray)):
         raise TypeError("y_pred must be array-like (list, tuple, or numpy array).")
 
-    # Convert to numpy arrays
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     # Check for shape mismatch
     if y_true.shape != y_pred.shape:

@@ -3,8 +3,8 @@ import pandas as pd
 from machinegnostics.metrics import precision_score, recall_score, f1_score
 
 def classification_report(
-    y_true,
-    y_pred,
+    y_true:np.ndarray | pd.Series,
+    y_pred:np.ndarray | pd.Series,
     labels=None,
     target_names=None,
     digits=2,
@@ -52,8 +52,9 @@ def classification_report(
     if isinstance(y_pred, pd.Series):
         y_pred = y_pred.values
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
         raise ValueError("Shape of y_true and y_pred must be the same.")
