@@ -39,11 +39,11 @@ Machine Gnostics offers a comprehensive suite of tools for robust analysis:
 
 ## Key Features
 
-- 🛡️ **Exceptional Outlier Resistance** – Automatically detects and downweights anomalous observations without manual intervention
-- 🔍 **Information-Theoretic Foundation** – Based on rigorous mathematical principles rather than probabilistic assumptions
-- ives to common statistical measures like mean, median, correlation
-- 📊 **MLflow Integration** – Seamless model tracking, versioning, and deployment
-- 🧪 **Scientifically Validated** – Tested on real-world problems across multiple domains including thermodynamics, materials science, and engineering
+- 🛡️ **Exceptional Outlier Resistance** – Automatically detects and downweights anomalous observations without manual intervention  
+- 🔍 **Information-Theoretic Foundation** – Based on rigorous mathematical principles rather than probabilistic assumptions  
+- 📏 **Robust Alternatives to Common Statistics** – Provides robust alternatives to measures like mean, median, and correlation  
+- 📊 **MLflow Integration** – Seamless model tracking, versioning, and deployment  
+- 🧪 **Scientifically Validated** – Tested on real-world problems across multiple domains, including thermodynamics, materials science, and engineering  
 
 ## References
 
