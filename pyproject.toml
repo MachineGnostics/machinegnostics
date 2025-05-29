@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machinegnostics"
-version = "0.0.7"
-description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from deterministic algebra, information theory, and geometric methods - Mathematical Gnostics. This approach opens new avenues for building robust, interpretable, and reliable analysis tools that can withstand the limitations of traditional models."
+version = "0.0.8"
+description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from Mathematical Gnostics"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
