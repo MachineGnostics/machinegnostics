@@ -45,8 +45,8 @@ class RobustRegressor(_RobustRegressor):
 
     Parameters
     ----------
-    degree : int, default=1
-        Degree of the polynomial for feature expansion. Must be >= 1.
+    degree : int, default=2
+        Degree of the polynomial for feature expansion. Must be > 1.
 
     max_iter : int, default=100
         Maximum number of training iterations.
@@ -128,7 +128,7 @@ class RobustRegressor(_RobustRegressor):
     Github: https://github.com/MachineGnostics/machinegnostics
     """
     def __init__(self,
-                 degree: int = 1,
+                 degree: int = 2,
                  max_iter: int = 100,
                  tol: float = 1e-3,
                  mg_loss: str = 'hi',
@@ -170,7 +170,7 @@ class RobustRegressor(_RobustRegressor):
         '''
         # only polynomial regression is supported
         if self.degree == 1:
-            raise ValueError("Degree must be greater than 0 for polynomial regression.")
+            raise ValueError("Degree must be greater than 1 for polynomial regression.")
         if self.degree < 1:
             raise ValueError("Degree must be a non-negative integer.")
 
