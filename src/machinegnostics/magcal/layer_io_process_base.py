@@ -6,7 +6,7 @@ try:
 except ImportError:
     SparkDataFrame = None
 
-class DataProcessLayer:
+class DataProcessLayerBase:
     """
     A class to handle input/output processing for machine learning models.
 

@@ -11,7 +11,13 @@ from machinegnostics.magcal.mg_lrig_mf import _LinearRegressor
 from machinegnostics.magcal.layer_rreg_mlflow import _RobustRegressor
 from machinegnostics.magcal.param_log_reg import _LogisticRegressorParamBase
 from machinegnostics.magcal.mg_log_reg_mf import _LogisticRegressor
-from machinegnostics.magcal.layer_parambase import ParamBase
+from machinegnostics.magcal.layer_param_base import ParamBase
+from machinegnostics.magcal.layer_history_base import HistoryBase
+from machinegnostics.magcal.layer_io_process_base import DataProcessLayerBase
+from machinegnostics.magcal.layer_param_rreg import RegressorParamBase
+from machinegnostics.magcal.layer_param_rob_reg import ParamRobustRegressorBase
+from machinegnostics.magcal.layer_histroy_rob_reg import HistoryRobustRegressor
+
 
 # g correlation function
 # from machinegnostics.magcal.gmodulus import gmodulus

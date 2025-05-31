@@ -83,7 +83,18 @@ class ParamBase(ModelBase):
                 'h_loss': None,
                 'coefficients': None,
                 'rentropy': None,
+                'fi': None,
+                'fj': None,
+                'hi': None,
+                'hj': None,
+                'pi': None,
+                'pj': None,
+                'ei': None,
+                'ej': None,
+                'infoi': None,
+                'infoj': None,
                 'weights': None,
+                'scale': None,
             })
         else:
             self._history = None
@@ -219,7 +230,7 @@ class ParamBase(ModelBase):
             # normalize hi and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
             H = np.sum((hi ** 2) / np.sum(hi ** 2)) if np.sum(hi ** 2) != 0 else 0.0
-            return H, np.mean(re_norm), pi, pj, ei, ej, infoi, infoj
+            return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
         elif self.mg_loss == 'hj':
             hj = self.gc._hj(q, q1)
             fi = self.gc._fi(q, q1)
@@ -236,7 +247,7 @@ class ParamBase(ModelBase):
             # normalize hj and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
             H = np.sum((hj ** 2) / np.sum(hj ** 2)) if np.sum(hj ** 2) != 0 else 0.0
-            return H, np.mean(re_norm), pi, pj, ei, ej, infoi, infoj
+            return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
 
     def _compute_q(self, z, z0, s:int = 1):
         """

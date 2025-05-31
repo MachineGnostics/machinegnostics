@@ -37,7 +37,6 @@ class ParamRobustRegressorBase(ParamBase):
                  early_stopping: bool = True,
                  verbose: bool = False,
                  scale: [str, int, float] = 'auto',
-                 history: bool = True,
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True
                  ):
@@ -49,7 +48,6 @@ class ParamRobustRegressorBase(ParamBase):
             early_stopping=early_stopping,
             verbose=verbose,
             scale=scale,
-            history=history,
             data_form=data_form,
             gnostic_characteristics=gnostic_characteristics
         )
@@ -102,13 +100,36 @@ class ParamRobustRegressorBase(ParamBase):
                 else:
                     s = self.scale_value
 
-                loss, re, pi, pj, ei, ej, infoi, infoj  = self._gnostic_criterion(z, y0, s)
+                self.loss, self.re, self.hi, self.hj, self.fi, self.fj, \
+                self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z, y0, s)
 
                 self.weights = new_weights / np.sum(new_weights) # NOTE : Normalizing weights
                                                 
                 # print loss
                 if self.verbose:
-                    print(f'Iteration: {self._iter} - Machine Gnostic loss - {self.mg_loss} : {np.round(loss, 4)}, rentropy: {np.round(re, 4)}')
+                    print(f'Iteration: {self._iter} - Machine Gnostic loss - {self.mg_loss} : {np.round(self.loss, 4)}, rentropy: {np.round(self.re, 4)}')
+
+                # capture history and append to history
+                # minimal history capture
+                if self._history is not None:
+                    self._history.append({
+                        'iteration': self._iter +1,
+                        'h_loss': self.loss,
+                        'coefficients': self.coefficients.copy(),
+                        'rentropy': self.re,
+                        'weights': self.weights.copy(),
+                        'fi': self.fi,
+                        'fj': self.fj,
+                        'hi': self.hi,
+                        'hj': self.hj,
+                        'pi': self.pi,
+                        'pj': self.pj,
+                        'ei': self.ei,
+                        'ej': self.ej,
+                        'infoi': self.infoi,
+                        'infoj': self.infoj,
+                        'S': s
+                    })
 
                 # Check convergence with early stopping and rentropy
                 # if entropy value is increasing, stop
@@ -117,7 +138,7 @@ class ParamRobustRegressorBase(ParamBase):
                         prev_loss = self._history[-2]['h_loss']
                         prev_re = self._history[-2]['rentropy']
                         if (prev_loss is not None) and (prev_re is not None):
-                            if (np.abs(loss - prev_loss) < self.tol) or (np.abs(re - prev_re) < self.tol):
+                            if (np.abs(self.loss - prev_loss) < self.tol) or (np.abs(self.re - prev_re) < self.tol):
                                 if self.verbose:
                                     print(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
                                 break
@@ -127,3 +148,33 @@ class ParamRobustRegressorBase(ParamBase):
                     print(f"Warning: {str(e)}. Using previous coefficients.")
                 self.coefficients = prev_coef
                 break
+
+    def _predict(self, X: np.ndarray) -> np.ndarray:
+        """
+        Internal prediction method for base class.
+        
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Input features to predict for.
+            
+        Returns
+        -------
+        ndarray of shape (n_samples,)
+            Predicted values.
+        """
+        if self.coefficients is None:
+            raise ValueError("Model has not been fitted yet.")
+        
+        # Process input and generate features
+        X_poly = self._generate_polynomial_features(X)
+        
+        # Validate dimensions
+        n_features_model = X_poly.shape[1]
+        if n_features_model != len(self.coefficients):
+            raise ValueError(
+                f"Feature dimension mismatch. Model expects {len(self.coefficients)} "
+                f"features but got {n_features_model} after polynomial expansion."
+            )
+        
+        return X_poly @ self.coefficients

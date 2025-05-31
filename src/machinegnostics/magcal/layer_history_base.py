@@ -1,5 +1,7 @@
 import numpy as np
 from dataclasses import dataclass, asdict
+from machinegnostics.magcal import ParamRobustRegressorBase
+
 @dataclass
 class HistoryRecord:
     iteration: int
@@ -45,20 +47,20 @@ class HistoryBase:
         - ej - gnostic entropy, if calculated
     """
     
-    def __init__(self, record_history=True):
+    def __init__(self, history: bool = True):
         """
         Initialize the HistoryBase class.
 
         Parameters
         ----------
-        record_history : bool, default=True
+        history : bool, default=True
             If True, enables recording of model parameters and gnostic loss history.
         """
-        self._record_history = record_history
+        self._record_history = history
         if not isinstance(self._record_history, bool):
             raise ValueError("record_history must be a boolean value.")
         if self._record_history:
-            self._history = []
+            self.history = []
 
     def record_history(
         self,
@@ -124,7 +126,7 @@ class HistoryBase:
                 ei=ei,
                 ej=ej
             )
-            self._history.append(record)
+            self.history.append(record)
 
     def get_history(self, as_dict=False):
         """
@@ -141,14 +143,14 @@ class HistoryBase:
             List of HistoryRecord objects or dictionaries.
         """
         if as_dict:
-            return [asdict(record) for record in self._history]
-        return self._history
+            return [asdict(record) for record in self.history]
+        return self.history
 
     def clear_history(self):
         """
         Clear the stored history.
         """
-        self._history = []
+        self.history = []
 
     def prepare_history_for_output(self):
         """
@@ -177,7 +179,7 @@ class HistoryBase:
             "ei": [],
             "ej": []
         }
-        for record in self._history:
+        for record in self.history:
             output["iteration"].append(record.iteration)
             output["h_loss"].append(record.h_loss)
             output["weights"].append(record.weights)
