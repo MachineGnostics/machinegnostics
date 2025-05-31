@@ -86,3 +86,18 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
         if self._record_history:
             self._record()
         return self
+    
+    def get_history(self, as_dict=False):
+        """
+        Retrieve the history of model parameters, gnostic loss values, and gnostic characteristics.
+
+        Parameters
+        ----------
+        as_dict : bool, optional
+            If True, return history as a list of dictionaries; otherwise, return as a list of HistoryRecord objects.
+        Returns
+        -------
+        history : list
+            List of HistoryRecord objects or dictionaries containing the recorded history.
+        """
+        return super().get_history(as_dict)

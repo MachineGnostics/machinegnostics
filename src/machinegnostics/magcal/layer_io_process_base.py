@@ -156,7 +156,19 @@ class DataProcessLayerBase:
         ValueError
             If X is invalid.
         """
-        return self._check_X(X, n_features=n_features)
+        X = self._check_X(X, n_features=n_features)
+        # output type
+        if self._input_type is None:
+            self._input_type = 'numpy'
+        elif self._input_type == 'pandas':
+            X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
+        elif self._input_type == 'spark':
+            import pyspark.sql
+            spark = pyspark.sql.SparkSession.builder.getOrCreate()
+            X = spark.createDataFrame(X, schema=[f'feature_{i}' for i in range(X.shape[1])])
+        elif self._input_type == 'unknown':
+            raise ValueError("Unknown input type. Please provide a valid input format.")
+        return X
 
     def _fit_io(self, X, y):
         """
@@ -176,7 +188,7 @@ class DataProcessLayerBase:
         """
         X_checked = self._check_X(X)
         y_checked = self._check_y(y, n_samples=X_checked.shape[0])
-        return self
+        return X_checked, y_checked
 
     def _predict_io(self, X):
         """
@@ -193,7 +205,7 @@ class DataProcessLayerBase:
             Predicted values.
         """
         X_checked = self._check_X_predict(X)
-        return self
+        return X_checked
     
     def _score_io(self, X, y):
         """

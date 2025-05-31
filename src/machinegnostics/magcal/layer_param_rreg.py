@@ -48,7 +48,7 @@ class RegressorParamBase(ModelBase):
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
-                 scale: [str, int, float] = 'auto',
+                 scale: 'str | int | float' = 'auto',
                  history: bool = True,
                  data_form: str = 'a'):
         super().__init__()

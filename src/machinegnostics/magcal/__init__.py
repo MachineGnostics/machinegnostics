@@ -17,6 +17,7 @@ from machinegnostics.magcal.layer_io_process_base import DataProcessLayerBase
 from machinegnostics.magcal.layer_param_rreg import RegressorParamBase
 from machinegnostics.magcal.layer_param_rob_reg import ParamRobustRegressorBase
 from machinegnostics.magcal.layer_histroy_rob_reg import HistoryRobustRegressor
+from machinegnostics.magcal.layer_mlflow_rob_reg import MlflowInterfaceRobustRegressor
 
 
 # g correlation function

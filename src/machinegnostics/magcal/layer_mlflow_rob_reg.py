@@ -23,7 +23,7 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
-                 scale: [str, int, float] = 'auto',
+                 scale: str | int | float = 'auto',
                  data_form: str = 'a',
                  gnostic_characteristics: bool = True):
         super().__init__(
@@ -76,16 +76,34 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
         predictions = super()._predict(model_input)
         return predictions
     
-    def save_model(self, path):
+    def save_model(self, path:str):
         """
         Save the trained model to disk using joblib.
+
+        Parameters
+        ----------
+        path : str
+            Directory path where the model will be saved.
+        If the directory does not exist, it will be created.
+        If the model is already saved, it will be overwritten.
+        This method saves the model in a directory with a file named "model.pkl".
         """
         os.makedirs(path, exist_ok=True)
         joblib.dump(self, os.path.join(path, "model.pkl"))
 
     @classmethod
-    def load_model(cls, path):
+    def load_model(cls, path:str):
         """
         Load a trained model from disk using joblib.
+
+        Parameters
+        ----------
+        path : str
+            Directory path where the model is saved.
+        This method loads the model from a file named "model.pkl" in the specified directory.
+        Returns
+        -------
+        MlflowInterfaceRobustRegressor
+            An instance of the model loaded from the specified path.
         """
         return joblib.load(os.path.join(path, "model.pkl"))

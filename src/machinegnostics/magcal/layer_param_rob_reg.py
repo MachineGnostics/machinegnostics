@@ -36,7 +36,7 @@ class ParamRobustRegressorBase(ParamBase):
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
-                 scale: [str, int, float] = 'auto',
+                 scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True
                  ):
