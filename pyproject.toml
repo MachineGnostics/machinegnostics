@@ -131,8 +131,6 @@ dependencies = [
     "pymdown-extensions",
     "pyparsing",
     "pyproject_hooks",
-    "pyspark",
-    "pytest",
     "python-dateutil",
     "pytz",
     "PyYAML",
