@@ -152,9 +152,9 @@ class ParamBase(ModelBase):
             Initialized weights.
         """
         if like == 'one':
-            return np.ones_like(d)
+            return np.ones(len(d))
         elif like == 'zero':
-            return np.zeros_like(0)
+            return np.zeros(len(d))
         # elif like == 'random':
         #     return np.random.rand(d.shape[1]).flatten()
         else:
@@ -240,7 +240,7 @@ class ParamBase(ModelBase):
                 ej = self.gc._jentropy(fj)
             # normalize hi and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
-            H = np.sum((hi ** 2) / np.sum(hi ** 2)) if np.sum(hi ** 2) != 0 else 0.0
+            H = np.sum(hi ** 2)
             return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
         elif self.mg_loss == 'hj':
             hj = self.gc._hj(q, q1)
@@ -257,7 +257,7 @@ class ParamBase(ModelBase):
                 ej = self.gc._jentropy(fj)
             # normalize hj and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
-            H = np.sum((hj ** 2) / np.sum(hj ** 2)) if np.sum(hj ** 2) != 0 else 0.0
+            H = np.sum(hj ** 2)
             return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
 
     def _compute_q(self, z, z0, s:int = 1):

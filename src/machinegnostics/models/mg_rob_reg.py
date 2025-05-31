@@ -52,9 +52,11 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self._record_history = history
-        self._history = []
-        self.coefficients = None
-        self.weights = None
+        # history option
+        if history:
+            self._history = []
+        else:
+            self._history = None
     
     @disable_parent_docstring
     def fit(self, X: np.ndarray, y: np.ndarray):
@@ -75,8 +77,6 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         """
         # Call the fit method from DataProcessRobustRegressor
         super()._fit(X, y)
-        self.coefficients = self.coefficients
-        self.weights = self.weights
     
     @disable_parent_docstring
     def predict(self, model_input: np.ndarray) -> np.ndarray:

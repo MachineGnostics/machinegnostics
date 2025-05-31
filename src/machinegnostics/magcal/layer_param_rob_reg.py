@@ -32,14 +32,14 @@ class ParamRobustRegressorBase(ParamBase):
     def __init__(self,
                  degree: int = 1,
                  max_iter: int = 100,
-                 tol: float = 1e-8,
+                 tol: float = 1e-3,
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
                  scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
-                 gnostic_characteristics:bool=True
-                 ):
+                 gnostic_characteristics:bool=True,
+                 history: bool = True):
         super().__init__(
             degree=degree,
             max_iter=max_iter,
@@ -60,7 +60,19 @@ class ParamRobustRegressorBase(ParamBase):
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
-        self._history = []
+        # history option
+        if history:
+            self._history = []
+            # default history content
+            self._history.append({
+                'iteration': 0,
+                'h_loss': None,
+                'coefficients': None,
+                'rentropy': None,
+                'weights': None,
+            })
+        else:
+            self._history = None
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -84,8 +96,7 @@ class ParamRobustRegressorBase(ParamBase):
         
         for self._iter in range(self.max_iter):
             self._iter += 1
-            prev_coef = self.coefficients.copy()
-            print(f'coefficients: {self.coefficients}')
+            self._prev_coef = self.coefficients.copy()
             
             try:
                 # Weighted least squares
@@ -153,11 +164,11 @@ class ParamRobustRegressorBase(ParamBase):
                                 if self.verbose:
                                     print(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
                                 break
-
+            
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 if self.verbose:
                     print(f"Warning: {str(e)}. Using previous coefficients.")
-                self.coefficients = prev_coef
+                self.coefficients = self._prev_coef
                 break
 
     def _predict(self, X: np.ndarray) -> np.ndarray:

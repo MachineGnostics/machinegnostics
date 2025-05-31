@@ -1,10 +1,10 @@
 import numpy as np
-from machinegnostics.magcal import HistoryRobustRegressor
+from machinegnostics.magcal import ParamRobustRegressorBase
 import mlflow
 import os
 import joblib
 
-class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel):
+class MlflowInterfaceRobustRegressor(ParamRobustRegressorBase, mlflow.pyfunc.PythonModel):
     """
     Interface for the Robust Regressor model with MLflow integration.
     
@@ -50,7 +50,7 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
-        self._record_history = history
+        self._history = history
 
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -65,8 +65,6 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
         """
         # Call the fit method from HistoryRobustRegressor
         super()._fit(X, y)
-        self.coefficients = None
-        self.weights = None
         return self
 
     def _predict(self, model_input) -> np.ndarray:

@@ -57,7 +57,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegr
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
-        self._record_history = history
+        self._history = history
 
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -72,4 +72,6 @@ class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegr
         Predict using the model after preprocessing the input data.
         """
         X = self._predict_io(X)
-        return super()._predict(X)
+        y_pred = super()._predict(X)
+        # y_pred = self._convert_output(y_pred, self.data_form)
+        return y_pred

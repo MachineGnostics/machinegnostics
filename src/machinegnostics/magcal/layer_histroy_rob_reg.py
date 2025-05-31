@@ -104,8 +104,8 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
         """
         record = HistoryRecord(iteration=self._iter,
                                h_loss=self.loss,
-                               weights=self.weights,
-                               coefficients=self.coefficients,
+                               weights=self.weights.copy(),
+                               coefficients=self.coefficients.copy(),
                                degree=self.degree,
                                rentropy=self.re,
                                fi=self.fi,

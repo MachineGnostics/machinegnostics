@@ -154,17 +154,17 @@ class DataProcessLayerBase:
             If X is invalid.
         """
         X = self._check_X(X, n_features=n_features)
-        # output type
-        if self._input_type is None:
-            self._input_type = 'numpy'
-        elif self._input_type == 'pandas':
-            X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
-        elif self._input_type == 'spark':
-            import pyspark.sql
-            spark = pyspark.sql.SparkSession.builder.getOrCreate()
-            X = spark.createDataFrame(X, schema=[f'feature_{i}' for i in range(X.shape[1])])
-        elif self._input_type == 'unknown':
-            raise ValueError("Unknown input type. Please provide a valid input format.")
+        # # output type
+        # if self._input_type is None:
+        #     self._input_type = 'numpy'
+        # elif self._input_type == 'pandas':
+        #     X = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
+        # elif self._input_type == 'spark':
+        #     import pyspark.sql
+        #     spark = pyspark.sql.SparkSession.builder.getOrCreate()
+        #     X = spark.createDataFrame(X, schema=[f'feature_{i}' for i in range(X.shape[1])])
+        # elif self._input_type == 'unknown':
+        #     raise ValueError("Unknown input type. Please provide a valid input format.")
         return X
 
     def _fit_io(self, X, y):

@@ -95,7 +95,8 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
                  verbose = False,
                  scale = 'auto',
                  history = True,
-                 data_form = 'a'):
+                 data_form = 'a',
+                 gnostic_characteristics = True):
         super().__init__(degree, 
                          max_iter, 
                          tol, 
@@ -104,9 +105,8 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
                          verbose,
                          scale,
                          history,
-                         data_form)
-        self.coefficients = None
-        self.weights = None
+                         data_form,
+                         gnostic_characteristics)
         '''
         Robust Regressor - Machine Gnostics
         
@@ -127,11 +127,16 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         verbose: bool
             To print verbose
         '''
-        # only polynomial regression is supported
-        if self.degree == 1:
-            raise ValueError("Degree must be greater than 0 for polynomial regression.")
-        if self.degree < 1:
-            raise ValueError("Degree must be a non-negative integer.")
+        
+        self.degree = degree
+        self.max_iter = max_iter
+        self.tol = tol
+        self.mg_loss = mg_loss
+        self.early_stopping = early_stopping
+        self.verbose = verbose
+        self.scale = scale
+        self.data_form = data_form
+        self.gnostic_characteristics = gnostic_characteristics
 
     def fit(self, X:np.ndarray, y:np.ndarray) -> None:
         '''
@@ -170,8 +175,6 @@ class _RobustRegressor(RegressorParamBase, mlflow.pyfunc.PythonModel):
         (e.g., `'hi'` or `'hj'`), which influences the robustness behavior.
         '''
         super()._fit(X, y)
-        self.coefficients = self.coefficients
-        self.weights = self.weights
     
                 
     def predict(self, model_input)->np.ndarray:
