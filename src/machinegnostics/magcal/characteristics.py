@@ -362,6 +362,7 @@ class GnosticsCharacteristics:
         p_j = np.asarray(p_j)
         if p_j.shape != self.q.shape:
             raise ValueError("p_j and q must have the same shape")
-        epsilon = 1e-8
-        Ij = -p_j * np.log(p_j) - (1 - p_j) * np.log(1 - p_j)
+        epsilon = 1e-12
+        p_j = np.clip(p_j, 0 + epsilon, 1 - epsilon)
+        Ij = -p_j * np.log(p_j + epsilon) - (1 - p_j) * np.log(1 - p_j)
         return Ij

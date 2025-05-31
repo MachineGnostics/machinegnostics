@@ -19,7 +19,7 @@ from machinegnostics.magcal import (ModelBase, GnosticCharacteristicsSample,
                                     ScaleParam,
                                     GnosticsWeights,
                                     DataConversion)
-from machinegnostics.magcal import np_max_float, np_min_float, np_eps_float
+from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float, np_eps_float
 
 class ParamBase(ModelBase):
     """
@@ -41,7 +41,18 @@ class ParamBase(ModelBase):
                  history: bool = True,
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True):
-        super().__init__()
+        super().__init__(
+            degree=degree,
+            max_iter=max_iter,
+            tol=tol,
+            mg_loss=mg_loss,
+            early_stopping=early_stopping,
+            verbose=verbose,
+            scale=scale,
+            data_form=data_form,
+            gnostic_characteristics=gnostic_characteristics,
+            history=history
+        )
         """
         Initialize the ParamBase class.
 
@@ -133,7 +144,7 @@ class ParamBase(ModelBase):
         d : np.ndarray
             Input data.
         like : str, optional
-            Type of initialization ('one', 'zero', 'random'). Default is 'one'.
+            Type of initialization ('one', 'zero'). Default is 'one'.
 
         Returns
         -------
@@ -141,11 +152,11 @@ class ParamBase(ModelBase):
             Initialized weights.
         """
         if like == 'one':
-            return np.ones(d.shape[1])
+            return np.ones_like(d)
         elif like == 'zero':
-            return np.zeros(d.shape[1])
-        elif like == 'random':
-            return np.random.rand(d.shape[1])
+            return np.zeros_like(0)
+        # elif like == 'random':
+        #     return np.random.rand(d.shape[1]).flatten()
         else:
             raise ValueError("like must be 'one', 'zero', or 'random'.")
         

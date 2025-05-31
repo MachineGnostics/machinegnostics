@@ -51,7 +51,17 @@ class ParamRobustRegressorBase(ParamBase):
             data_form=data_form,
             gnostic_characteristics=gnostic_characteristics
         )
-
+        self.degree = degree
+        self.max_iter = max_iter
+        self.tol = tol
+        self.mg_loss = mg_loss
+        self.early_stopping = early_stopping
+        self.verbose = verbose
+        self.scale = scale
+        self.data_form = data_form
+        self.gnostic_characteristics = gnostic_characteristics
+        self._history = []
+    
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the model to the data.
@@ -67,7 +77,7 @@ class ParamRobustRegressorBase(ParamBase):
         X_poly = self._generate_polynomial_features(X)
         
         # Initialize weights
-        self.weights = self._weight_init(d=X_poly, like='ones')
+        self.weights = self._weight_init(d=y, like='one')
         
         # Initialize coefficients to zeros
         self.coefficients = np.zeros(X_poly.shape[1])
@@ -75,6 +85,7 @@ class ParamRobustRegressorBase(ParamBase):
         for self._iter in range(self.max_iter):
             self._iter += 1
             prev_coef = self.coefficients.copy()
+            print(f'coefficients: {self.coefficients}')
             
             try:
                 # Weighted least squares
@@ -93,12 +104,12 @@ class ParamRobustRegressorBase(ParamBase):
                 new_weights = self.weights * gw
 
                 # Compute scale and loss
-                if self.scale_value == 'auto':
+                if self.scale == 'auto':
                     scale = ScaleParam()
                     # local scale 
                     s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
                 else:
-                    s = self.scale_value
+                    s = self.scale
 
                 self.loss, self.re, self.hi, self.hj, self.fi, self.fj, \
                 self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z, y0, s)
@@ -142,7 +153,7 @@ class ParamRobustRegressorBase(ParamBase):
                                 if self.verbose:
                                     print(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
                                 break
-                        
+
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 if self.verbose:
                     print(f"Warning: {str(e)}. Using previous coefficients.")
@@ -162,7 +173,9 @@ class ParamRobustRegressorBase(ParamBase):
         -------
         ndarray of shape (n_samples,)
             Predicted values.
-        """
+        """ 
+        # copy iteration for last iteration
+        
         if self.coefficients is None:
             raise ValueError("Model has not been fitted yet.")
         

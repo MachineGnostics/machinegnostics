@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-
 try:
     from pyspark.sql import DataFrame as SparkDataFrame
 except ImportError:
@@ -21,9 +20,7 @@ class DataProcessLayerBase:
         ----------
         **kwargs : dict
             Additional parameters for configuration.
-        """
-        super().__init__(**kwargs)
-        self._input_type = None  # To store the type of input for output conversion
+        """ # To store the type of input for output conversion
 
     def _identify_and_convert(self, data, is_y=False):
         """

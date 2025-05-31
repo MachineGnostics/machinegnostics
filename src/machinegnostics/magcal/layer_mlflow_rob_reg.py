@@ -25,7 +25,8 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
                  verbose: bool = False,
                  scale: str | int | float = 'auto',
                  data_form: str = 'a',
-                 gnostic_characteristics: bool = True):
+                 gnostic_characteristics: bool = True, 
+                 history: bool = True):
         super().__init__(
             degree=degree,
             max_iter=max_iter,
@@ -35,10 +36,21 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
             verbose=verbose,
             scale=scale,
             data_form=data_form,
-            gnostic_characteristics=gnostic_characteristics
+            gnostic_characteristics=gnostic_characteristics,
+            history=history
         )
         self.coefficients = None
         self.weights = None
+        self.degree = degree
+        self.max_iter = max_iter
+        self.tol = tol
+        self.mg_loss = mg_loss
+        self.early_stopping = early_stopping
+        self.verbose = verbose
+        self.scale = scale
+        self.data_form = data_form
+        self.gnostic_characteristics = gnostic_characteristics
+        self._record_history = history
 
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """

@@ -1,5 +1,25 @@
 import numpy as np
-from machinegnostics.magcal import ParamRobustRegressorBase, HistoryBase, HistoryRecord
+from machinegnostics.magcal import ParamRobustRegressorBase, HistoryBase
+from dataclasses import dataclass
+
+@dataclass
+class HistoryRecord:
+    iteration: int
+    h_loss: float = None
+    weights: np.ndarray = None
+    coefficients: np.ndarray = None
+    degree: int = None
+    rentropy: float = None
+    fi: np.ndarray = None
+    hi: np.ndarray = None
+    fj: np.ndarray = None
+    hj: np.ndarray = None
+    infoi: dict = None
+    infoj: dict = None
+    pi: np.ndarray = None
+    pj: np.ndarray = None
+    ei: float = None
+    ej: float = None
 
 class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
     """
@@ -18,12 +38,42 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
         - fi, hi, fj, hj, infoi, infoj, pi, pj, ei, ej: Additional gnostic information if calculated
     """
     
-    def __init__(self, history: bool = True):
-        super().__init__(history=history)
+    def __init__(self,
+                 degree: int = 1,
+                 max_iter: int = 100,
+                 tol: float = 1e-3,
+                 mg_loss: str = 'hi',
+                 early_stopping: bool = True,
+                 verbose: bool = False,
+                 scale: 'str | int | float' = 'auto',
+                 data_form: str = 'a',
+                 gnostic_characteristics:bool=True,
+                 history: bool = True):
+        super().__init__(
+            degree=degree,
+            max_iter=max_iter,
+            tol=tol,
+            mg_loss=mg_loss,
+            early_stopping=early_stopping,
+            verbose=verbose,
+            scale=scale,
+            data_form=data_form,
+            gnostic_characteristics=gnostic_characteristics
+        )
         self._record_history = history
-        self.history = []
+        self._history = []
         if not isinstance(self._record_history, bool):
             raise TypeError("history must be a boolean value")
+        self.degree = degree
+        self.max_iter = max_iter
+        self.tol = tol
+        self.mg_loss = mg_loss
+        self.early_stopping = early_stopping
+        self.verbose = verbose
+        self.scale = scale
+        self.data_form = data_form
+        self.gnostic_characteristics = gnostic_characteristics
+        self._record_history = history
     
     def _record(self):
         """
@@ -53,7 +103,7 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
             Gnostic entropy if calculated.
         """
         record = HistoryRecord(iteration=self._iter,
-                               h_los=self.loss,
+                               h_loss=self.loss,
                                weights=self.weights,
                                coefficients=self.coefficients,
                                degree=self.degree,
@@ -82,7 +132,7 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
         y : np.ndarray
             Target values.
         """
-        self._fit(X, y)
+        super()._fit(X, y)
         if self._record_history:
             self._record()
         return self
