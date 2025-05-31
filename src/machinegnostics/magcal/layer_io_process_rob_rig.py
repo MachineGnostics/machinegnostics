@@ -58,6 +58,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegr
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self._history = history
+        self.params = []
 
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """

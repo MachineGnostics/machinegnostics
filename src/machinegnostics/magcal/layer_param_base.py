@@ -238,6 +238,9 @@ class ParamBase(ModelBase):
                 infoj = self.gc._info_j(pj)
                 ei = self.gc._ientropy(fi)
                 ej = self.gc._jentropy(fj)
+            else:
+                hj = pi = pj = ei = ej = infoi = infoj = None
+
             # normalize hi and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
             H = np.sum(hi ** 2)
@@ -255,11 +258,13 @@ class ParamBase(ModelBase):
                 infoj = self.gc._info_j(pj)
                 ei = self.gc._ientropy(fi)
                 ej = self.gc._jentropy(fj)
+            else:
+                hi = pi = pj = ei = ej = infoi = infoj = None
             # normalize hj and re
             re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
             H = np.sum(hj ** 2)
             return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
-
+    
     def _compute_q(self, z, z0, s:int = 1):
         """
         For interval use only

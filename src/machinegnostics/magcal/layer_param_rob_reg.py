@@ -139,18 +139,7 @@ class ParamRobustRegressorBase(ParamBase):
                         'h_loss': self.loss,
                         'coefficients': self.coefficients.copy(),
                         'rentropy': self.re,
-                        'weights': self.weights.copy(),
-                        'fi': self.fi,
-                        'fj': self.fj,
-                        'hi': self.hi,
-                        'hj': self.hj,
-                        'pi': self.pi,
-                        'pj': self.pj,
-                        'ei': self.ei,
-                        'ej': self.ej,
-                        'infoi': self.infoi,
-                        'infoj': self.infoj,
-                        'S': s
+                        'weights': self.weights.copy()
                     })
 
                 # Check convergence with early stopping and rentropy

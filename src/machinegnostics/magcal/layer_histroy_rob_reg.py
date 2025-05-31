@@ -3,7 +3,7 @@ from machinegnostics.magcal import ParamRobustRegressorBase, HistoryBase
 from dataclasses import dataclass
 
 @dataclass
-class HistoryRecord:
+class ParamRecord:
     iteration: int
     h_loss: float = None
     weights: np.ndarray = None
@@ -21,7 +21,7 @@ class HistoryRecord:
     ei: float = None
     ej: float = None
 
-class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
+class HistoryRobustRegressor(ParamRobustRegressorBase):
     """
     History class for the Robust Regressor model.
     
@@ -60,10 +60,7 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
             data_form=data_form,
             gnostic_characteristics=gnostic_characteristics
         )
-        self._record_history = history
-        self._history = []
-        if not isinstance(self._record_history, bool):
-            raise TypeError("history must be a boolean value")
+        
         self.degree = degree
         self.max_iter = max_iter
         self.tol = tol
@@ -73,53 +70,8 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
-        self._record_history = history
-    
-    def _record(self):
-        """
-        Record the history of model parameters and gnostic loss values.
-        
-        Parameters
-        ----------
-        iteration : int
-            The current iteration number.
-        h_loss : float, optional
-            Gnostic loss value at the current iteration.
-        weights : np.ndarray, optional
-            Model weights at the current iteration.
-        coefficients : np.ndarray, optional
-            Model coefficients at the current iteration.
-        degree : int, optional
-            Degree of polynomial features used in the model.
-        rentropy : float, optional
-            Entropy of the model at the current iteration.
-        fi, hi, fj, hj : np.ndarray, optional
-            Additional gnostic information if calculated.
-        infoi, infoj : dict, optional
-            Gnostic information if calculated.
-        pi, pj : np.ndarray, optional
-            Gnostic probabilities if calculated.
-        ei, ej : float, optional
-            Gnostic entropy if calculated.
-        """
-        record = HistoryRecord(iteration=self._iter,
-                               h_loss=self.loss,
-                               weights=self.weights.copy(),
-                               coefficients=self.coefficients.copy(),
-                               degree=self.degree,
-                               rentropy=self.re,
-                               fi=self.fi,
-                               hi=self.hi,
-                               fj=self.fj,
-                               hj=self.hj,
-                               infoi=self.infoi,
-                               infoj=self.infoj,
-                               pi=self.pi,
-                               pj=self.pj,
-                               ei=self.ei,
-                               ej=self.ej)
-        self.history.append(record)
-        return self
+        self._history = history
+        self.params = []
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -131,23 +83,37 @@ class HistoryRobustRegressor(HistoryBase, ParamRobustRegressorBase):
             Input features.
         y : np.ndarray
             Target values.
-        """
+        """       
+        # Call the parent fit method to perform fitting
         super()._fit(X, y)
-        if self._record_history:
-            self._record()
-        return self
-    
-    def get_history(self, as_dict=False):
-        """
-        Retrieve the history of model parameters, gnostic loss values, and gnostic characteristics.
-
-        Parameters
-        ----------
-        as_dict : bool, optional
-            If True, return history as a list of dictionaries; otherwise, return as a list of HistoryRecord objects.
-        Returns
-        -------
-        history : list
-            List of HistoryRecord objects or dictionaries containing the recorded history.
-        """
-        return super().get_history(as_dict)
+        
+        # Record the initial state in history
+        if self.gnostic_characteristics:
+            initial_record = ParamRecord(
+                iteration=self._iter + 1,
+                h_loss=self.loss,
+                weights=self.weights.copy(),
+                coefficients=self.coefficients.copy(),
+                degree=self.degree,
+                rentropy=self.re,
+                fi= self.fi,
+                hi= self.hi,
+                fj= self.fj,
+                hj= self.hj,
+                infoi= self.infoi,
+                infoj= self.infoj,
+                pi= self.pi,
+                pj= self.pj,
+                ei= self.ei,
+                ej= self.ej
+            )
+            self.params.append(initial_record)
+        else:
+            initial_record = ParamRecord(
+                iteration=0,
+                h_loss=None,
+                weights=self.weights,
+                coefficients=self.coefficients,
+                degree=self.degree
+            )
+            self.params.append(initial_record)

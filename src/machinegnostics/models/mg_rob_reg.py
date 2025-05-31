@@ -52,6 +52,7 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self._record_history = history
+        self.params = []
         # history option
         if history:
             self._history = []
