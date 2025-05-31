@@ -1,3 +1,16 @@
+'''
+Machine Gnostics - Machine Gnostics Library
+Copyright (C) 2025  Machine Gnostics Team
+
+This work is licensed under the terms of the GNU General Public License version 3.0.
+
+Author: Nirmal Parmar
+Date: 2025-10-01
+Description: Machine Gnostics Robust Parameter Base Layer
+This module provides the base class for machine gnostic calculations, including polynomial feature generation,
+weighted least squares, and gnostic criterion calculations. It is designed to be extended for specific machine learning models.
+'''
+
 import numpy as np
 from itertools import combinations_with_replacement
 from machinegnostics.magcal import (ModelBase, GnosticCharacteristicsSample, 

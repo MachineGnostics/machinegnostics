@@ -1,8 +1,8 @@
 import numpy as np
 from itertools import combinations_with_replacement
-from machinegnostics.magcal import RegressorBase, DataConversion, GnosticsWeights, GnosticsCharacteristics, ScaleParam
+from machinegnostics.magcal import ModelBase, DataConversion, GnosticsWeights, GnosticsCharacteristics, ScaleParam
 
-class _LogisticRegressorParamBase(RegressorBase):
+class _LogisticRegressorParamBase(ModelBase):
     '''
     Base class for Gnostic Logistic Regression (binary classification).
     '''

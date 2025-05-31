@@ -27,9 +27,9 @@ class ModelBase(metaclass=ABCMeta):
         """
         pass
 
-    @abstractmethod
-    def score(self, X, y):
-        """
-        Compute the score of the model.
-        """
-        pass
+    # @abstractmethod
+    # def score(self, X, y):
+    #     """
+    #     Compute the score of the model.
+    #     """
+    #     pass
