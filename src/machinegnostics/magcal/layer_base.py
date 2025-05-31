@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
 # regression base class
-class RegressorBase(metaclass=ABCMeta):
+class ModelBase(metaclass=ABCMeta):
     """
     Abstract base class for regression models.
 
@@ -27,9 +27,9 @@ class RegressorBase(metaclass=ABCMeta):
         """
         pass
 
-    # @abstractmethod
-    # def score(self, X, y):
-    #     """
-    #     Compute the score of the model.
-    #     """
-    #     pass
+    @abstractmethod
+    def score(self, X, y):
+        """
+        Compute the score of the model.
+        """
+        pass

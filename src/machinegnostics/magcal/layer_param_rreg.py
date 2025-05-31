@@ -13,9 +13,9 @@ This model is designed to handle various types of data and is particularly usefu
 
 import numpy as np
 from itertools import combinations_with_replacement
-from machinegnostics.magcal import RegressorBase, GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights
+from machinegnostics.magcal import ModelBase, GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights
 
-class RegressorParamBase(RegressorBase):
+class RegressorParamBase(ModelBase):
     '''
     Parameter base class to perform calculation and record parameters
 
@@ -388,7 +388,7 @@ class RegressorParamBase(RegressorBase):
                 # Ensure weights are positive and normalized
                 # new_weights = np.clip(new_weights, eps, None)
                 # self.weights = self.weights * (s*loss**-1)
-                self.weights = new_weights / np.mean(new_weights)
+                self.weights = new_weights / np.mean(new_weights) # NOTE : Normalizing weights need
                                                 
                 # print loss
                 if self.verbose:
