@@ -1,5 +1,5 @@
 from machinegnostics.models.cross_validation import CrossValidator
 from machinegnostics.models.mg_rig import RobustRegressor
 from machinegnostics.models.data_split import train_test_split
-from machinegnostics.models.mg_lrig import LinearRegressor
+# from machinegnostics.models.mg_lrig import LinearRegressor
 from machinegnostics.models.mg_logreg import LogisticRegressor
