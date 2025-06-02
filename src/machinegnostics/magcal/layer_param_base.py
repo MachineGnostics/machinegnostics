@@ -344,3 +344,55 @@ class ParamBase(ModelBase):
         """
         # Placeholder for scoring logic
         pass
+
+    def _sigmoid(self, z):
+        """
+        Compute the sigmoid function for logistic regression.
+        Parameters
+        ----------
+        z : np.ndarray
+            Input array for which to compute the sigmoid function.
+        Returns
+        -------
+        np.ndarray
+            Sigmoid of the input array.
+        """
+        return 1 / (1 + np.exp(-z))
+    
+    def _gnostic_prob(self, z):
+        """
+        Compute the gnostic probabilities and characteristics.
+        Parameters
+        ----------
+        z : np.ndarray
+            Input data for which to compute gnostic probabilities.
+        Returns
+        -------
+        tuple
+            Tuple containing the gnostic probabilities, information, and normalized rentropy.
+        """
+        zz = self._data_conversion(z)
+        gc = GnosticsCharacteristics(zz)
+
+        # q, q1
+        q, q1 = gc._get_q_q1()
+        h = gc._hi(q, q1)
+        fi = gc._fi(q, q1)
+
+        # Scale handling
+        if self.scale_value == 'auto':
+            scale = ScaleParam()
+            s = scale._gscale_loc(np.mean(fi))
+        else:
+            s = self.scale_value
+            
+        q, q1 = gc._get_q_q1(S=s)
+        h = gc._hi(q, q1)
+        fi = gc._fi(q, q1)
+        fj = gc._fj(q, q1)
+        p = gc._idistfun(h)
+        info = gc._info_i(p)
+        re = gc._rentropy(fi, fj)
+        # nomalized re
+        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re))
+        return p, info, re_norm

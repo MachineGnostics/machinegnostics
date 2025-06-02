@@ -1,3 +1,15 @@
+'''
+Machine Gnostics - Machine Gnostics Library
+Copyright (C) 2025  Machine Gnostics Team
+
+This work is licensed under the terms of the GNU General Public License version 3.0.
+
+Author: Nirmal Parmar
+
+Description:
+This module implements a robust polynomial regression model using mathematical gnostics principles.
+'''
+
 import numpy as np
 from machinegnostics.models.regression.layer_io_process_rob_rig import DataProcessRobustRegressor
 from machinegnostics.metrics import robr2
