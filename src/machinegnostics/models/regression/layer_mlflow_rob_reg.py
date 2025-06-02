@@ -1,5 +1,5 @@
 import numpy as np
-from machinegnostics.magcal import ParamRobustRegressorBase, HistoryRobustRegressor
+from machinegnostics.models.regression.layer_histroy_rob_reg import HistoryRobustRegressor
 import mlflow
 import os
 import joblib

@@ -1,5 +1,5 @@
 import numpy as np
-from machinegnostics.magcal import ParamRobustRegressorBase, HistoryBase
+from machinegnostics.models.regression.layer_param_rob_reg import ParamRobustRegressorBase
 from dataclasses import dataclass
 
 @dataclass

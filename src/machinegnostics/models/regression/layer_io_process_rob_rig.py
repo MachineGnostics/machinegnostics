@@ -1,12 +1,15 @@
 import numpy as np
-from machinegnostics.magcal import DataProcessLayerBase, MlflowInterfaceRobustRegressor
+from machinegnostics.magcal import DataProcessLayerBase
+from machinegnostics.models.regression.layer_mlflow_rob_reg import MlflowInterfaceRobustRegressor
+from machinegnostics.magcal import disable_parent_docstring
 
+@disable_parent_docstring
 class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegressor):
     """
     Data processing layer for the Robust Regressor model.
     Handles data preprocessing specific to the Robust Regressor model.
     """
-
+    @disable_parent_docstring
     def __init__(self,
                  degree: int = 1,
                  max_iter: int = 100,
@@ -60,6 +63,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegr
         self._history = history
         self.params = []
 
+    @disable_parent_docstring
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the model to the data and preprocess it.
@@ -68,6 +72,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, MlflowInterfaceRobustRegr
         # Call the fit method from the next class in the MRO
         return super()._fit(X, y)
 
+    @disable_parent_docstring
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """
         Predict using the model after preprocessing the input data.

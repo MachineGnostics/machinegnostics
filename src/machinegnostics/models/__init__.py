@@ -3,4 +3,3 @@ from machinegnostics.models.mg_rig import RobustRegressor
 from machinegnostics.models.data_split import train_test_split
 from machinegnostics.models.mg_lrig import LinearRegressor
 from machinegnostics.models.mg_logreg import LogisticRegressor
-from machinegnostics.models.mg_rob_reg import PolynomialRegressor
