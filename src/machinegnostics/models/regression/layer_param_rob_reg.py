@@ -7,9 +7,11 @@ This work is licensed under the terms of the GNU General Public License version 
 Author: Nirmal Parmar
 Date: 2025-05-31
 
-Description: Machine Gnostics Robust Regression Machine Learning Model
-This module implements a machine learning model for robust regression using the Machine Gnostics library.
-This model is designed to handle various types of data and is particularly useful for applications in machine gnostics.
+Description:
+Regressor param base class that can be used for robust regression models.
+- linear regression
+- polynomial regression
+
 '''
 
 import numpy as np
@@ -104,7 +106,7 @@ class ParamRobustRegressorBase(ParamBase):
                 
                 # Update weights using gnostic approach
                 y0 = X_poly @ self.coefficients
-                residuals = y - y0
+                residuals = y0 - y
                 
                 # mg data conversion
                 z = self._data_conversion(residuals)

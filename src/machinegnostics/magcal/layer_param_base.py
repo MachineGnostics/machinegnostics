@@ -5,10 +5,14 @@ Copyright (C) 2025  Machine Gnostics Team
 This work is licensed under the terms of the GNU General Public License version 3.0.
 
 Author: Nirmal Parmar
-Date: 2025-10-01
-Description: Machine Gnostics Robust Parameter Base Layer
-This module provides the base class for machine gnostic calculations, including polynomial feature generation,
-weighted least squares, and gnostic criterion calculations. It is designed to be extended for specific machine learning models.
+Date: 2025-05-31
+
+Description:
+Regressor param base class that can be used for robust regression models.
+- linear regression
+- polynomial regression
+- logistic regression
+
 '''
 
 import numpy as np
@@ -192,6 +196,33 @@ class ParamBase(ModelBase):
             # Fallback to pseudo-inverse for ill-conditioned matrices
             return np.linalg.pinv(XtWX) @ XtWy
     
+    def _wighted_least_squares_log_reg(self, p, y0, X_poly:np.ndarray, y:np.ndarray, W:np.ndarray) -> np.ndarray:
+        """
+        Solve weighted least squares for logistic regression using normal equations.
+        
+        Parameters:
+        -----------
+        X_poly : array-like
+            Polynomial features matrix
+        y : array-like
+            Target values
+        weights : array-like
+            Sample weights
+            
+        Returns:
+        --------
+        array-like
+            Estimated coefficients
+        """
+        try:
+            XtW = X_poly.T @ W
+            XtWX = XtW @ X_poly + 1e-8 * np.eye(X_poly.shape[1])
+            XtWy = XtW @ (y0 + (y - p) / (p * (1 - p) + 1e-8))
+            self.coefficients = np.linalg.solve(XtWX, XtWy)
+        except np.linalg.LinAlgError:
+            self.coefficients = np.linalg.pinv(XtWX) @ XtWy
+        return self.coefficients
+    
     def _data_conversion(self, z:np.ndarray) -> np.ndarray:
         dc = DataConversion()
         if self.data_form == 'a':
@@ -359,7 +390,7 @@ class ParamBase(ModelBase):
         """
         return 1 / (1 + np.exp(-z))
     
-    def _gnostic_prob(self, z):
+    def _gnostic_prob(self, z, s) -> tuple:
         """
         Compute the gnostic probabilities and characteristics.
         Parameters
@@ -373,19 +404,6 @@ class ParamBase(ModelBase):
         """
         zz = self._data_conversion(z)
         gc = GnosticsCharacteristics(zz)
-
-        # q, q1
-        q, q1 = gc._get_q_q1()
-        h = gc._hi(q, q1)
-        fi = gc._fi(q, q1)
-
-        # Scale handling
-        if self.scale_value == 'auto':
-            scale = ScaleParam()
-            s = scale._gscale_loc(np.mean(fi))
-        else:
-            s = self.scale_value
-            
         q, q1 = gc._get_q_q1(S=s)
         h = gc._hi(q, q1)
         fi = gc._fi(q, q1)
