@@ -18,6 +18,7 @@ import numpy as np
 from machinegnostics.magcal import (ScaleParam, 
                                     GnosticsWeights, 
                                     ParamBase)
+from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float
 
 class ParamRobustRegressorBase(ParamBase):
     """
@@ -108,7 +109,9 @@ class ParamRobustRegressorBase(ParamBase):
                 y0 = X_poly @ self.coefficients
                 residuals = y0 - y
                 
-                # mg data conversion
+                # mg data conversion                
+                z_y = self._data_conversion(y)
+                z_y0 = self._data_conversion(y0)
                 z = self._data_conversion(residuals)
 
                 # gnostic weights
@@ -119,13 +122,17 @@ class ParamRobustRegressorBase(ParamBase):
                 # Compute scale and loss
                 if self.scale == 'auto':
                     scale = ScaleParam()
+                    zz = z_y0 / z_y
+                    # avoid division by zero
+                    zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
                     # local scale 
-                    s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
+                    s = scale._gscale_loc((2 / (zz + 1/zz)))
                 else:
                     s = self.scale
-
+                # NOTE z, z_y z_y0 gives different results
+                # z and z_y gives good results
                 self.loss, self.re, self.hi, self.hj, self.fi, self.fj, \
-                self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z, y0, s)
+                self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z=z_y0, z0=z_y, s=s)
 
                 self.weights = new_weights / np.sum(new_weights) # NOTE : Normalizing weights
                                                 

@@ -16,7 +16,7 @@ import numpy as np
 from machinegnostics.magcal import (ScaleParam, 
                                     GnosticsWeights, 
                                     ParamBase)
-from machinegnostics.magcal.util.min_max_float import np_max_float
+from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float
 class ParamLogisticRegressorBase(ParamBase):
     """
     Parameters for the Logistic Regressor model.
@@ -110,6 +110,8 @@ class ParamLogisticRegressorBase(ParamBase):
                 
                 # mg data conversion
                 z = self._data_conversion(residuals)
+                z_y = self._data_conversion(y)
+                z_y0 = self._data_conversion(y0)
 
                 # gnostic weights
                 gw = GnosticsWeights()
@@ -119,8 +121,11 @@ class ParamLogisticRegressorBase(ParamBase):
                 # Compute scale and loss
                 if self.scale == 'auto':
                     scale = ScaleParam()
+                    zz = z_y0 / z_y
+                    # avoid division by zero
+                    zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
                     # local scale 
-                    s = scale._gscale_loc(np.mean(2 / (z + 1/z)))
+                    s = scale._gscale_loc((2 / (zz + 1/zz)))
                 else:
                     s = self.scale
                 
@@ -136,13 +141,13 @@ class ParamLogisticRegressorBase(ParamBase):
                 self.coefficients = self._wighted_least_squares_log_reg(p, y0, X_poly, y, W=new_weights)
 
                 # --- Log loss calculation ---
-                proba_pred = np.clip(p, 1e-8, 1-1e-8)
+                proba_pred = np.clip(p, 0, 1)
                 self.log_loss = -np.mean(y * np.log(proba_pred) + (1 - y) * np.log(1 - proba_pred))
             
 
                 if self.gnostic_characteristics:
                     self.loss, self.re, self.hi, self.hj, self.fi, self.fj, \
-                    self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z, y0, s)
+                    self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z=z_y0, z0=z_y, s=s)
 
                 self.weights = new_weights / np.sum(new_weights) # NOTE : Normalizing weights
 
