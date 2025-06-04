@@ -13,8 +13,6 @@ import os
 import joblib
 import mlflow
 import numpy as np
-import pandas as pd
-from pyspark.sql import DataFrame as SparkDataFrame
 from machinegnostics.models.classification.layer_history_log_reg import HistoryRobustRegressor
 
 class InterfaceLogisticRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel):
@@ -73,7 +71,7 @@ class InterfaceLogisticRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonMod
         self.weights = self.weights
         return self
 
-    def _predict(self, model_input: np.ndarray|pd.DataFrame|SparkDataFrame) -> np.ndarray:
+    def _predict(self, model_input) -> np.ndarray:
         """
         Predict class labels for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.

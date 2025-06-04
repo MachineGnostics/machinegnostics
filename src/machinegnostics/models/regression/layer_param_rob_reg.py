@@ -144,7 +144,7 @@ class ParamRobustRegressorBase(ParamBase):
                 # minimal history capture
                 if self._history is not None:
                     self._history.append({
-                        'iteration': self._iter +1,
+                        'iteration': self._iter,
                         'h_loss': self.loss,
                         'coefficients': self.coefficients.copy(),
                         'rentropy': self.re,

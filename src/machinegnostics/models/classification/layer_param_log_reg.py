@@ -176,7 +176,7 @@ class ParamLogisticRegressorBase(ParamBase):
                 # minimal history capture
                 if self._history is not None:
                     self._history.append({
-                        'iteration': self._iter +1,
+                        'iteration': self._iter,
                         'log_loss': self.log_loss,
                         'coefficients': self.coefficients.copy(),
                         'rentropy': re,
@@ -186,15 +186,24 @@ class ParamLogisticRegressorBase(ParamBase):
                 # Check convergence with early stopping and rentropy
                 # if entropy value is increasing, stop
                 
-                # --- Unified convergence check: stop if mean rentropy change is within tolerance ---
-
+                # --- Unified convergence check: stop if mean rentropy or log_loss change is within tolerance ---
                 if self._iter > 0 and self.early_stopping:
-                    prev_re = self._history[-2]['rentropy'] if len(self._history) > 1 else None
+                    prev_hist = self._history[-2] if len(self._history) > 1 else None
                     curr_re = np.mean(re)
-                    prev_re_val = np.mean(prev_re) if prev_re is not None else None
-                    if prev_re_val is not None and np.abs(curr_re - prev_re_val) < self.tol:
+                    curr_log_loss = self.log_loss
+                    prev_re_val = np.mean(prev_hist['rentropy']) if prev_hist and prev_hist['rentropy'] is not None else None
+                    prev_log_loss_val = prev_hist['log_loss'] if prev_hist and prev_hist['log_loss'] is not None else None
+
+                    re_converged = prev_re_val is not None and np.abs(curr_re - prev_re_val) < self.tol
+                    log_loss_converged = prev_log_loss_val is not None and np.abs(curr_log_loss - prev_log_loss_val) < self.tol
+
+                    if re_converged or log_loss_converged:
                         if self.verbose:
-                            print(f"Converged at iteration {self._iter} (early stop): mean rentropy change below tolerance.")
+                            print(f"Converged at iteration {self._iter} (early stop):", end=" ")
+                            if re_converged:
+                                print(f"mean rentropy change below tolerance (rentropy={np.abs(curr_re - prev_re_val):.6e}).")
+                            if log_loss_converged:
+                                print(f"log_loss change below tolerance (log_loss={np.abs(curr_log_loss - prev_log_loss_val):.6e}).")
                         break
                 if self.verbose:
                     print(f"Iteration {self._iter}, Log Loss: {self.log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
