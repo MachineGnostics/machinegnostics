@@ -17,6 +17,7 @@ from machinegnostics.magcal import (ScaleParam,
                                     GnosticsWeights, 
                                     ParamBase)
 from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float
+
 class ParamLogisticRegressorBase(ParamBase):
     """
     Parameters for the Logistic Regressor model.
@@ -44,7 +45,6 @@ class ParamLogisticRegressorBase(ParamBase):
             degree=degree,
             max_iter=max_iter,
             tol=tol,
-            mg_loss=mg_loss,
             early_stopping=early_stopping,
             verbose=verbose,
             scale=scale,
@@ -55,13 +55,13 @@ class ParamLogisticRegressorBase(ParamBase):
         self.degree = degree
         self.max_iter = max_iter
         self.tol = tol
-        self.mg_loss = mg_loss
         self.early_stopping = early_stopping
         self.verbose = verbose
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self.proba = proba
+        self.mg_loss = 'hi'
         # history option
         if history:
             self._history = []
@@ -89,20 +89,22 @@ class ParamLogisticRegressorBase(ParamBase):
         """
         # Generate polynomial features
         X_poly = self._generate_polynomial_features(X)
+
+        n_samples, n_features = X_poly.shape
         
         # Initialize weights
-        self.weights = self._weight_init(d=y, like='one')
+        self.weights = np.ones(n_samples)
         
         # Initialize coefficients to zeros
-        self.coefficients = np.zeros(X_poly.shape[1])
+        self.coefficients = np.zeros(n_features)
         
         for self._iter in range(self.max_iter):
             self._iter += 1
             self._prev_coef = self.coefficients.copy()
             
             try:
-                # Weighted least squares
-                self.coefficients = self._weighted_least_squares(X_poly, y, self.weights)
+                # # Weighted least squares
+                # self.coefficients = self._weighted_least_squares(X_poly, y, self.weights)
                 
                 # Update weights using gnostic approach
                 y0 = X_poly @ self.coefficients
@@ -117,11 +119,12 @@ class ParamLogisticRegressorBase(ParamBase):
                 gw = GnosticsWeights()
                 gw = gw._get_gnostic_weights(z)
                 new_weights = self.weights * gw
+                W = np.diag(new_weights)
 
                 # Compute scale and loss
                 if self.scale == 'auto':
                     scale = ScaleParam()
-                    zz = z_y0 / z_y
+                    zz = z_y0 - z_y
                     # avoid division by zero
                     zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
                     # local scale 
@@ -132,29 +135,42 @@ class ParamLogisticRegressorBase(ParamBase):
                 # gnostic probabilities
                 if self.proba == 'gnostic':
                     # Gnostic probability calculation
-                    p, info, re = self._gnostic_prob(z, s)
+                    p, info, re = self._gnostic_prob(z=z)
                 elif self.proba == 'sigmoid':
                     # Sigmoid probability calculation
                     p = self._sigmoid(y0)
-                    _, info, re = self._gnostic_prob(z, s)
+                    _, info, re = self._gnostic_prob(z=z)
 
-                self.coefficients = self._wighted_least_squares_log_reg(p, y0, X_poly, y, W=new_weights)
+                # self.coefficients = self._wighted_least_squares_log_reg(p, 
+                #                                                         y0, 
+                #                                                         X_poly,
+                #                                                         y, 
+                #                                                         W=W, 
+                #                                                         n_features=n_features, 
+                #                                                         )
+                # IRLS update
+                try:
+                    XtW = X_poly.T @ W
+                    XtWX = XtW @ X_poly + 1e-8 * np.eye(n_features)
+                    XtWy = XtW @ (y0 + (y - p) / (p * (1 - p) + 1e-8))
+                    self.coefficients = np.linalg.solve(XtWX, XtWy)
+                except np.linalg.LinAlgError:
+                    self.coefficients = np.linalg.pinv(XtWX) @ XtWy
 
                 # --- Log loss calculation ---
-                proba_pred = np.clip(p, 0, 1)
+                proba_pred = np.clip(p, 1e-8, 1-1e-8)
                 self.log_loss = -np.mean(y * np.log(proba_pred) + (1 - y) * np.log(1 - proba_pred))
-            
+
+                # history update for gnostic vs sigmoid
+                re = np.mean(re)
+                info = np.mean(info)
 
                 if self.gnostic_characteristics:
                     self.loss, self.re, self.hi, self.hj, self.fi, self.fj, \
                     self.pi, self.pj, self.ei, self.ej, self.infoi, self.infoj  = self._gnostic_criterion(z=z_y0, z0=z_y, s=s)
 
-                self.weights = new_weights / np.sum(new_weights) # NOTE : Normalizing weights
+                # self.weights = new_weights / np.sum(new_weights) # NOTE : Normalizing weights
 
-                # history update for gnostic vs sigmoid
-                # normalize rentropy and information
-                re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
-                info_norm = (info - np.min(info)) / (np.max(info) - np.min(info)) if np.max(info) != np.min(info) else info                              
                 
                 # capture history and append to history
                 # minimal history capture
@@ -163,35 +179,34 @@ class ParamLogisticRegressorBase(ParamBase):
                         'iteration': self._iter +1,
                         'log_loss': self.log_loss,
                         'coefficients': self.coefficients.copy(),
-                        'information': info_norm,
-                        'rentropy': re_norm,
+                        'rentropy': re,
                         'weights': self.weights.copy(),
                     })
 
                 # Check convergence with early stopping and rentropy
                 # if entropy value is increasing, stop
+                
                 # --- Unified convergence check: stop if mean rentropy change is within tolerance ---
 
                 if self._iter > 0 and self.early_stopping:
                     prev_re = self._history[-2]['rentropy'] if len(self._history) > 1 else None
-                    curr_re = re_norm
+                    curr_re = np.mean(re)
                     prev_re_val = np.mean(prev_re) if prev_re is not None else None
                     if prev_re_val is not None and np.abs(curr_re - prev_re_val) < self.tol:
                         if self.verbose:
-                            print(f"Converged at iteration {self._iter+ 1} (early stop): rentropy change below tolerance.")
+                            print(f"Converged at iteration {self._iter} (early stop): mean rentropy change below tolerance.")
                         break
                 if self.verbose:
-                    print(f"Iteration {self._iter + 1}, Log Loss: {self.log_loss:.6f}, mean residual entropy: {re_norm:.6f}")
-                
+                    print(f"Iteration {self._iter}, Log Loss: {self.log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
+
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 # Handle exceptions during fitting
                 self.coefficients = self._prev_coef
                 self.weights = self.weights.copy()
                 if self.verbose:
                     print(f"Error during fitting: {e}")
-                    print(f"Iteration {self._iter + 1}, Log Loss: {self.log_loss:.6f}")
-                break
-            
+                    print(f"Iteration {self._iter + 1}, Log Loss: {self.loss:.6f}")
+                break         
 
     def _predict(self, X: np.ndarray, threshold=0.5) -> np.ndarray:
         """
@@ -210,9 +225,7 @@ class ParamLogisticRegressorBase(ParamBase):
             Predicted class labels (0 or 1).
         """
         proba = self._predict_proba(X)
-        return (proba >= threshold).astype(int)
-
-      
+        return (proba >= threshold).astype(int)  
     
     def _predict_proba(self, X: np.ndarray) -> np.ndarray:
         """

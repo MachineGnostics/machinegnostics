@@ -4,7 +4,7 @@ import mlflow
 import os
 import joblib
 
-class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel):
+class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel):
     """
     Interface for the Robust Regressor model with MLflow integration.
     
@@ -118,3 +118,10 @@ class MlflowInterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.Pytho
             An instance of the model loaded from the specified path.
         """
         return joblib.load(os.path.join(path, "model.pkl"))
+        
+    def save_model(self, path):
+        """
+        Save the trained model to disk using joblib.
+        """
+        os.makedirs(path, exist_ok=True)
+        joblib.dump(self, os.path.join(path, "model.pkl"))

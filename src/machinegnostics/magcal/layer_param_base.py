@@ -75,20 +75,21 @@ class ParamBase(ModelBase):
         self.verbose = verbose
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
+        self.scale = scale
         # --- Scale input handling ---
-        if isinstance(scale, str):
-            if scale != 'auto':
-                raise ValueError("scale must be 'auto' or a float between 0 and 2.")
-            self.scale_value = 'auto'
-        elif isinstance(scale, (int, float)):
-            if not (0 <= scale <= 2):
-                raise ValueError("scale must be 'auto' or a float between 0 and 2.")
-            self.scale_value = float(scale)
-        else:
-            raise ValueError("scale must be 'auto' or a float between 0 and 2.")
-        # data form check additive or multiplicative
-        if self.data_form not in ['a', 'm']:
-            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
+        # if isinstance(scale, str):
+        #     if scale != 'auto':
+        #         raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+        #     self.scale_value = 'auto'
+        # elif isinstance(scale, (int, float)):
+        #     if not (0 <= scale <= 2):
+        #         raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+        #     self.scale_value = float(scale)
+        # else:
+        #     raise ValueError("scale must be 'auto' or a float between 0 and 2.")
+        # # data form check additive or multiplicative
+        # if self.data_form not in ['a', 'm']:
+        #     raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
         # history option
         if history:
             self._history = []
@@ -182,7 +183,7 @@ class ParamBase(ModelBase):
         array-like
             Estimated coefficients
         """
-        eps = np_eps_float()  # Small value to avoid singular matrix issues
+        eps = np_min_float()  # Small value to avoid singular matrix issues
         # Add small regularization term
         weights = np.clip(weights, eps, None)
         W = np.diag(weights)
@@ -196,7 +197,7 @@ class ParamBase(ModelBase):
             # Fallback to pseudo-inverse for ill-conditioned matrices
             return np.linalg.pinv(XtWX) @ XtWy
     
-    def _wighted_least_squares_log_reg(self, p, y0, X_poly:np.ndarray, y:np.ndarray, W:np.ndarray) -> np.ndarray:
+    def _wighted_least_squares_log_reg(self, p, y0, X_poly:np.ndarray, y:np.ndarray, W:np.ndarray, n_features) -> np.ndarray:
         """
         Solve weighted least squares for logistic regression using normal equations.
         
@@ -216,7 +217,7 @@ class ParamBase(ModelBase):
         """
         try:
             XtW = X_poly.T @ W
-            XtWX = XtW @ X_poly + 1e-8 * np.eye(X_poly.shape[1])
+            XtWX = XtW @ X_poly + np_min_float() * np.eye(n_features)
             XtWy = XtW @ (y0 + (y - p) / (p * (1 - p) + 1e-8))
             self.coefficients = np.linalg.solve(XtWX, XtWy)
         except np.linalg.LinAlgError:
@@ -390,7 +391,7 @@ class ParamBase(ModelBase):
         """
         return 1 / (1 + np.exp(-z))
     
-    def _gnostic_prob(self, z, s) -> tuple:
+    def _gnostic_prob(self, z) -> tuple:
         """
         Compute the gnostic probabilities and characteristics.
         Parameters
@@ -404,6 +405,19 @@ class ParamBase(ModelBase):
         """
         zz = self._data_conversion(z)
         gc = GnosticsCharacteristics(zz)
+
+        # q, q1
+        q, q1 = gc._get_q_q1()
+        h = gc._hi(q, q1)
+        fi = gc._fi(q, q1)
+
+        # Scale handling
+        if self.scale == 'auto':
+            scale = ScaleParam()
+            s = scale._gscale_loc(np.mean(fi))
+        else:
+            s = self.scale
+            
         q, q1 = gc._get_q_q1(S=s)
         h = gc._hi(q, q1)
         fi = gc._fi(q, q1)
@@ -412,5 +426,5 @@ class ParamBase(ModelBase):
         info = gc._info_i(p)
         re = gc._rentropy(fi, fj)
         # nomalized re
-        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re))
+        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
         return p, info, re_norm
