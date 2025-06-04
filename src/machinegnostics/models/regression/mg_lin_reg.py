@@ -181,6 +181,13 @@ class LinearRegressor(DataProcessRobustRegressor):
         -----
         - After fitting, the model's coefficients and sample weights are available in the `coefficients` and `weights` attributes.
         - If `history=True`, the optimization history is available in the `params` and `_history` attributes.
+
+        Example
+        -------
+        >>> model = LinearRegressor(max_iter=100, verbose=True)
+        >>> model.fit(X_train, y_train)
+        >>> print(model.coefficients)
+        >>> print(model.weights)
         """
         # Call the fit method from DataProcessRobustRegressor
         super()._fit(X, y)
@@ -198,6 +205,12 @@ class LinearRegressor(DataProcessRobustRegressor):
         -------
         y_pred : np.ndarray
             Predicted target values, shape (n_samples,).
+
+        Example
+        -------
+        >>> model = LinearRegressor(max_iter=100, verbose=True)
+        >>> model.fit(X_train, y_train)
+        >>> y_pred = model.predict(X_test)
         """
         # Call the predict method from DataProcessRobustRegressor
         return super()._predict(model_input)
@@ -219,6 +232,13 @@ class LinearRegressor(DataProcessRobustRegressor):
         -------
         score : float
             Robust R2 score of the model on the provided data.
+        
+        Example
+        -------
+        >>> model = LinearRegressor(max_iter=100, verbose=True)
+        >>> model.fit(X_train, y_train)
+        >>> r2 = model.score(X_test, y_test)
+        >>> print(f"Robust R2 score: {r2}")
         """
         # prediction
         y_pred = self.predict(X)

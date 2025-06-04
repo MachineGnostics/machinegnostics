@@ -183,6 +183,11 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         -------
         self : PolynomialRegressor
             Returns the fitted model instance for chaining or further use.
+        
+        Example
+        -------
+        >>> model = PolynomialRegressor(degree=2, max_iter=200, verbose=True)
+        >>> model.fit(X_train, y_train) 
 
         Notes
         -----
@@ -205,6 +210,12 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         -------
         y_pred : np.ndarray
             Predicted target values, shape (n_samples,).
+        
+        Example
+        -------
+        >>> model = PolynomialRegressor(degree=2)
+        >>> model.fit(X_train, y_train)
+        >>> y_pred = model.predict(X_test)
         """
         # Call the predict method from DataProcessRobustRegressor
         return super()._predict(model_input)
@@ -226,6 +237,13 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         -------
         score : float
             Robust R2 score of the model on the provided data.
+        
+        Example
+        -------
+        >>> model = PolynomialRegressor(degree=2)
+        >>> model.fit(X_train, y_train)
+        >>> r2 = model.score(X_test, y_test)
+        >>> print(f'Robust R2 score: {r2}')
         """
         # prediction
         y_pred = self.predict(X)

@@ -88,6 +88,12 @@ class LogisticRegressor(DataProcessLogisticRegressor):
     >>> model.fit(X_train, y_train)
     >>> y_pred = model.predict(X_test)
     >>> print("F1 Score:", model.score(X_test, y_test))
+
+    Notes
+    -----
+    - The model supports both binary and multiclass classification tasks.
+    - More information on gnostic characteristics can be found in the Machine Gnostics documentation.
+    - For more information, visit: https://machinegnostics.info/
     """
     
     @disable_parent_docstring
