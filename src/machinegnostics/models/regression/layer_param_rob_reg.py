@@ -112,6 +112,7 @@ class ParamRobustRegressorBase(ParamBase):
                 # mg data conversion                
                 z_y = self._data_conversion(y)
                 z_y0 = self._data_conversion(y0)
+                zz = z_y0 / z_y
                 z = self._data_conversion(residuals)
 
                 # gnostic weights
@@ -122,7 +123,6 @@ class ParamRobustRegressorBase(ParamBase):
                 # Compute scale and loss
                 if self.scale == 'auto':
                     scale = ScaleParam()
-                    zz = z_y0 / z_y
                     # avoid division by zero
                     zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
                     # local scale 

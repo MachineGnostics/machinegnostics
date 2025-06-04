@@ -165,7 +165,7 @@ class ParamBase(ModelBase):
         else:
             raise ValueError("like must be 'one', 'zero', or 'random'.")
         
-    def _weighted_least_squares(self, X_poly:np.ndarray, y:np.ndarray, weights:np.ndarray) -> np.ndarray:
+    def _weighted_least_squares(self, X_poly, y, weights):
         """
         Solve weighted least squares using normal equations.
         
@@ -183,7 +183,7 @@ class ParamBase(ModelBase):
         array-like
             Estimated coefficients
         """
-        eps = np_min_float()  # Small value to avoid singular matrix issues
+        eps = np_eps_float()  # Small value to avoid division by zero
         # Add small regularization term
         weights = np.clip(weights, eps, None)
         W = np.diag(weights)
