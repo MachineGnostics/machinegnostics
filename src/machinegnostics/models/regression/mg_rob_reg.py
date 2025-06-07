@@ -96,7 +96,7 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         degree: int = 2, 
         scale: str | int | float = 'auto',
         max_iter: int = 100,
-        tol: float = 1e-8,
+        tol: float = 1e-3,
         mg_loss: str = 'hi',
         early_stopping: bool = True,
         verbose: bool = False,
