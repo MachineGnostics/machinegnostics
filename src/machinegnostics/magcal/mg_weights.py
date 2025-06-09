@@ -9,7 +9,7 @@ For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
 import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 
-class GnosticsWeights():
+class GnosticsWeights:
     '''
     Calculates Machine Gnostics weights as per different requirements.
 

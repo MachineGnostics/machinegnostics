@@ -82,3 +82,37 @@ class ScaleParam():
         else:
             F = np.asarray(F)
             return np.array([_single_scale(f) for f in F])
+        
+    import numpy as np
+
+    def var_s(self, Z, W=None, S=1):
+        """
+        Calculates vector of scale parameters for each kernel.
+        
+        Parameters:
+        Z (array-like): Data vector
+        W (array-like, optional): Weight vector
+        S (float, optional): Scalar scale factor (default is 1)
+        
+        Returns:
+        numpy.ndarray: Scale vector (same length as Z)
+        """
+        Z = np.asarray(Z).reshape(-1, 1)
+
+        if W is None:
+            W = np.ones_like(Z) / len(Z)
+        else:
+            W = np.asarray(W).reshape(-1, 1)
+            if len(Z) != len(W):
+                raise ValueError("Z and W must be of the same length")
+            W = W / np.sum(W)
+
+        Sz = np.zeros_like(Z, dtype=float)
+
+        for k in range(len(W)):
+            V = Z / Z[k]
+            V = V ** 2 + 1.0 / (V ** 2)
+            Sz[k] = self._gscale_loc(np.sum(2.0 / V * W))
+
+        Sx = S * Sz / np.mean(Sz)
+        return Sx
