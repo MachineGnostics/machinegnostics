@@ -37,7 +37,7 @@ class GnosticDistributionFunction:
         """
         self.tol = tol
 
-    def gnostic_kernel(self, Z, Z0, S):
+    def gnostic_kernel(self, Z, Z0, S=1.0):
         """
         Compute the Gnostic kernel function.
         
@@ -150,7 +150,7 @@ class GnosticDistributionFunction:
         Z0 = np.asarray(Z0)
         el = np.zeros_like(Z0, dtype=float)
         for Zk in Z:
-            qk = (Zk / Z0)**(2/S)
+            qk = (Zk / Z0)**(1/S) # NOTE: eq 15.3
             el += 1 / (1 + qk**4)
         el /= len(Z)
         return el
@@ -210,9 +210,9 @@ class GnosticDistributionFunction:
             density_safe = np.zeros_like(Z0_safe, dtype=float)
             
             # Vectorized implementation when possible
-            if len(Z) < 1000:  # For small datasets, use vectorization
+            if len(Z) < 10000:  # For small datasets, use vectorization
                 Z_col = Z[:, np.newaxis]  # Shape for broadcasting
-                q_matrix = np.abs(Z_col / Z0_safe)**(2/S)
+                q_matrix = np.abs(Z_col / Z0_safe)**(1/S) # NOTE : eq 15.3
                 q_matrix_sq = q_matrix**2
                 denom = (q_matrix_sq + 1/q_matrix_sq)**2
                 # Avoid division by zero in denominator
@@ -222,7 +222,7 @@ class GnosticDistributionFunction:
                 density_safe = np.mean(result, axis=0)
             else:  # For large datasets, use loop to avoid memory issues
                 for Zk in Z:
-                    qk = np.abs(Zk / Z0_safe)**(2/S)
+                    qk = np.abs(Zk / Z0_safe)**(1/S) # NOTE : eq 15.3
                     denom = (qk**2 + 1/qk**2)**2
                     # Avoid division by zero
                     valid_indices = denom > eps
@@ -230,7 +230,7 @@ class GnosticDistributionFunction:
                 density_safe /= len(Z)
             
             # Apply the scaling factor
-            density[mask] = density_safe / (S * np.abs(Z0_safe))
+            density[mask] = density_safe / (S)
         
         # For Z0 = 0, density is undefined or infinity
         # We set it to 0 to avoid numerical issues
