@@ -286,7 +286,7 @@ class DataConversion:
 
         # Adjust the logic to ensure the result is strictly less than ub
         epsilon = 1e-6  # Small value to ensure strict inequality
-        z_inf = (z_fin -lb) / (1 - z_fin / ub)
+        z_inf = (z_fin -lb) / (1 - (z_fin / ub) + epsilon)
         return z_inf
 
     @staticmethod
