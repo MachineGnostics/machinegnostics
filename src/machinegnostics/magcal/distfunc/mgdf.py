@@ -21,7 +21,6 @@ class DistributionFunctions:
 
     """
     def __init__(self,
-                 data:np.ndarray,
                  varS:bool = False, # NOTE: in future need to add auto mode for S
                  lb:float = None,
                  ub:float = None,
@@ -37,7 +36,6 @@ class DistributionFunctions:
         Initialize the distribution functions with data and parameters.
 
         Parameters:
-        - data: Input data for the distribution.
         - varS (bool): Whether to varying S (True) or with global S (False) for a given data sample.
         - lb (float): Lower bound for the distribution.
         - ub (float): Upper bound for the distribution.
@@ -49,8 +47,19 @@ class DistributionFunctions:
         - tol (float): Tolerance for numerical computations.
         - homogeneous (bool): Whether the data is homogeneous.
         - homoscedasticity (bool): Whether the data is homoscedastic.
+
+        Note:
+
+        - EDF (Empirical Distribution Function) is a non-parametric estimator of the cumulative distribution function (CDF) of a random variable.
+
+        Below are the main functions of the Gnostic distribution functions:
+        - Gnostic Kernel and its density
+        - ELDF (Estimating Local Distribution Function) and its density
+        - EGDF (Estimating Global Distribution Function) and its density
+        - QLDF (Quantifying Local Distribution Function) and its density
+        - QGDF (Quantifying Global Distribution Function) and its density
+
         """
-        self.data = data
         self.varS = varS
         self.lb = lb
         self.ub = ub
@@ -63,17 +72,6 @@ class DistributionFunctions:
         self.homogeneous = homogeneous
         self.homoscedasticity = homoscedasticity
 
-        # handling Nones
-        if self.lb is None:
-            self.lb = np.min(data) if data.size > 0 else 0
-        if self.ub is None:
-            self.ub = np.max(data) if data.size > 0 else 1
-
-        # argument checking
-        if not isinstance(data, np.ndarray):
-            raise ValueError("Data must be a numpy array.")
-        if data.ndim != 1:
-            raise ValueError("Data must be a one-dimensional array.")
         if self.data_form not in ['a', 'm', None]:
             raise ValueError("data_form must be 'a', 'm', or None.")
         if self.lb is not None and self.ub is not None and self.lb >= self.ub:
@@ -154,8 +152,60 @@ class DistributionFunctions:
     def _edf(self):
         pass
 
-    def fit(self):
-        pass
+    def fit(self, data, df:str = 'egdf'):
+        """
+        Fitting and transforming the data to the Gnostic distribution.
+
+        Parameters:
+        - data: Input data for the distribution.
+        - df (str): Distribution function to use. Options are 'eldf', 'egdf', 'qldf', 'qgdf', 'gkdf'.
+            - 'eldf': Estimating Local Distribution Function
+            - 'egdf': Estimating Global Distribution Function
+            - 'qldf': Quantifying Local Distribution Function
+            - 'qgdf': Quantifying Global Distribution Function
+            - 'gkdf': Gnostic Kernel Distribution Function
+        """
+        self.data = data
+        self.df = df
+
+        # handling Nones
+        if self.lb is None:
+            self.lb = np.min(data) if data.size > 0 else 0
+        if self.ub is None:
+            self.ub = np.max(data) if data.size > 0 else 1
+        if self.df not in ['eldf', 'egdf', 'qldf', 'qgdf', 'gkdf']:
+            raise ValueError("Invalid distribution function specified.")
+
+        # argument checking
+        if not isinstance(data, np.ndarray):
+            raise ValueError("Data must be a numpy array.")
+        if data.ndim != 1:
+            raise ValueError("Data must be a one-dimensional array.")
+        
+        # Transform input data
+        self.zi = self._data_transform_input()
+        # Calculate scale parameter S
+        self.S = self._scale_param(self.zi)
+
+        # Fit the distribution function based on the specified df
+        if self.df == 'eldf':
+            pdf, ddf = self.eldf()
+        elif self.df == 'egdf':
+            pdf, ddf = self.egdf()
+        elif self.df == 'qldf':
+            pdf, ddf = self.qldf()
+        elif self.df == 'qgdf':
+            pdf, ddf = self.qgdf()
+        elif self.df == 'gkdf':
+            pdf, ddf = self.gnostic_kernel()
+        else:
+            raise ValueError("Invalid distribution function specified.")
+        
+        # Transform output data back to the original domain
+        pdf = self._data_transform_output(pdf)
+        ddf = self._data_transform_output(ddf)
+
+        return pdf, ddf
 
     def gnostic_kernel(self):
         pass
