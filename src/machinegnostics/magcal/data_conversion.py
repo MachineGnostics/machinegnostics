@@ -329,50 +329,50 @@ class DataConversion:
             return z_fin.item()  # Return scalar if input was scalar
         return z_fin
     
-    def _data_transform_input(self)-> np.ndarray:
-        """
-        Transform the input data based on the specified data form.
+    # def _data_transform_input(self)-> np.ndarray:
+    #     """
+    #     Transform the input data based on the specified data form.
 
-        first from normal domain to standard domain, and then from finite to infinite domain.
-        """
-        if self.data_form == 'a':
-            self.z = self._convert_az(self.data, self.lb, self.ub)
-        elif self.data_form == 'm':
-            self.z = self._convert_mz(self.data, self.lb, self.ub)
-        elif self.data_form is None:
-            self.z = self.data
-        else:
-            raise ValueError("Invalid data form specified. Use 'a', 'm', or None.")
+    #     first from normal domain to standard domain, and then from finite to infinite domain.
+    #     """
+    #     if self.data_form == 'a':
+    #         self.z = self._convert_az(self.data, self.lb, self.ub)
+    #     elif self.data_form == 'm':
+    #         self.z = self._convert_mz(self.data, self.lb, self.ub)
+    #     elif self.data_form is None:
+    #         self.z = self.data
+    #     else:
+    #         raise ValueError("Invalid data form specified. Use 'a', 'm', or None.")
         
-        # bound checking for infinite domain
-        if self.ilb is None:
-            self.ilb = np.min(self.z) if self.z.size > 0 else 0
-        if self.iub is None:
-            self.iub = np.max(self.z) if self.z.size > 0 else 1
+    #     # bound checking for infinite domain
+    #     if self.ilb is None:
+    #         self.ilb = np.min(self.z) if self.z.size > 0 else 0
+    #     if self.iub is None:
+    #         self.iub = np.max(self.z) if self.z.size > 0 else 1
         
-        # Convert to infinite domain
-        if self.data_form == 'a' or self.data_form == 'm':
-            self.zi = self._convert_fininf(self.z, self.ilb, self.iub)
+    #     # Convert to infinite domain
+    #     if self.data_form == 'a' or self.data_form == 'm':
+    #         self.zi = self._convert_fininf(self.z, self.ilb, self.iub)
 
-        return self.zi
+    #     return self.zi
 
-    def _data_transform_output(self, data):
-        """
-        Transform the output data back to the original domain based on the specified data form.
-        """
-        if self.data_form == 'a' or self.data_form == 'm':
-            # Convert to infinite domain
-            self.zf = self._convert_fininf(data, self.ilb, self.iub)
-        else:
-            self.zf = data
+    # def _data_transform_output(self, data):
+    #     """
+    #     Transform the output data back to the original domain based on the specified data form.
+    #     """
+    #     if self.data_form == 'a' or self.data_form == 'm':
+    #         # Convert to infinite domain
+    #         self.zf = self._convert_fininf(data, self.ilb, self.iub)
+    #     else:
+    #         self.zf = data
 
-        # convert to original domain
-        if self.data_form == 'a':
-            self.z = self._convert_za(self.zf, self.lb, self.ub)
-        elif self.data_form == 'm':
-            self.z = self._convert_zm(self.zf, self.lb, self.ub)
-        elif self.data_form is None:
-            self.z = self.zf
+    #     # convert to original domain
+    #     if self.data_form == 'a':
+    #         self.z = self._convert_za(self.zf, self.lb, self.ub)
+    #     elif self.data_form == 'm':
+    #         self.z = self._convert_zm(self.zf, self.lb, self.ub)
+    #     elif self.data_form is None:
+    #         self.z = self.zf
 
-        return self.z
+    #     return self.z
     
