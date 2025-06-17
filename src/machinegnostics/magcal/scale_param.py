@@ -82,8 +82,39 @@ class ScaleParam():
         else:
             F = np.asarray(F)
             return np.array([_single_scale(f) for f in F])
+
+
+    # def var_s(self, Z, W=None, S=1):
+    #     """
+    #     Calculates vector of scale parameters for each kernel.
         
-    import numpy as np
+    #     Parameters:
+    #     Z (array-like): Data vector
+    #     W (array-like, optional): Weight vector
+    #     S (float, optional): Scalar scale factor (default is 1)
+        
+    #     Returns:
+    #     numpy.ndarray: Scale vector (same length as Z)
+    #     """
+    #     Z = np.asarray(Z).reshape(-1, 1)
+
+    #     if W is None:
+    #         W = np.ones_like(Z) / len(Z)
+    #     else:
+    #         W = np.asarray(W).reshape(-1, 1)
+    #         if len(Z) != len(W):
+    #             raise ValueError("Z and W must be of the same length")
+    #         W = W / np.sum(W)
+
+    #     Sz = np.zeros_like(Z, dtype=float)
+
+    #     for k in range(len(W)):
+    #         V = Z / Z[k]
+    #         V = V ** (2/S) + 1.0 / (V ** (2/S))
+    #         Sz[k] = self._gscale_loc(np.sum(2.0 / V * W))
+
+    #     Sx = S * Sz / np.mean(Sz)
+    #     return Sx
 
     def var_s(self, Z, W=None, S=1):
         """
@@ -98,7 +129,7 @@ class ScaleParam():
         numpy.ndarray: Scale vector (same length as Z)
         """
         Z = np.asarray(Z).reshape(-1, 1)
-
+    
         if W is None:
             W = np.ones_like(Z) / len(Z)
         else:
@@ -106,13 +137,30 @@ class ScaleParam():
             if len(Z) != len(W):
                 raise ValueError("Z and W must be of the same length")
             W = W / np.sum(W)
-
+    
         Sz = np.zeros_like(Z, dtype=float)
-
+        
+        # Small value to prevent division by zero
+        eps = np.finfo(float).eps * 100
+    
         for k in range(len(W)):
-            V = Z / Z[k]
-            V = V ** 2 + 1.0 / (V ** 2)
-            Sz[k] = self._gscale_loc(np.sum(2.0 / V * W))
-
-        Sx = S * Sz / np.mean(Sz)
-        return Sx
+            # Skip calculation if Z[k] is too close to zero
+            if abs(Z[k]) < eps:
+                Sz[k] = S  # Use default S value
+                continue
+                
+            # Safe division with epsilon to prevent division by zero
+            V = Z / (Z[k] + (Z[k]==0)*eps)
+            V = V ** 2 + 1.0 / (V ** 2 + eps)
+            
+            # Calculate sum and ensure it's valid
+            sum_val = np.sum(2.0 / V * W)
+            if np.isnan(sum_val) or np.isinf(sum_val):
+                Sz[k] = S  # Use default S value
+            else:
+                Sz[k] = self._gscale_loc(sum_val)
+        
+        # Check for any remaining NaN values and replace them
+        Sz[np.isnan(Sz)] = S
+        
+        return Sz

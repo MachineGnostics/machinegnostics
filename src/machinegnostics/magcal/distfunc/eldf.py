@@ -13,7 +13,7 @@ ELDF - Estimating Local Distribution Function
 import numpy as np
 import warnings
 from machinegnostics.magcal.distfunc.data_transform import DataDomainTransformation
-# from machinegnostics.magcal.distfunc.varS import 
+from machinegnostics.magcal.scale_param import ScaleParam
 
 class ELDF:
     """
@@ -33,7 +33,8 @@ class ELDF:
             Input data values
         weights : array-like, optional
             Weights for each data point. If None, equal weights are used.
-        S : float or array-like, optional
+        S : float or array-like, optional, or 'auto'
+            Smoothing parameter(s). If 'auto', S will be calculated based on the data.
             Smoothing parameter(s). Can be a single value or one per data point.
         data_form : str, optional
             Data form: 'a' for additive, 'm' for multiplicative, None for no transformation
@@ -95,26 +96,35 @@ class ELDF:
         self.Z0i = None
 
         # varS and S handling
+        self.scale = ScaleParam()
         self.varS = varS
+        self.S = S
         if self.varS:
-            if not isinstance(S, (list, np.ndarray)):
-                raise ValueError("If varS is True, S must be an array-like of the same length as data")
-            if len(S) != len(self.data):
-                raise ValueError("S must have the same length as data when varS is True")
-            self.S = np.asarray(S, dtype=float)
-            if np.any(self.S <= 0) or np.any(self.S > 2):
-                warnings.warn("S values > 2 may lead to numerical instability", RuntimeWarning)
+            if not isinstance(self.S, (list, np.ndarray, str)):
+                raise ValueError("If varS is True, S must be an array-like of the same length as data or 'auto'")
+            if isinstance(self.S, (list, np.ndarray)):
+                if len(self.S) != len(self.data):
+                    raise ValueError("S must have the same length as data when varS is True or 'auto'")
+                self.S = np.asarray(self.S, dtype=float)
+                if np.any(self.S <= 0) or np.any(self.S > 2):
+                    warnings.warn("S values > 2 may lead to numerical instability", RuntimeWarning)
+            if isinstance(self.S, str):
+                self.S = self.S.lower()
+                if self.S != 'auto':
+                    raise ValueError("If varS is True, S must be an array-like of the same length as data or 'auto'")
         else:
             # If varS is False, ensure S is a single value
-            if isinstance(S, (list, np.ndarray)):
-                if len(S) != 1:
-                    raise ValueError("If varS is False, S must be a single scalar value")
-                self.S = np.asarray(S[0], dtype=float)
-            else:
-                self.S = float(S)
-            if self.S <= 0 or self.S > 2:
-                warnings.warn("S must be in the range (0, 2] for stability when varS is False", RuntimeWarning)
-        
+            if not isinstance(self.S, (int, float, str)):
+                raise ValueError("If varS is False, S must be a single numeric value or 'auto'")
+            if isinstance(self.S, str):
+                self.S = self.S.lower()
+                if self.S != 'auto':
+                    raise ValueError("If varS is False, S must be a single numeric value or 'auto'")
+            if isinstance(self.S, (int, float)):
+                self.S = float(self.S)
+                if self.S <= 0 or self.S > 2:
+                    warnings.warn("S must be in the range (0, 2] for stability when varS is False", RuntimeWarning)
+
         # Cache for computed values
         self._cache = {}
     
@@ -155,7 +165,8 @@ class ELDF:
         # Prepare result dictionary
         result = {
             'Z0': self.Z0,
-            'cdf': cdf_values
+            'cdf': cdf_values,
+            'S': self.sparam
         }
         
         # Compute PDF if requested
@@ -181,16 +192,31 @@ class ELDF:
 
         # calculation with VarS
         if self.varS:
+            if self.S == 'auto':
+                # Automatically calculate S based on the scale parameter
+                S = self.scale.var_s(Z=Z_working, W=weights, S=1)
+            else:
+                # Use provided S values directly
+                S = self.S
             # Reshape S for broadcasting
-            S = self.S.reshape(-1, 1)
+            S = S.reshape(-1, 1)
+            # Ensure S is a scalar for broadcasting   
+            self.sparam = S 
+            
             # Calculate ratio in working domain
             qk = (Z_working / Z0_safe) ** (1 / S)   
             # Apply weights to the calculation
             eldf_values = np.sum(weights * (1 / (1 + qk**4)), axis=0) / np.sum(weights)
         else:
-            # Single scalar S - no need to reshape
-            S = self.S
-            
+            if self.S == 'auto':
+                # Automatically calculate S based on the scale parameter
+                S = np.mean(self.scale.var_s(Z=Z_working, W=weights, S=1))
+            else:
+                # Use provided S values directly
+                S = self.S
+            # Ensure S is a scalar for broadcasting   
+            self.sparam = S 
+
             # Calculate ratio in working domain
             qk = (Z_working / Z0_safe) ** (1 / S)
             
@@ -220,9 +246,18 @@ class ELDF:
             weights = self.weights.reshape(-1, 1)        # Shape: (n_samples, 1)
             
             # calculate with VarS
-            if self.varS and (len(self.S) == len(self.data)):
+            if self.varS:
+                if self.S == 'auto':
+                    # Automatically calculate S based on the scale parameter
+                    S = self.scale.var_s(Z=Z_working, W=weights, S=1)
+                else:
+                    # Use provided S values directly
+                    S = self.S
                 # Reshape S for broadcasting
-                S = self.S.reshape(-1, 1)
+                S = S.reshape(-1, 1)
+                # Ensure S is a scalar for broadcasting   
+                self.sparam = S 
+
                 # Calculate q-matrix using the correct formula in working domain
                 q_matrix = (Z_working / Z0_w) ** (1 / S)
                 q_sq = q_matrix**2
@@ -237,12 +272,17 @@ class ELDF:
                 
                 # Apply weights and scale by S
                 density_safe = np.sum(weights * result, axis=0) / (np.sum(weights) * S)
-            
-            # elif self.vars and S=='auto':
                                 
             else:
                 # Varying S values need more complex broadcasting
-                S = self.S  # Single scalar S
+                if self.S == 'auto':
+                    # Automatically calculate S based on the scale parameter
+                    S = np.mean(self.scale.var_s(Z=Z_working, W=weights, S=1))
+                else:
+                    # Use provided S values directly
+                    S = self.S
+                # Ensure S is a scalar for broadcasting   
+                self.sparam = S          
                 
                 # Calculate q-matrix using the correct formula in working domain
                 q_matrix = (Z_working / Z0_w) ** (1 / S)
@@ -358,7 +398,7 @@ class ELDF:
         # Plot CDF on left y-axis
         if cdf:
             cdf_values = result['cdf']
-            line1, = ax.plot(Z0, cdf_values, 'b-', label='ELDF (CDF)')
+            line1, = ax.plot(Z0, cdf_values, 'b-', label='ELDF')
             ax.set_xlabel('Value')
             ax.set_ylabel('CDF', color='blue')
             ax.tick_params(axis='y', labelcolor='blue')
@@ -370,7 +410,7 @@ class ELDF:
         if pdf:
             ax2 = ax.twinx()  # Create a second y-axis that shares the same x-axis
             pdf_values = result['pdf']
-            line2, = ax2.plot(Z0, pdf_values, 'r-', label='ELDF Density (PDF)')
+            line2, = ax2.plot(Z0, pdf_values, 'r-', label='ELDF Density')
             ax2.set_ylabel('Density', color='red')
             ax2.tick_params(axis='y', labelcolor='red')
             lines.append(line2)
