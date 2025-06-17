@@ -11,8 +11,9 @@ ELDF - Estimating Local Distribution Function
 """
 
 import numpy as np
+import warnings
 from machinegnostics.magcal.distfunc.data_transform import DataDomainTransformation
-from machinegnostics.magcal.distfunc.wedf import WEDF
+# from machinegnostics.magcal.distfunc.varS import 
 
 class ELDF:
     """
@@ -22,7 +23,7 @@ class ELDF:
     based on a given set of data points with locality-based weighting.
     """
     
-    def __init__(self, data, weights=None, S=1.0, data_form='a', data_lb=None, data_ub=None):
+    def __init__(self, data, weights=None, S=1.0, data_form='a', data_lb=None, data_ub=None, varS:bool=False):
         """
         Initialize the ELDF with data points and optional weights.
         
@@ -40,6 +41,8 @@ class ELDF:
             Lower bound for the data range. If None, min(data) is used.
         data_ub : float, optional
             Upper bound for the data range. If None, max(data) is used.
+        varS : bool, optional
+            If True, means S can vary per data point. In this case, S should be an array-like of the same length as data. If user, do not provide S then it will be calculated automatically.
         """
         self.data = np.asarray(data)
         
@@ -53,15 +56,7 @@ class ELDF:
         
         # Normalize weights to sum to n (number of data points)
         self.weights = self.weights / np.sum(self.weights) * len(self.weights)
-        
-        # Handle smoothing parameter
-        if np.isscalar(S):
-            self.S = np.full_like(self.data, S)
-        else:
-            self.S = np.asarray(S)
-            if len(self.S) != len(self.data):
-                raise ValueError("S must be a scalar or have the same length as data")
-        
+
         # Set data bounds
         if data_lb is None:
             self.data_lb = np.min(self.data)
@@ -82,9 +77,13 @@ class ELDF:
             raise ValueError("data must contain at least one element")
         if not np.issubdtype(self.data.dtype, np.number):
             raise ValueError("data must be numeric")
+        # data should be 1-D array
+        if self.data.ndim > 1:
+            raise ValueError('data should be 1-D array')
+
         
         # Initialize data transformer
-        self.transformer = DataDomainTransformation(data_form=self.data_form)
+        self.transformer = DataDomainTransformation(data_form=self.data_form, lb=self.data_lb, ub=self.data_ub)
         self.transformer.auto_set_bounds(self.data)
         
         # Transform input data to working domain
@@ -94,6 +93,27 @@ class ELDF:
         # Default evaluation points will be set in fit()
         self.Z0 = None
         self.Z0i = None
+
+        # varS and S handling
+        self.varS = varS
+        if self.varS:
+            if not isinstance(S, (list, np.ndarray)):
+                raise ValueError("If varS is True, S must be an array-like of the same length as data")
+            if len(S) != len(self.data):
+                raise ValueError("S must have the same length as data when varS is True")
+            self.S = np.asarray(S, dtype=float)
+            if np.any(self.S <= 0) or np.any(self.S > 2):
+                warnings.warn("S values > 2 may lead to numerical instability", RuntimeWarning)
+        else:
+            # If varS is False, ensure S is a single value
+            if isinstance(S, (list, np.ndarray)):
+                if len(S) != 1:
+                    raise ValueError("If varS is False, S must be a single scalar value")
+                self.S = np.asarray(S[0], dtype=float)
+            else:
+                self.S = float(S)
+            if self.S <= 0 or self.S > 2:
+                warnings.warn("S must be in the range (0, 2] for stability when varS is False", RuntimeWarning)
         
         # Cache for computed values
         self._cache = {}
@@ -158,25 +178,25 @@ class ELDF:
         # Handle division-by-zero
         eps = np.finfo(float).eps
         Z0_safe = np.maximum(Z0_w, eps)
-        
-        # Check if all S values are the same
-        if np.all(self.S == self.S[0]):
-            # Single scalar S - simple broadcasting
-            S = self.S[0]
+
+        # calculation with VarS
+        if self.varS:
+            # Reshape S for broadcasting
+            S = self.S.reshape(-1, 1)
             # Calculate ratio in working domain
-            qk = (Z_working / Z0_safe) ** (1 / S)
+            qk = (Z_working / Z0_safe) ** (1 / S)   
             # Apply weights to the calculation
             eldf_values = np.sum(weights * (1 / (1 + qk**4)), axis=0) / np.sum(weights)
         else:
-            # Varying S values - more complex broadcasting
-            S = self.S.reshape(-1, 1)  # Shape: (n_samples, 1)
+            # Single scalar S - no need to reshape
+            S = self.S
             
             # Calculate ratio in working domain
             qk = (Z_working / Z0_safe) ** (1 / S)
             
-            # Calculate weighted ELDF values
+            # Apply weights to the calculation
             eldf_values = np.sum(weights * (1 / (1 + qk**4)), axis=0) / np.sum(weights)
-        
+            
         return eldf_values
     
     def _compute_pdf(self, Z0, Z0i):
@@ -199,19 +219,17 @@ class ELDF:
             Z0_w = Z0_safe.reshape(1, -1)               # Shape: (1, n_points)
             weights = self.weights.reshape(-1, 1)        # Shape: (n_samples, 1)
             
-            # Check if all S values are the same
-            if np.all(self.S == self.S[0]):
-                # Vectorized calculation for constant S
-                S = self.S[0]
-                
+            # calculate with VarS
+            if self.varS and (len(self.S) == len(self.data)):
+                # Reshape S for broadcasting
+                S = self.S.reshape(-1, 1)
                 # Calculate q-matrix using the correct formula in working domain
                 q_matrix = (Z_working / Z0_w) ** (1 / S)
                 q_sq = q_matrix**2
                 inv_q_sq = 1/q_sq
-                
                 # Calculate denominator
                 denom = (q_sq + inv_q_sq)**2
-                
+
                 # Calculate result matrix, handling potential division by zero
                 valid_denom = denom > eps
                 result = np.zeros_like(denom, dtype=float)
@@ -219,10 +237,12 @@ class ELDF:
                 
                 # Apply weights and scale by S
                 density_safe = np.sum(weights * result, axis=0) / (np.sum(weights) * S)
-                
+            
+            # elif self.vars and S=='auto':
+                                
             else:
                 # Varying S values need more complex broadcasting
-                S = self.S.reshape(-1, 1)  # Shape: (n_samples, 1)
+                S = self.S  # Single scalar S
                 
                 # Calculate q-matrix using the correct formula in working domain
                 q_matrix = (Z_working / Z0_w) ** (1 / S)
