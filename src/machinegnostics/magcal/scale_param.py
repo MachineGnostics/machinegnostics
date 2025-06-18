@@ -15,11 +15,22 @@ from machinegnostics.magcal import GnosticsCharacteristics
 
 class ScaleParam():
     """
-    A Machine Gnostic class to compute and optimize scale parameter for different gnostic distribution functions
-
-    Parameters
-    ----------
-        F: Input Parameter, e.g., fidelity of the data
+    A Machine Gnostic class to compute and optimize scale parameter for different gnostic distribution functions.
+    
+    This class provides methods to calculate scale parameters used in gnostic analysis, including
+    local scale parameters and variable scale parameters for kernel-based estimations.
+    
+    The scale parameter affects the shape and characteristics of gnostic distributions, controlling
+    how the distributions respond to variations in the input data.
+    
+    Notes
+    -----
+    The scale parameter is a critical component in Machine Gnostics that influences the behavior
+    of distribution functions, particularly their sensitivity to outliers and their overall shape.
+    
+    The class implements multiple scale parameter calculation strategies:
+    - Local scale: Optimizes scale for individual data points
+    - Variable scale: Creates a vector of scale parameters for kernel-based estimation
     """
     
     # def _gscale_loc(self, F):
@@ -51,11 +62,32 @@ class ScaleParam():
     #     return S * m2pi
     
     def _gscale_loc(self, F):
-        '''
-        Calculates the local scale parameter for given calculated F at Scale = 1.
-        Supports both scalar and array-like F.
-        Uses Newton-Raphson method for each value if F is array-like.
-        '''
+        """
+        Calculate the local scale parameter for a given fidelity parameter F.
+        
+        This method uses the Newton-Raphson method to solve for the scale parameter that satisfies
+        the relationship between F and the scale. It supports both scalar and array-like inputs.
+        
+        Parameters
+        ----------
+        F : float or array-like
+            Input parameter (e.g., fidelity of data) at Scale = 1.
+            
+        Returns
+        -------
+        float or ndarray
+            The calculated local scale parameter(s). Will be the same shape as input F.
+            
+        Notes
+        -----
+        The Newton-Raphson method is used with initial values based on the magnitude of F:
+        - For F < (2/π) * √2/3: Initial S = π
+        - For F < 2/π: Initial S = 3π/4
+        - For F < (2/π) * √2: Initial S = π/2
+        - Otherwise: Initial S = π/4
+        
+        The method iteratively refines this estimate until convergence.
+        """
         m2pi = 2 / np.pi
         sqrt2 = np.sqrt(2)
         epsilon = 1e-5
@@ -118,15 +150,41 @@ class ScaleParam():
 
     def var_s(self, Z, W=None, S=1):
         """
-        Calculates vector of scale parameters for each kernel.
+        Calculate a vector of scale parameters for each kernel in the distribution.
         
-        Parameters:
-        Z (array-like): Data vector
-        W (array-like, optional): Weight vector
-        S (float, optional): Scalar scale factor (default is 1)
+        This method computes individualized scale parameters for each data point, allowing
+        for adaptive scaling in gnostic estimations. It handles numerical edge cases to
+        ensure stability.
         
-        Returns:
-        numpy.ndarray: Scale vector (same length as Z)
+        Parameters
+        ----------
+        Z : array-like
+            Data vector containing the values for which to calculate scale parameters.
+        W : array-like, optional
+            Weight vector for each data point. If not provided, uniform weights are used.
+        S : float, optional
+            Base scalar scale factor, default is 1.
+            
+        Returns
+        -------
+        ndarray
+            Vector of scale parameters, one for each element in Z.
+            
+        Raises
+        ------
+        ValueError
+            If Z and W are provided but have different lengths.
+            
+        Notes
+        -----
+        The method calculates relative relationships between data points and applies
+        the local scale parameter calculation for each point. For each data point k,
+        it computes a ratio V of all data points relative to Z[k], then calculates
+        a transformation of this ratio to determine the local scale parameter.
+        
+        The implementation includes safeguards against division by zero and handles
+        edge cases to ensure numerical stability. In case of invalid calculations,
+        it falls back to the default scale parameter.
         """
         Z = np.asarray(Z).reshape(-1, 1)
     
