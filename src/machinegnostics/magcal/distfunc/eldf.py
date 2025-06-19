@@ -488,7 +488,7 @@ class ELDF:
                 weighted_result = weights * result
                 # Sum over data points (axis 0) to get 1D result
                 density_safe = np.sum(weighted_result, axis=0) / (np.sum(weights) * np.mean(S))
-                                
+                
             else:
                 # Varying S values need more complex broadcasting
                 if self.S == 'auto':
@@ -515,7 +515,7 @@ class ELDF:
                 
                 # Calculate where denominator is valid
                 result[valid_denom] = 4 / (S_expanded[valid_denom] * denom[valid_denom])
-                
+
                 # Apply weights to get the final density
                 density_safe = np.sum(weights * result, axis=0) / np.sum(weights)
             
