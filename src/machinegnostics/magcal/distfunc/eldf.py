@@ -368,7 +368,11 @@ class ELDF:
 
             gc = GnosticsCharacteristics(R = (Z_working / Z0_w))
             q, q1 = gc._get_q_q1(S=S)
-            
+            # hi = gc._hi(q, q1)
+
+            # # eldf values from hi
+            # eldf_values = (1 - np.sum(hi, axis=0)) / (2 * len(weights))
+
             # Calculate ratio in working domain
             # qk = (Z_working / Z0_safe) ** (1 / S)   
             # Apply weights to the calculation
@@ -385,6 +389,10 @@ class ELDF:
 
             gc = GnosticsCharacteristics(R = (Z_working / Z0_w))
             q, q1 = gc._get_q_q1(S=S)
+            # hi = gc._hi(q, q1)
+
+            # # eldf values from hi
+            # eldf_values = (1 - np.sum(hi, axis=0)) / (2 * len(weights))
 
             # Calculate ratio in working domain
             # qk = (Z_working / Z0_safe) ** (1 / S)
