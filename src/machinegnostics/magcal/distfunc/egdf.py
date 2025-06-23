@@ -47,8 +47,10 @@ class EGDF:
         Data form type ('a' for additive, 'm' for multiplicative, None for no transformation)
     transformer : DataDomainTransformation
         Transformer object for data domain conversions
-    S : float
-        Scale parameter that controls the estimation process
+    S : float or str
+        Scale parameter that controls the estimation process, or 'auto' for automatic calculation
+    sparam : float
+        The computed scale parameter after fitting
     homogeneous : bool
         Whether to use provided weights directly or calculate homogeneous gnostic weights
     """
@@ -70,8 +72,9 @@ class EGDF:
             Input data values for distribution estimation.
         weights : array-like, optional
             Weights for each data point. If None, equal weights are used.
-        S : float, optional
+        S : float or str, optional
             Smoothing parameter controlling the estimation. Default is 1.0.
+            Can also be 'auto' for automatic calculation based on data fidelities.
             Recommended range is (0, 2] for numerical stability.
         data_form : str, optional
             Data form specification:
@@ -153,10 +156,24 @@ class EGDF:
             homogeneous_weights = gw._get_gnostic_weights(self.Z)
             self.weights = homogeneous_weights
 
-        # Scale parameter
+        # S parameter initialization and validation
+        self.scale = ScaleParam()
         self.S = S
-        if self.S <= 0 or self.S > 2:
-            warnings.warn("S must be in the range (0, 2] for stability", RuntimeWarning)
+        
+        # Validate S parameter
+        if isinstance(self.S, str):
+            self.S = self.S.lower()
+            if self.S != 'auto':
+                raise ValueError("If S is a string, it must be 'auto'")
+        elif isinstance(self.S, (int, float)):
+            self.S = float(self.S)
+            if self.S <= 0 or self.S > 2:
+                warnings.warn("S must be in the range (0, 2] for stability", RuntimeWarning)
+        else:
+            raise ValueError("S must be a numeric value or 'auto'")
+            
+        # Initialize the calculated scale parameter
+        self.sparam = self.S if not isinstance(self.S, str) else None
         
         # Cache for computed values
         self._cache = {}
@@ -183,6 +200,7 @@ class EGDF:
             - 'Z0': ndarray, evaluation points
             - 'cdf': ndarray, CDF values at evaluation points
             - 'pdf': ndarray, PDF values at evaluation points (if compute_pdf=True)
+            - 'S': float, the scale parameter used in the calculation
         """
         # Generate evaluation points if not provided
         if Z0 is None:
@@ -195,16 +213,21 @@ class EGDF:
         
         # Compute CDF values
         cdf_values = self._compute_cdf(self.Z0, self.Z0i)
-        
+        # transform CDF values to original domain
+        # cdf_values = self.transformer.transform_output(cdf_values)
+
         # Prepare result dictionary
         result = {
             'Z0': self.Z0,
-            'cdf': cdf_values
+            'cdf': cdf_values,
+            'S': self.sparam
         }
         
         # Compute PDF if requested
         if compute_pdf:
             pdf_values = self._compute_pdf(self.Z0, self.Z0i)
+            # transform PDF values to original domain
+            # pdf_values = self.transformer.transform_output(pdf_values)
             result['pdf'] = pdf_values
         
         # Cache results
@@ -234,7 +257,23 @@ class EGDF:
         
         # Use GnosticsCharacteristics to calculate fidelities and irrelevances
         gc = GnosticsCharacteristics(R=R)
-        q, q1 = gc._get_q_q1(S=self.S)
+        
+        # Handle auto S calculation before getting q values
+        if isinstance(self.S, str) and self.S == 'auto':
+            # Use temporary S=1.0 to get initial fidelities
+            q_temp, q1_temp = gc._get_q_q1(S=1.0)
+            fidelities_temp = gc._fi(q_temp, q1_temp)
+            
+            # Calculate S based on mean fidelity
+            self.sparam = self.scale._gscale_loc(np.mean(fidelities_temp))
+            
+            # Recalculate with the proper S value
+            q, q1 = gc._get_q_q1(S=self.sparam)
+        else:
+            # Use the provided S value directly
+            self.sparam = self.S
+            q, q1 = gc._get_q_q1(S=self.sparam)
+            
         fidelities = gc._fi(q, q1)
         irrelevances = gc._hi(q, q1)
 
@@ -329,7 +368,7 @@ class EGDF:
             
             # Calculate PDF using equation 15.30
             numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
-            density_safe = (1 / (self.S * Z0_safe)) * (numerator / M_zi_cubed)
+            density_safe = (1 / (self.sparam)) * (numerator / M_zi_cubed)
             
             # Assign calculated values to output array
             density[mask] = density_safe
@@ -506,3 +545,15 @@ class EGDF:
         
         # The data is homogeneous if density is non-negative and has at most one maximum
         return is_non_negative and has_single_max
+        
+    def get_scale_parameter(self):
+        """
+        Get the scale parameter used for the EGDF calculation.
+        
+        Returns
+        -------
+        float
+            The scale parameter value. If S was set to 'auto', returns the 
+            automatically calculated value.
+        """
+        return self.sparam
