@@ -1,15 +1,3 @@
-"""
-Machine Gnostics - Machine Gnostics Library
-Copyright (C) 2025  Machine Gnostics Team
-
-Author: Nirmal Parmar
-License: GNU General Public License v3.0 (GPL-3.0)
-
-# Gnostic Distribution Function Module
-
-WEDF (Weighted Empirical Distribution Function) 
-"""
-
 import numpy as np
 
 class WEDF:
@@ -30,7 +18,6 @@ class WEDF:
             Input data values
         weights : array-like, optional
             A priori weights for each data point. If None, equal weights are assigned.
-            These weights can estimated as the frequency of each data point.
         data_lb : float, optional
             Lower bound for the data range
         data_ub : float, optional
@@ -75,17 +62,17 @@ class WEDF:
         n = len(self.data)
         self.wedf_values = np.zeros(n)
         
-        # First value (equation 15.9)
+        # First value
         self.wedf_values[0] = self.normalized_weights[0] / 2
         
-        # Remaining values using recursive relation (equation 15.10)
+        # Remaining values using recursive relation
         for k in range(1, n):
             self.wedf_values[k] = (self.wedf_values[k-1] + 
                                   (self.normalized_weights[k-1] + self.normalized_weights[k]) / 2)
             
     def fit(self, z):
         """
-        fit the WEDF at given points.
+        Fit the WEDF at given points.
         
         Parameters
         ----------
@@ -169,20 +156,7 @@ class WEDF:
             Generated K-S points
         ks_probs : ndarray
             Corresponding probabilities for the K-S points
-        Raises
-        ------
-        ValueError
-            If fit has not been called before generating K-S points.
-
-        Example
-        -------
-        >>> wedf = WEDF(data)
-        >>> wedf.fit(data)
-        >>> Z0, ks_probs = wedf.generate_ks_points(num_points=100)
         """
-        if self.Z is None:
-            raise ValueError("Must call fit(Z, S) before generating K-S points")
-
         # Use data length if not specified
         L = num_points if num_points is not None else len(self.data)
 
@@ -194,4 +168,3 @@ class WEDF:
         Z0 = self.data_lb + data_range * ks_probs
 
         return Z0, ks_probs
-        

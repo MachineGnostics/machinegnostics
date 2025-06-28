@@ -146,13 +146,14 @@ class ELDF:
         self.homogeneous = homogeneous
         if not isinstance(self.homogeneous, bool):
             raise ValueError("homogeneous must be a boolean value")
+        
+        # Weights handling
         if weights is None:
                 self.weights = np.ones_like(self.data)
         else:
             self.weights = np.asarray(weights)
             if len(self.weights) != len(self.data):
                 raise ValueError("weights must have the same length as data")
-
         # Normalize weights to sum to n (number of data points)
         self.weights = self.weights / np.sum(self.weights) * len(self.weights) 
        
@@ -166,12 +167,11 @@ class ELDF:
             self.data_ub = np.max(self.data)
         else:
             self.data_ub = data_ub
-        
-        # Data form and validation
-        self.data_form = data_form
-        
         if self.data_lb >= self.data_ub:
             raise ValueError("data_lb must be less than data_ub")
+        
+        # Data form and validation
+        self.data_form = data_form        
         if self.data.size == 0:
             raise ValueError("data must contain at least one element")
         if not np.issubdtype(self.data.dtype, np.number):

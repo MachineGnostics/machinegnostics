@@ -61,7 +61,9 @@ class EGDF:
                 S=1.0, 
                 data_form='a', 
                 data_lb=None, 
-                data_ub=None, 
+                data_ub=None,
+                lb=None,
+                ub=None,
                 homogeneous:bool=True):
         """
         Initialize the EGDF with data points and optional weights.
@@ -144,7 +146,16 @@ class EGDF:
             self.Z = self.data
         else:
             raise ValueError("Invalid data form specified. Use 'a', 'm', or None.")
-        self.Zi = self.transformer.transform_input(self.data)
+        # inf bounds
+        if lb is None:
+            self.lb = np.min(self.Z)
+        else:
+            self.lb = lb
+        if ub is None:
+            self.ub = np.max(self.Z)
+        else:
+            self.ub = ub
+        self.Zi = self.transformer._convert_fininf(self.Z, self.lb, self.ub)
         
         # Default evaluation points will be set in fit()
         self.Z0 = None
@@ -215,17 +226,25 @@ class EGDF:
         cdf_values = self._compute_cdf(self.Z0, self.Z0i)
         # transform CDF values to original domain
         # cdf_values = self.transformer.transform_output(cdf_values)
+        # replace nan with zero
+        cdf_values = np.nan_to_num(cdf_values, nan=0.0)
+        # replace infinity with 0
+        cdf_values = np.where(np.isinf(cdf_values), 0.0, cdf_values)
 
         # Prepare result dictionary
         result = {
             'Z0': self.Z0,
             'cdf': cdf_values,
-            'S': self.sparam
+            'S': self.sparam,
+            'Z0i': self.Z0i
         }
         
         # Compute PDF if requested
         if compute_pdf:
             pdf_values = self._compute_pdf(self.Z0, self.Z0i)
+            # replace nan or infinity with zero
+            pdf_values = np.nan_to_num(pdf_values, nan=0.0)
+            pdf_values = np.where(np.isinf(pdf_values), 0.0, pdf_values)
             # transform PDF values to original domain
             # pdf_values = self.transformer.transform_output(pdf_values)
             result['pdf'] = pdf_values
@@ -251,9 +270,13 @@ class EGDF:
         """
         # Get gnostic characteristics
         Z_working = self.Zi.reshape(-1, 1)  # Shape: (n_samples, 1)
+        eps = np.finfo(float).eps
         
         # Calculate ratio R = Z/Z0
-        R = Z_working / Z0_w
+        # replace R infinity with max float value
+        R = Z_working / (Z0_w + eps)
+        # R = np.where(np.isinf(R), np.finfo(float).max, R)  # Handle division by zero
+        
         
         # Use GnosticsCharacteristics to calculate fidelities and irrelevances
         gc = GnosticsCharacteristics(R=R)
@@ -266,6 +289,11 @@ class EGDF:
             
             # Calculate S based on mean fidelity
             self.sparam = self.scale._gscale_loc(np.mean(fidelities_temp))
+
+            # is S in nan then return S = 1 with user warning
+            if np.isnan(self.sparam):
+                warnings.warn("Calculated S is NaN, using S=1.0 instead", RuntimeWarning)
+                self.sparam = 1.0
             
             # Recalculate with the proper S value
             q, q1 = gc._get_q_q1(S=self.sparam)

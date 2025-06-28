@@ -12,6 +12,7 @@ ideas:
 '''
 import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics
+from scipy.optimize import minimize_scalar
 
 class ScaleParam():
     """
@@ -222,3 +223,44 @@ class ScaleParam():
         Sz[np.isnan(Sz)] = S
         
         return Sz
+
+    def estimate_global_scale(self, Fk, Ek):
+        """
+        Estimate the optimal global scale parameter S_optimize based on equation 16.6.
+        
+        Parameters
+        ----------
+        Fk : array-like
+            Fidelity values for the data points.
+        Ek : array-like
+            Weighted empirical distribution function values for the data points.
+
+        Returns
+        -------
+        float
+            The optimal global scale parameter S_optimize.
+
+        Notes
+        -----
+        This function uses numerical optimization to find the scale parameter S that maximizes
+        the sum of fidelities as described in equation 16.6.
+        """
+        Fk = np.asarray(Fk)
+        Ek = np.asarray(Ek)
+
+        if len(Fk) != len(Ek):
+            raise ValueError("Fk and Ek must have the same length.")
+
+        def objective(S):
+            # Compute the sum of fidelities for a given S
+            term1 = (Fk / Ek) ** (2 / S)
+            term2 = (Ek / Fk) ** (2 / S)
+            return -np.sum(2 / (term1 + term2))  # Negative for maximization
+
+        # Use scalar minimization to find the optimal S
+        result = minimize_scalar(objective, bounds=(0.1, 100), method='bounded')
+
+        if not result.success:
+            raise RuntimeError("Optimization failed to find the optimal scale parameter.")
+
+        return result.x

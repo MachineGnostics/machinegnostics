@@ -9,18 +9,21 @@ import numpy as np
 
 class DataConversion:
     """
-    A class to convert data between different formats.
-    
-    converts data from additive to multiplicative and vice versa.
+    A class to convert data between different data domains.
+    converts data domains,
+    - from additive to multiplicative,
+    - from multiplicative to additive,
+    - from finite normalized multiplicative to infinite interval,
+    - from infinite interval to finite normalized multiplicative.
     
     Methods
     -------
     add_to_mult(data)
-        Converts additive data to multiplicative format.
+        Converts additive data to multiplicative domain.
     mult_to_add(data)
-        Converts multiplicative data to additive format.
+        Converts multiplicative data to additive domain.
     convert_data(data, to_multiplicative=True)
-        Converts data between additive and multiplicative formats.
+        Converts data between additive and multiplicative domains.
     get_bounds(data)
         Gets the lower and upper bounds of the data.
 
@@ -329,50 +332,50 @@ class DataConversion:
             return z_fin.item()  # Return scalar if input was scalar
         return z_fin
     
-    # def _data_transform_input(self)-> np.ndarray:
-    #     """
-    #     Transform the input data based on the specified data form.
 
-    #     first from normal domain to standard domain, and then from finite to infinite domain.
-    #     """
-    #     if self.data_form == 'a':
-    #         self.z = self._convert_az(self.data, self.lb, self.ub)
-    #     elif self.data_form == 'm':
-    #         self.z = self._convert_mz(self.data, self.lb, self.ub)
-    #     elif self.data_form is None:
-    #         self.z = self.data
-    #     else:
-    #         raise ValueError("Invalid data form specified. Use 'a', 'm', or None.")
-        
-    #     # bound checking for infinite domain
-    #     if self.ilb is None:
-    #         self.ilb = np.min(self.z) if self.z.size > 0 else 0
-    #     if self.iub is None:
-    #         self.iub = np.max(self.z) if self.z.size > 0 else 1
-        
-    #     # Convert to infinite domain
-    #     if self.data_form == 'a' or self.data_form == 'm':
-    #         self.zi = self._convert_fininf(self.z, self.ilb, self.iub)
+    @staticmethod
+    def get_zi_bounds(data_form, DL, DU)-> tuple:
+        """
+        Get the lower and upper bounds of the infinite domain data and perform data conversion.
 
-    #     return self.zi
+        Parameters:
+        ----------
+        data_form : str
+            Specifies the data form ('a' for additive, 'm' for multiplicative).
+        DLB : float
+            Lower bound of the data.
+        DUB : float
+            Upper bound of the data.
+        D : numpy.ndarray
+            Input data to be converted.
+        C : numpy.ndarray, optional
+            Censoring data (default is None).
+        B : numpy.ndarray, optional
+            Boundary censoring data (default is None).
+        ctype : int, optional
+            Censoring type (default is 0).
 
-    # def _data_transform_output(self, data):
-    #     """
-    #     Transform the output data back to the original domain based on the specified data form.
-    #     """
-    #     if self.data_form == 'a' or self.data_form == 'm':
-    #         # Convert to infinite domain
-    #         self.zf = self._convert_fininf(data, self.ilb, self.iub)
-    #     else:
-    #         self.zf = data
+        Returns:
+        -------
+        sample : dict
+            Contains converted data and bounds.
+        """
 
-    #     # convert to original domain
-    #     if self.data_form == 'a':
-    #         self.z = self._convert_za(self.zf, self.lb, self.ub)
-    #     elif self.data_form == 'm':
-    #         self.z = self._convert_zm(self.zf, self.lb, self.ub)
-    #     elif self.data_form is None:
-    #         self.z = self.zf
+        # Validate bounds
+        if not np.isscalar(DL) or not np.isscalar(DU):
+            raise ValueError("DL and DU must be scalars.")
 
-    #     return self.z
+        if data_form == "a":  # Additive form
+            LB = DL - (DU - DL) / 2
+            UB = DU + (DU - DL) / 2
+
+        elif data_form == "m":  # Multiplicative form
+            LB = DL / np.sqrt(DU / DL)
+            UB = DU * np.sqrt(DU / DL)
+
+        else:
+            raise ValueError("Invalid data_form. Use 'a' for additive or 'm' for multiplicative.")
+
+        return LB, UB
+    
     
