@@ -6,8 +6,12 @@ Author: Nirmal Parmar
 License: GNU General Public License v3.0 (GPL-3.0)
 
 # Sample Boundary Estimator Module
-Objective: Estimate sample boundaries (LB and UB) based on EGDF derivatives
+Objective: Estimate sample boundaries (LSB and USB) based on EGDF derivatives
 following the theoretical framework from Chapter 15.
+
+Terminology:
+- LSB/USB: Lower/Upper Sample Boundaries (inner bounds where samples are expected)
+- LB/UB: Lower/Upper Bounds (outer bounds for data transformation, LB < LSB < LP < USB < UB)
 
 """
 
@@ -20,13 +24,17 @@ from scipy.signal import find_peaks
 
 class SampleBoundaryEstimator:
     """
-    Estimate sample boundaries (LB and UB) based on EGDF derivatives
+    Estimate sample boundaries (LSB and USB) based on EGDF derivatives
     following the theoretical framework from Chapter 15.
     
     Updated to handle different data forms and search ranges:
-    - Additive ('a'): LB = data_min - data_range/2, UB = data_max + data_range/2
-    - Multiplicative ('m'): LB = data_min / sqrt(data_max/data_min), UB = data_max * sqrt(data_max/data_min)
-    - None: LB = data_min, UB = data_max (constrained search around data bounds)
+    - Additive ('a'): LSB = data_min - data_range/2, USB = data_max + data_range/2
+    - Multiplicative ('m'): LSB = data_min / sqrt(data_max/data_min), USB = data_max * sqrt(data_max/data_min)
+    - None: LSB = data_min, USB = data_max (constrained search around data bounds)
+    
+    Terminology:
+    - LSB/USB: Sample boundaries (inner bounds where samples are expected)
+    - LB/UB: Outer bounds (data transformation bounds, LB < LSB < LP < USB < UB)
     """
     
     def __init__(self, z_points, egdf_cdf, data_form='a', verbose=True):
@@ -60,8 +68,8 @@ class SampleBoundaryEstimator:
         if self.verbose:
             print(f"Data form: {self.data_form}")
             print(f"Data range: [{self.data_min:.6f}, {self.data_max:.6f}]")
-            print(f"LB search range: ({self.LB_min:.6f}, {self.LB_max:.6f})")
-            print(f"UB search range: ({self.UB_min:.6f}, {self.UB_max:.6f})")
+            print(f"LSB search range: ({self.LSB_min:.6f}, {self.LSB_max:.6f})")
+            print(f"USB search range: ({self.USB_min:.6f}, {self.USB_max:.6f})")
         
         # Calculate derivatives
         self._calculate_derivatives()
@@ -80,13 +88,13 @@ class SampleBoundaryEstimator:
         
         if self.data_form == 'a':
             # Additive data form
-            # LB search range: extends below data minimum
-            self.LB_min = self.data_min - self.data_range
-            self.LB_max = self.data_min
+            # LSB search range: extends below data minimum
+            self.LSB_min = self.data_min - self.data_range
+            self.LSB_max = self.data_min
             
-            # UB search range: extends above data maximum  
-            self.UB_min = self.data_max
-            self.UB_max = self.data_max + self.data_range
+            # USB search range: extends above data maximum  
+            self.USB_min = self.data_max
+            self.USB_max = self.data_max + self.data_range
             
         elif self.data_form == 'm':
             # Multiplicative data form
@@ -96,24 +104,24 @@ class SampleBoundaryEstimator:
             # Calculate geometric bounds
             ratio_sqrt = np.sqrt(self.data_max / self.data_min)
             
-            # LB search range: geometric extension below data minimum
-            self.LB_min = self.data_min / (2 * ratio_sqrt)  # Extended lower bound
-            self.LB_max = self.data_min / ratio_sqrt
+            # LSB search range: geometric extension below data minimum
+            self.LSB_min = self.data_min / (2 * ratio_sqrt)  # Extended lower bound
+            self.LSB_max = self.data_min / ratio_sqrt
             
-            # UB search range: geometric extension above data maximum
-            self.UB_min = self.data_max * ratio_sqrt
-            self.UB_max = self.data_max * (2 * ratio_sqrt)  # Extended upper bound
+            # USB search range: geometric extension above data maximum
+            self.USB_min = self.data_max * ratio_sqrt
+            self.USB_max = self.data_max * (2 * ratio_sqrt)  # Extended upper bound
             
         elif self.data_form is None:
             # General data form - constrained search around data bounds
-            # LB search range: small extension below data minimum
+            # LSB search range: small extension below data minimum
             extension = self.data_range * 0.1
-            self.LB_min = self.data_min - extension
-            self.LB_max = self.data_min
+            self.LSB_min = self.data_min - extension
+            self.LSB_max = self.data_min
             
-            # UB search range: small extension above data maximum
-            self.UB_min = self.data_max
-            self.UB_max = self.data_max + extension
+            # USB search range: small extension above data maximum
+            self.USB_min = self.data_max
+            self.USB_max = self.data_max + extension
             
         else:
             raise ValueError(f"Invalid data_form: {self.data_form}. Must be 'a', 'm', or None.")
@@ -177,182 +185,182 @@ class SampleBoundaryEstimator:
         Find inflection points where second derivative changes sign within the specified ranges.
         """
         # Create extended z-axis for searching
-        LB_search_points = np.linspace(self.LB_min + 1e-6, self.LB_max - 1e-6, n_points//2)
-        UB_search_points = np.linspace(self.UB_min + 1e-6, self.UB_max - 1e-6, n_points//2)
+        LSB_search_points = np.linspace(self.LSB_min + 1e-6, self.LSB_max - 1e-6, n_points//2)
+        USB_search_points = np.linspace(self.USB_min + 1e-6, self.USB_max - 1e-6, n_points//2)
         
         # Evaluate second derivative in search ranges
-        LB_second_deriv = self.interp_second(LB_search_points)
-        UB_second_deriv = self.interp_second(UB_search_points)
+        LSB_second_deriv = self.interp_second(LSB_search_points)
+        USB_second_deriv = self.interp_second(USB_search_points)
         
-        # Find zero crossings in LB range
-        LB_inflections = []
-        LB_sign_changes = np.diff(np.sign(LB_second_deriv))
-        LB_zero_crossings = np.where(np.abs(LB_sign_changes) > 0)[0]
+        # Find zero crossings in LSB range
+        LSB_inflections = []
+        LSB_sign_changes = np.diff(np.sign(LSB_second_deriv))
+        LSB_zero_crossings = np.where(np.abs(LSB_sign_changes) > 0)[0]
         
-        for idx in LB_zero_crossings:
-            if idx < len(LB_search_points) - 1:
-                z1, z2 = LB_search_points[idx], LB_search_points[idx + 1]
-                d1, d2 = LB_second_deriv[idx], LB_second_deriv[idx + 1]
+        for idx in LSB_zero_crossings:
+            if idx < len(LSB_search_points) - 1:
+                z1, z2 = LSB_search_points[idx], LSB_search_points[idx + 1]
+                d1, d2 = LSB_second_deriv[idx], LSB_second_deriv[idx + 1]
                 
                 if abs(d2 - d1) > 1e-12:
                     z_zero = z1 - d1 * (z2 - z1) / (d2 - d1)
-                    if self.LB_min < z_zero < self.LB_max:
-                        LB_inflections.append(z_zero)
+                    if self.LSB_min < z_zero < self.LSB_max:
+                        LSB_inflections.append(z_zero)
         
-        # Find zero crossings in UB range
-        UB_inflections = []
-        UB_sign_changes = np.diff(np.sign(UB_second_deriv))
-        UB_zero_crossings = np.where(np.abs(UB_sign_changes) > 0)[0]
+        # Find zero crossings in USB range
+        USB_inflections = []
+        USB_sign_changes = np.diff(np.sign(USB_second_deriv))
+        USB_zero_crossings = np.where(np.abs(USB_sign_changes) > 0)[0]
         
-        for idx in UB_zero_crossings:
-            if idx < len(UB_search_points) - 1:
-                z1, z2 = UB_search_points[idx], UB_search_points[idx + 1]
-                d1, d2 = UB_second_deriv[idx], UB_second_deriv[idx + 1]
+        for idx in USB_zero_crossings:
+            if idx < len(USB_search_points) - 1:
+                z1, z2 = USB_search_points[idx], USB_search_points[idx + 1]
+                d1, d2 = USB_second_deriv[idx], USB_second_deriv[idx + 1]
                 
                 if abs(d2 - d1) > 1e-12:
                     z_zero = z1 - d1 * (z2 - z1) / (d2 - d1)
-                    if self.UB_min < z_zero < self.UB_max:
-                        UB_inflections.append(z_zero)
+                    if self.USB_min < z_zero < self.USB_max:
+                        USB_inflections.append(z_zero)
         
-        return np.array(LB_inflections), np.array(UB_inflections)
+        return np.array(LSB_inflections), np.array(USB_inflections)
 
     def estimate_boundaries_theoretical(self, tolerance=1e-4, n_points=1000):
         """
-        Estimate LB and UB using the theoretical approach:
+        Estimate LSB and USB using the theoretical approach:
         Find points where both second and third derivatives are zero within specified ranges.
         
         This implements the conditions from equations 15.41 and 15.42.
         """
         # Create search grids in the specified ranges
-        LB_search_points = np.linspace(self.LB_min + 1e-6, self.LB_max - 1e-6, n_points//2)
-        UB_search_points = np.linspace(self.UB_min + 1e-6, self.UB_max - 1e-6, n_points//2)
+        LSB_search_points = np.linspace(self.LSB_min + 1e-6, self.LSB_max - 1e-6, n_points//2)
+        USB_search_points = np.linspace(self.USB_min + 1e-6, self.USB_max - 1e-6, n_points//2)
         
         # Evaluate derivatives at search points
-        LB_second = self.interp_second(LB_search_points)
-        LB_third = self.interp_third(LB_search_points)
-        UB_second = self.interp_second(UB_search_points)
-        UB_third = self.interp_third(UB_search_points)
+        LSB_second = self.interp_second(LSB_search_points)
+        LSB_third = self.interp_third(LSB_search_points)
+        USB_second = self.interp_second(USB_search_points)
+        USB_third = self.interp_third(USB_search_points)
         
-        # Find LB candidates
-        LB_second_mask = np.abs(LB_second) < tolerance
-        LB_third_mask = np.abs(LB_third) < tolerance
-        LB_combined_mask = LB_second_mask & LB_third_mask
-        LB_candidates = LB_search_points[LB_combined_mask]
+        # Find LSB candidates
+        LSB_second_mask = np.abs(LSB_second) < tolerance
+        LSB_third_mask = np.abs(LSB_third) < tolerance
+        LSB_combined_mask = LSB_second_mask & LSB_third_mask
+        LSB_candidates = LSB_search_points[LSB_combined_mask]
         
-        # Find UB candidates
-        UB_second_mask = np.abs(UB_second) < tolerance
-        UB_third_mask = np.abs(UB_third) < tolerance
-        UB_combined_mask = UB_second_mask & UB_third_mask
-        UB_candidates = UB_search_points[UB_combined_mask]
+        # Find USB candidates
+        USB_second_mask = np.abs(USB_second) < tolerance
+        USB_third_mask = np.abs(USB_third) < tolerance
+        USB_combined_mask = USB_second_mask & USB_third_mask
+        USB_candidates = USB_search_points[USB_combined_mask]
         
         # Select best candidates
-        LB = LB_candidates[0] if len(LB_candidates) > 0 else None
-        UB = UB_candidates[-1] if len(UB_candidates) > 0 else None
+        LSB = LSB_candidates[0] if len(LSB_candidates) > 0 else None
+        USB = USB_candidates[-1] if len(USB_candidates) > 0 else None
         
         # If no candidates found, try with relaxed tolerance
-        if LB is None or UB is None:
+        if LSB is None or USB is None:
             tolerance *= 10
             if self.verbose:
                 print(f"No candidates found, relaxing tolerance to {tolerance}")
             
-            if LB is None:
-                LB_second_mask = np.abs(LB_second) < tolerance
-                LB_third_mask = np.abs(LB_third) < tolerance
-                LB_combined_mask = LB_second_mask & LB_third_mask
-                LB_candidates = LB_search_points[LB_combined_mask]
-                LB = LB_candidates[0] if len(LB_candidates) > 0 else None
+            if LSB is None:
+                LSB_second_mask = np.abs(LSB_second) < tolerance
+                LSB_third_mask = np.abs(LSB_third) < tolerance
+                LSB_combined_mask = LSB_second_mask & LSB_third_mask
+                LSB_candidates = LSB_search_points[LSB_combined_mask]
+                LSB = LSB_candidates[0] if len(LSB_candidates) > 0 else None
             
-            if UB is None:
-                UB_second_mask = np.abs(UB_second) < tolerance
-                UB_third_mask = np.abs(UB_third) < tolerance
-                UB_combined_mask = UB_second_mask & UB_third_mask
-                UB_candidates = UB_search_points[UB_combined_mask]
-                UB = UB_candidates[-1] if len(UB_candidates) > 0 else None
+            if USB is None:
+                USB_second_mask = np.abs(USB_second) < tolerance
+                USB_third_mask = np.abs(USB_third) < tolerance
+                USB_combined_mask = USB_second_mask & USB_third_mask
+                USB_candidates = USB_search_points[USB_combined_mask]
+                USB = USB_candidates[-1] if len(USB_candidates) > 0 else None
         
         if self.verbose:
-            print(f"LB candidates in range ({self.LB_min}, {self.LB_max}): {len(LB_candidates) if LB is not None else 0}")
-            print(f"UB candidates in range ({self.UB_min}, {self.UB_max}): {len(UB_candidates) if UB is not None else 0}")
-            if LB is not None:
-                print(f"Selected LB: {LB}")
-            if UB is not None:
-                print(f"Selected UB: {UB}")
+            print(f"LSB candidates in range ({self.LSB_min}, {self.LSB_max}): {len(LSB_candidates) if LSB is not None else 0}")
+            print(f"USB candidates in range ({self.USB_min}, {self.USB_max}): {len(USB_candidates) if USB is not None else 0}")
+            if LSB is not None:
+                print(f"Selected LSB: {LSB}")
+            if USB is not None:
+                print(f"Selected USB: {USB}")
                 
-        return LB, UB
+        return LSB, USB
 
     def estimate_boundaries_inflection(self):
         """
         Alternative method: Use inflection points of the density function within specified ranges.
         """
-        LB_inflections, UB_inflections = self.find_inflection_points_in_ranges()
+        LSB_inflections, USB_inflections = self.find_inflection_points_in_ranges()
         
-        # Select LB and UB from inflection points
-        LB = LB_inflections[0] if len(LB_inflections) > 0 else None
-        UB = UB_inflections[-1] if len(UB_inflections) > 0 else None
+        # Select LSB and USB from inflection points
+        LSB = LSB_inflections[0] if len(LSB_inflections) > 0 else None
+        USB = USB_inflections[-1] if len(USB_inflections) > 0 else None
         
         # Fallback if no inflection points found
-        if LB is None:
-            LB = (self.LB_min + self.LB_max) / 2
+        if LSB is None:
+            LSB = (self.LSB_min + self.LSB_max) / 2
             
-        if UB is None:
-            UB = (self.UB_min + self.UB_max) / 2
+        if USB is None:
+            USB = (self.USB_min + self.USB_max) / 2
             
         if self.verbose:
             print(f"Inflection-based estimation:")
-            print(f"Found {len(LB_inflections)} LB inflection points: {LB_inflections}")
-            print(f"Found {len(UB_inflections)} UB inflection points: {UB_inflections}")
-            print(f"Selected LB: {LB}, UB: {UB}")
+            print(f"Found {len(LSB_inflections)} LSB inflection points: {LSB_inflections}")
+            print(f"Found {len(USB_inflections)} USB inflection points: {USB_inflections}")
+            print(f"Selected LSB: {LSB}, USB: {USB}")
             
-        return LB, UB
+        return LSB, USB
 
     def estimate_boundaries_optimization(self):
         """
         Numerical optimization approach to find points where derivatives are minimized
         within the specified ranges.
         """
-        def objective_LB(z):
-            """Objective function for LB: sum of squares of second and third derivatives"""
+        def objective_LSB(z):
+            """Objective function for LSB: sum of squares of second and third derivatives"""
             return self.interp_second(z)**2 + self.interp_third(z)**2
         
-        def objective_UB(z):
-            """Objective function for UB: sum of squares of second and third derivatives"""
+        def objective_USB(z):
+            """Objective function for USB: sum of squares of second and third derivatives"""
             return self.interp_second(z)**2 + self.interp_third(z)**2
         
-        # Find LB using optimization
-        LB = None
+        # Find LSB using optimization
+        LSB = None
         try:
-            LB_result = minimize_scalar(objective_LB, bounds=(self.LB_min + 1e-6, self.LB_max - 1e-6), 
+            LSB_result = minimize_scalar(objective_LSB, bounds=(self.LSB_min + 1e-6, self.LSB_max - 1e-6), 
                                        method='bounded')
-            if LB_result.success and LB_result.fun < 1e-3:
-                LB = LB_result.x
+            if LSB_result.success and LSB_result.fun < 1e-3:
+                LSB = LSB_result.x
         except Exception as e:
             if self.verbose:
-                print(f"LB optimization failed: {e}")
+                print(f"LSB optimization failed: {e}")
         
-        # Find UB using optimization
-        UB = None
+        # Find USB using optimization
+        USB = None
         try:
-            UB_result = minimize_scalar(objective_UB, bounds=(self.UB_min + 1e-6, self.UB_max - 1e-6), 
+            USB_result = minimize_scalar(objective_USB, bounds=(self.USB_min + 1e-6, self.USB_max - 1e-6), 
                                        method='bounded')
-            if UB_result.success and UB_result.fun < 1e-3:
-                UB = UB_result.x
+            if USB_result.success and USB_result.fun < 1e-3:
+                USB = USB_result.x
         except Exception as e:
             if self.verbose:
-                print(f"UB optimization failed: {e}")
+                print(f"USB optimization failed: {e}")
         
         # Fallback values if optimization fails
-        if LB is None:
-            LB = (self.LB_min + self.LB_max) / 2
+        if LSB is None:
+            LSB = (self.LSB_min + self.LSB_max) / 2
             
-        if UB is None:
-            UB = (self.UB_min + self.UB_max) / 2
+        if USB is None:
+            USB = (self.USB_min + self.USB_max) / 2
             
         if self.verbose:
             print(f"Optimization-based estimation:")
-            print(f"LB optimization {'successful' if LB != (self.LB_min + self.LB_max) / 2 else 'failed'}")
-            print(f"UB optimization {'successful' if UB != (self.UB_min + self.UB_max) / 2 else 'failed'}")
-            print(f"Selected LB: {LB}, UB: {UB}")
+            print(f"LSB optimization {'successful' if LSB != (self.LSB_min + self.LSB_max) / 2 else 'failed'}")
+            print(f"USB optimization {'successful' if USB != (self.USB_min + self.USB_max) / 2 else 'failed'}")
+            print(f"Selected LSB: {LSB}, USB: {USB}")
             
-        return LB, UB
+        return LSB, USB
 
     def estimate_all_methods(self):
         """
