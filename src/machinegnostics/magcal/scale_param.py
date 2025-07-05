@@ -224,7 +224,7 @@ class ScaleParam():
         
         return Sz
 
-    def estimate_global_scale(self, Fk, Ek):
+    def estimate_global_scale_egdf(self, Fk, Ek):
         """
         Estimate the optimal global scale parameter S_optimize based on equation 16.6.
         
