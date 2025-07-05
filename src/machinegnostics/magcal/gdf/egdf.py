@@ -12,8 +12,9 @@ from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
+from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
-class EGDF(BaseDistFunc):
+class EGDF(BaseDistFunc, DataHomogeneity):
     """
     EGDF - A class for estimating the global distribution function.
     """
@@ -258,6 +259,9 @@ class EGDF(BaseDistFunc):
 
         # calculate final PDF
         self.pdf = self._get_pdf()
+
+        # homogeneity check
+        self._homogenize()
 
     def plot(self):
         """
@@ -645,3 +649,23 @@ class EGDF(BaseDistFunc):
         else:
             self.params['LB'] = None
             self.params['UB'] = None
+    
+    def _homogenize(self):
+        """
+        Homogenize the data if it is not homogeneous.
+        
+        This method can be overridden in subclasses to provide custom homogenization logic.
+        """
+        if not self.homogeneous or not self._is_homogeneous():
+            self.weights = self.homogenize()
+        
+    def _is_homogeneous(self):
+        """
+        Check if the data is homogeneous.
+        
+        This method can be overridden in subclasses to provide custom homogeneity checks.
+        """
+        self.is_homo, self.params = self.is_homogeneous()
+
+        if self.catch:
+            self.params['is_homogeneous'] = self.is_homo
