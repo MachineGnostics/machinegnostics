@@ -29,7 +29,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
                  S = 'auto',
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
-                 n_points: int = 100,
+                 n_points: int = 1000,
                  homogeneous: bool = True,
                  catch: bool = True,
                  weights: np.ndarray = None):
@@ -214,11 +214,12 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         self.wedf = self._get_wedf()
 
         # # estimate EGDF at S=1, fidelity, and irrelevance
-        self.df = self._get_egdf()
+        self.df = self._get_egdf_first_estimate()
 
         # find optimized bounds
         self._find_optimized_bounds()
 
+        # --- optimize scale parameter S for GDF ---
         # R = egdf / wedf, calculate q, q1, and fidelity and irrelevance at S=1
         eps = np.finfo(float).eps  # small value to avoid division by zero
         R_df = self.df / (self.wedf + eps)
@@ -253,6 +254,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
             self.params['fidelity'] = fi
             self.params['irrelevance'] = hi
             self.params['S_df'] = self.S_opt_df
+        # --- end of scale parameter optimization ---
 
         # calculate final EGDF with optimized S
         self.egdf =self._estimate_egdf(fi, hi)
@@ -428,7 +430,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
             self.params['wedf'] = None
         return wedf_values
 
-    def _get_egdf(self):
+    def _get_egdf_first_estimate(self):
         """
         Get the EGDF for the given scale parameter S.
         """
