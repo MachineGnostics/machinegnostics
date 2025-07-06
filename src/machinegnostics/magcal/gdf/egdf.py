@@ -138,6 +138,9 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         else:
             self.params = {}
 
+        # initialize parent class
+        DataHomogeneity.__init__(self, data=self.data, params=self.params)
+
     def _estimate_weights(self):
         """
         Estimate weights for the EGDF.
@@ -254,14 +257,17 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         # calculate final EGDF with optimized S
         self.egdf =self._estimate_egdf(fi, hi)
 
-        # # find optimized bounds
+        # find optimized bounds
         # self._find_optimized_bounds()
 
         # calculate final PDF
         self.pdf = self._get_pdf()
 
-        # homogeneity check
-        self._homogenize()
+        # if data was not homogeneous, and checking that is homogenized or not
+        if self.homogeneous == False:
+            self._is_homogeneous()
+            # if self.is_homo == False:
+            #     raise Warning("Please check data homogeneity.")
 
     def plot(self):
         """
@@ -333,7 +339,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         ax1.grid(True, alpha=0.3)
         fig.tight_layout()
         plt.show()
-
+    
     def _tranform_input(self):
         """
         Transform input data to the standard domain.
@@ -348,6 +354,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
             self.z = dc._convert_mz(self.data, self.DLB, self.DUB)
         else:
             raise ValueError(f"Unknown data form: {self.data_form}, expected 'a' or 'm'.")
+                
         # initial bounds
         self._estimate_probable_bounds()
         # infinite domain
@@ -359,6 +366,10 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         else:
             self.params['z'] = None
             self.params['zi'] = None
+
+        # homogenize
+        if not self.homogeneous:
+            self._homogenize()
     
     def _get_z_points(self):
         """
@@ -452,6 +463,9 @@ class EGDF(BaseDistFunc, DataHomogeneity):
 
             # S optimization
             self.S_opt = sp._gscale_loc(np.mean(fi))
+            if self.S_opt is None:
+                self.S_opt = 1
+                raise Warning("S_opt is None, using S=1 as default.")
             q, q1 = gc._get_q_q1(S=self.S_opt)
             fi = gc._fi(q=q, q1=q1)
             hi = gc._hi(q=q, q1=q1)
@@ -466,7 +480,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         self.hi = hi
 
         if self.catch:
-            self.params['S_opt'] = self.S_opt if 'S_opt' in locals() else self.S
+            self.params['S_opt'] = self.S_opt if self.S_opt is not None else 1
         else:
             self.params['S_opt'] = None
 
@@ -656,8 +670,7 @@ class EGDF(BaseDistFunc, DataHomogeneity):
         
         This method can be overridden in subclasses to provide custom homogenization logic.
         """
-        if not self.homogeneous or not self._is_homogeneous():
-            self.weights = self.homogenize()
+        self.weights = self.homogenize()
         
     def _is_homogeneous(self):
         """
