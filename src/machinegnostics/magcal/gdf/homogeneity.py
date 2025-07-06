@@ -15,11 +15,15 @@ class DataHomogeneity:
     This class is used to ensure that the data is homogeneous before performing GDF calculations.
     """
 
-    def __init__(self, data, params):
+    def __init__(self, params, data , catch=True):
         self.data = data
         self.params = params
         self.gw = GnosticsWeights()
         self.analysis_info = {}
+        self.catch = catch
+        # if self catch is False, many functions will not be available
+        if self.catch == False:
+            print("Warning: Catch is set to False, some functions may not be available.")
 
     def is_homogeneous(self, prominence_threshold=0.01, distance_threshold=5, filter_data_range=True):
         """
