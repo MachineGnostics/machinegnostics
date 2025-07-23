@@ -224,9 +224,9 @@ class ScaleParam():
         
         return Sz
 
-    def estimate_global_scale_egdf(self, Fk, Ek):
+    def estimate_global_scale_egdf(self, Fk, Ek, tolerance=0.1):
         """
-        Estimate the optimal global scale parameter S_optimize based on equation 16.6.
+        Estimate the optimal global scale parameter S_optimize to find minimum S where fidelity is maximized.
         
         Parameters
         ----------
@@ -234,33 +234,69 @@ class ScaleParam():
             Fidelity values for the data points.
         Ek : array-like
             Weighted empirical distribution function values for the data points.
-
+        tolerance : float, optional
+            Convergence tolerance for fidelity change (default is 0.01).
+    
         Returns
         -------
         float
-            The optimal global scale parameter S_optimize.
-
+            The optimal global scale parameter S_optimize (minimum S where fidelity is maximized).
+    
         Notes
         -----
-        This function uses numerical optimization to find the scale parameter S that maximizes
-        the sum of fidelities as described in equation 16.6.
+        This function finds the minimum scale parameter S where fidelity is maximized,
+        with early stopping when fidelity change is less than the specified tolerance.
         """
         Fk = np.asarray(Fk)
         Ek = np.asarray(Ek)
-
+    
         if len(Fk) != len(Ek):
             raise ValueError("Fk and Ek must have the same length.")
-
-        def objective(S):
-            # Compute the sum of fidelities for a given S
-            term1 = (Fk / Ek) ** (2 / S)
-            term2 = (Ek / Fk) ** (2 / S)
-            return -np.sum(2 / (term1 + term2))  # Negative for maximization
-
-        # Use scalar minimization to find the optimal S
-        result = minimize_scalar(objective, bounds=(0.1, 100), method='bounded')
-
-        if not result.success:
-            raise RuntimeError("Optimization failed to find the optimal scale parameter.")
-
-        return result.x
+    
+        def compute_fidelity(S):
+            """Compute average fidelity for a given S"""
+            # Add small epsilon to prevent division by zero
+            eps = np.finfo(float).eps
+            term1 = (Fk / (Ek + eps)) ** (2 / S)
+            term2 = (Ek / (Fk + eps)) ** (2 / S)
+            fidelities = 2 / (term1 + term2)
+            return np.mean(fidelities)
+    
+        # Search through S values from minimum to maximum
+        s_values = np.linspace(0.01, 100, 1000)  # Fine grid for accurate search
+        
+        max_fidelity = -np.inf
+        optimal_s = None
+        previous_fidelity = None
+        
+        for s in s_values:
+            current_fidelity = compute_fidelity(s)
+            
+            # Check convergence condition first
+            if previous_fidelity is not None:
+                fidelity_change = abs(current_fidelity - previous_fidelity)
+                if fidelity_change < tolerance:
+                    # Converged - return the minimum S where we achieved max fidelity
+                    if optimal_s is not None:
+                        final_fidelity = compute_fidelity(optimal_s)
+                        print(f"Converged at S={optimal_s:.4f} with fidelity={final_fidelity:.4f}")
+                        return optimal_s
+                    else:
+                        # First iteration, use current S
+                        print(f"Converged at S={s:.4f} with fidelity={current_fidelity:.4f}")
+                        return s
+            
+            # Update maximum fidelity and optimal S (prefer minimum S for same fidelity)
+            if current_fidelity > max_fidelity:
+                max_fidelity = current_fidelity
+                optimal_s = s
+            
+            previous_fidelity = current_fidelity
+        
+        # If no convergence found, return the S with maximum fidelity
+        if optimal_s is not None:
+            final_fidelity = compute_fidelity(optimal_s)
+            print(f"No convergence found. Returning S={optimal_s:.4f} with max fidelity={final_fidelity:.4f}")
+            return optimal_s
+        else:
+            raise RuntimeError("Failed to find optimal scale parameter.")

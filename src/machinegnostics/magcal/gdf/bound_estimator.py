@@ -23,7 +23,11 @@ class BoundEstimator:
         """
         Estimate the bounds for the data.
         """
-        # Implement bound estimation logic here
+        # estimate probable bounds (LB, UB)
+
+        # estimate data support bounds (LSB, USB)
+
+        # estimate egdf location parameters (mean, median, mode)
         pass
 
     def _find_optimized_probable_bounds(self, target_cdf_lower=0.00001, target_cdf_upper=0.99999):
@@ -101,3 +105,53 @@ class BoundEstimator:
         else:
             self.params['LB'] = None
             self.params['UB'] = None
+
+    def _optimize_probable_bounds(self):
+        """
+        Optimize the probable bounds (LB, UB) and S for EGDF.
+
+        criteria function is: minimize LB, UB and S for maximum fidelity.
+        """
+        # current fidelity
+        fi = self.params['fidelity']
+        fi_mean = np.mean(fi)
+
+        # bound search range
+        z = self.params['z']
+
+        # initial bounds
+        lb_init = self.params['LB_init']
+        ub_init = self.params['UB_init']
+
+    def _get_derivative(self, pdf=None):
+        """
+        Get the derivatives of the EGDF.
+        
+        Since PDF = dP/dZ₀ (first derivative of EGDF), we have:
+        - PDF = dP/dZ₀ (first derivative of EGDF)
+        - Second derivative of EGDF = d²P/dZ₀² = d(PDF)/dZ₀
+        - Third derivative of EGDF = d³P/dZ₀³ = d²(PDF)/dZ₀²
+        
+        Returns:
+        tuple: (first_derivative, second_derivative, third_derivative) of EGDF
+               where first_derivative is the PDF itself
+        """
+        if 'pdf' not in self.params and pdf is None:
+            raise ValueError("PDF not found in params. Please fit the model first.") 
+        
+        if pdf is None:
+            pdf = self.params['pdf']
+    
+        # PDF is already the first derivative of EGDF
+        first_derivative = pdf
+        
+        # Second derivative of EGDF = gradient of PDF
+        second_derivative = np.gradient(pdf)
+        
+        # Third derivative of EGDF = gradient of second derivative
+        third_derivative = np.gradient(second_derivative)
+        
+        return first_derivative, second_derivative, third_derivative
+    
+    def _find_data_support_bounds(self):
+        pass

@@ -23,8 +23,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
                  data: np.ndarray,
                  DLB: float = None,
                  DUB: float = None,
-                 LSB: float = None,
-                 USB: float = None,
                  LB: float = None,
                  UB: float = None,
                  S = 'auto',
@@ -42,8 +40,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         data (np.ndarray): Input data for the EGDF.
         DLB (float): Lower bound for the data.
         DUB (float): Upper bound for the data.
-        LSB (float): Lower Sample Bound.
-        USB (float): Upper Sample Bound.
         LB (float): Lower (Probable) Bound.
         UB (float): Upper (Probable) Bound.
         S (float): Scale parameter.
@@ -59,8 +55,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         self.data = data
         self.DLB = DLB
         self.DUB = DUB
-        self.LSB = LSB
-        self.USB = USB
         self.LB = LB
         self.UB = UB
         self.S = S
@@ -81,9 +75,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             raise ValueError("DLB must be a numeric value or None.")
         if DUB is not None and not isinstance(DUB, (int, float)):
             raise ValueError("DUB must be a numeric value or None.")
-        if LSB is not None and not isinstance(LSB, (int, float)):
-            raise ValueError("LSB must be a numeric value or None.")
-        if USB is not None and not isinstance(USB, (int, float)):
             raise ValueError("USB must be a numeric value or None.")
         if LB is not None and not isinstance(LB, (int, float)):
             raise ValueError("LB must be a numeric value or None.")
@@ -127,8 +118,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             self.params['data'] = self.data
             self.params['DLB'] = self.DLB if self.DLB is not None else None
             self.params['DUB'] = self.DUB if self.DUB is not None else None
-            self.params['LSB'] = self.LSB if self.LSB is not None else None
-            self.params['USB'] = self.USB if self.USB is not None else None
             self.params['LB'] = self.LB if self.LB is not None else None
             self.params['UB'] = self.UB if self.UB is not None else None
             self.params['S'] = self.S if self.S is not None else None
@@ -184,16 +173,44 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             self.params['DLB'] = None
             self.params['DUB'] = None
 
-    def _estimate_probable_bounds(self):
+    def _initial_probable_bounds_estimate(self):
         """
         Estimate probable bounds based on the EGDF.
-
+    
         LB and UB are the probable bounds where samples are expected.
+    
+        This is first estimate, and then optimized later.
+        Only estimates bounds if they are not already provided.
         """
+        # Only estimate LB if it's not provided
         if self.LB is None:
-            self.LB = np.min(self.z)
+            if self.data_form == 'a':
+                # For additive form: LB should be less than data minimum
+                pad = (self.DUB - self.DLB) / 2
+                lb_raw = self.DLB - pad
+                self.LB = DataConversion._convert_az(lb_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                # For multiplicative form: LB should be less than data minimum
+                lb_raw = self.DLB / np.sqrt(self.DUB / self.DLB)
+                self.LB = DataConversion._convert_mz(lb_raw, self.DLB, self.DUB)
+            else:
+                raise ValueError(f"Unknown data form: {self.data_form}, expected 'a' or 'm'.")
+    
+        # Only estimate UB if it's not provided
         if self.UB is None:
-            self.UB = np.max(self.z)
+            if self.data_form == 'a':
+                # For additive form: UB should be greater than data maximum
+                pad = (self.DUB - self.DLB) / 2
+                ub_raw = self.DUB + pad
+                self.UB = DataConversion._convert_az(ub_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                # For multiplicative form: UB should be greater than data maximum
+                ub_raw = self.DUB * np.sqrt(self.DUB / self.DLB)
+                self.UB = DataConversion._convert_mz(ub_raw, self.DLB, self.DUB)
+            else:
+                raise ValueError(f"Unknown data form: {self.data_form}, expected 'a' or 'm'.")
+    
+        # Store initial estimates
         if self.catch:
             self.params['LB_init'] = self.LB
             self.params['UB_init'] = self.UB
@@ -204,76 +221,251 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     def fit(self):
         """
         Fit the EGDF model to the data.
-
+    
         This method applies the transformation and prepares the data for further analysis.
         """
         # transform data from standard domain to normal domain
-        self._tranform_input()
-
-        # R = Zi_points/Zi, calculate q, q1, and fidelity and irrelevance at S=1
+        self._transform_input()
+    
+        # LB and UB initial estimate
+        self._initial_probable_bounds_estimate()
+    
+        # get z points
         self._get_z_points()
         
         # estimate wedf
         self.wedf = self._get_wedf()
+    
+        # optimize scale parameter S, LB and UB for minimum difference
+        if isinstance(self.S, str) and self.S.lower() == 'auto':
+            self.S_opt, self.LB_opt, self.UB_opt = self._get_optimized_bounds()
+            self._egdf(S=self.S_opt, LB=self.LB_opt, UB=self.UB_opt)
+        else:
+            # Use provided S value and calculate final EGDF
+            self.S_opt = self.S
+            self.LB_opt = self.LB
+            self.UB_opt = self.UB
+            self._egdf(S=self.S_opt, LB=self.LB_opt, UB=self.UB_opt)
 
-        # # estimate EGDF at S=1, fidelity, and irrelevance
-        self.df = self._get_egdf_first_estimate()
+        # transform back bounds to normal domain
+        if self.data_form == 'a':
+            self.LB = DataConversion._convert_za(self.LB_opt, self.DLB, self.DUB)
+            self.UB = DataConversion._convert_za(self.UB_opt, self.DLB, self.DUB)
+        else:
+            self.LB = DataConversion._convert_zm(self.LB_opt, self.DLB, self.DUB)
+            self.UB = DataConversion._convert_zm(self.UB_opt, self.DLB, self.DUB)
 
-        # find optimized bounds
-        self._find_optimized_bounds()
-
-        # --- optimize scale parameter S for GDF ---
-        # R = egdf / wedf, calculate q, q1, and fidelity and irrelevance at S=1
-        eps = np.finfo(float).eps  # small value to avoid division by zero
-        R_df = self.df / (self.wedf + eps)
-        gc = GnosticsCharacteristics(R=R_df)
-        sp = ScaleParam()
-
-        # if S is int or float, then calculate q, q1, fi, hi
-        if isinstance(self.S, (int, float)):
-            q, q1 = gc._get_q_q1(S=self.S)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-
-        elif isinstance(self.S, str) and self.S.lower() == 'auto':
-            # if S is 'auto', then calculate S using ScaleParam
-            q, q1 = gc._get_q_q1(S=1)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-
-            # S optimization
-            self.S_opt_df = sp._gscale_loc(np.mean(fi))
-            q, q1 = gc._get_q_q1(S=self.S_opt_df)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-        
-        # if any value in fi is Nan or infinite, then replace with 0
-        if np.any(np.isnan(fi)) or np.any(np.isinf(fi)):
-            fi = np.nan_to_num(fi, nan=0, posinf=0, neginf=0)
-            hi = np.nan_to_num(hi, nan=0, posinf=0, neginf=0)
-        
-        # store fidelity, irrelevance, and S_opt to params
         if self.catch:
-            self.params['fidelity'] = fi
-            self.params['irrelevance'] = hi
-            self.params['S_df'] = self.S_opt_df
-        # --- end of scale parameter optimization ---
-
-        # calculate final EGDF with optimized S
-        self.egdf =self._estimate_egdf(fi, hi)
-
-        # find optimized bounds
-        # self._find_optimized_bounds()
-
+            self.params['LB'] = self.LB
+            self.params['UB'] = self.UB
+    
         # calculate final PDF
         self.pdf = self._get_pdf()
-
+    
         # if data was not homogeneous, and checking that is homogenized or not
         if self.homogeneous == False and self.catch == True:
             self._is_homogeneous()
-            # if self.is_homo == False:
-            #     raise Warning("Please check data homogeneity.")
 
+
+    def _egdf(self, S, LB, UB):
+        """
+        Estimate the Estimating Global Distribution Function (EGDF).
+
+        convert to infinite domain
+        estimate egdf at s=1
+        find LB, UB, and S where difference of wedf and egdf is minimized
+        """
+        # Convert to infinite domain
+        self.zi = DataConversion._convert_fininf(self.sample, LB, UB)
+        self.zi_points = np.linspace(LB, UB, self.n_points)
+
+        # R, q and q1
+        eps = np.finfo(float).eps  # small value to avoid division by zero
+        R = self.zi.reshape(-1, 1) / (self.zi_points + eps).reshape(1, -1)
+        gc = GnosticsCharacteristics(R=R)
+        q, q1 = gc._get_q_q1(S=S)
+
+        # fi and hi
+        self.fi = gc._fi(q=q, q1=q1)
+        self.hi = gc._hi(q=q, q1=q1)
+
+        # estimate egdf
+        self.egdf = self._estimate_egdf(self.fi, self.hi)
+
+        # param store
+        if self.catch:
+            self.params['zi'] = self.zi
+        else:
+            self.params['zi'] = None
+
+    def _get_optimized_bounds(self):
+        """
+        Optimize scale parameter S, LB and UB bounds to minimize difference between EGDF and WEDF.
+        
+        Bounds logic: 0 < LB < min(zi) < zi_values < max(zi) < UB < ∞
+        """
+        from scipy.optimize import minimize
+        import warnings
+        import numpy as np
+        
+        # First, we need to get zi values to set proper bounds
+        # Convert current sample to infinite domain using initial LB, UB estimates
+        zi_temp = DataConversion._convert_fininf(self.sample, self.LB, self.UB)
+        zi_min, zi_max = zi_temp.min(), zi_temp.max()
+        zi_range = zi_max - zi_min
+        
+        # Get initial bounds based on data form
+        sx = 1.0  # Scale parameter initial value
+        lbx = self.LB  # Initial LB estimate
+        ubx = self.UB  # Initial UB estimate
+        initial_guess = [sx, lbx, ubx]
+    
+        # Define optimization ranges for parameters in infinite domain
+        # S: scale parameter (positive)
+        s_min, s_max = 0.05, 100.0
+        
+        # LB: must be positive and less than min(zi)
+        # Add some margin to ensure LB < min(zi)
+        lb_min = np.finfo(float).eps  # Very small positive number
+        lb_max = zi_min # Ensure LB < min(zi)
+        if lb_max <= lb_min:
+            lb_max = zi_min * 0.9  # Fallback: 90% of min zi value
+        
+        # UB: must be greater than max(zi)
+        # Add some margin to ensure UB > max(zi)
+        ub_min = zi_max # Ensure UB > max(zi)
+        ub_max = np.finfo(float).max # Upper limit, but not infinity to avoid numerical issues
+        
+        # Ensure bounds are valid
+        if lb_max <= lb_min:
+            lb_min = np.finfo(float).eps
+            lb_max = zi_min * 0.5
+        
+        if ub_min >= ub_max:
+            ub_min = zi_max * 1.1
+            ub_max = zi_max * 10.0
+        
+        # Update initial guess to be within bounds
+        if lbx <= lb_min or lbx >= lb_max:
+            lbx = (lb_min + lb_max) / 2
+        if ubx <= ub_min or ubx >= ub_max:
+            ubx = (ub_min + ub_max) / 2
+        
+        initial_guess = [sx, lbx, ubx]
+        opt_bounds = [(s_min, s_max), (lb_min, lb_max), (ub_min, ub_max)]
+    
+        def objective_function(params):
+            """
+            Objective function to minimize difference between EGDF and WEDF.
+            """
+            try:
+                sx_opt, lbx_opt, ubx_opt = params
+                
+                # Validate bounds constraints: LB < min(zi) < max(zi) < UB
+                zi_temp_check = DataConversion._convert_fininf(self.sample, lbx_opt, ubx_opt)
+                zi_min_check, zi_max_check = zi_temp_check.min(), zi_temp_check.max()
+                
+                if not (lbx_opt < zi_min_check and zi_max_check < ubx_opt):
+                    return 1e10
+                
+                # Convert normalized data to infinite domain
+                zi_temp = DataConversion._convert_fininf(self.sample, lbx_opt, ubx_opt)
+                zi_points_temp = np.linspace(lbx_opt, ubx_opt, self.n_points)
+    
+                # Calculate R matrix
+                eps = np.finfo(float).eps
+                R_temp = zi_temp.reshape(-1, 1) / (zi_points_temp.reshape(1, -1) + eps)
+                
+                # Get characteristics
+                gc_temp = GnosticsCharacteristics(R=R_temp)
+                q_temp, q1_temp = gc_temp._get_q_q1(S=sx_opt)
+    
+                # Calculate fidelities and irrelevances
+                fi_temp = gc_temp._fi(q=q_temp, q1=q1_temp)
+                hi_temp = gc_temp._hi(q=q_temp, q1=q1_temp)
+    
+                # Calculate EGDF values using temporary estimation
+                egdf_vals = self._estimate_egdf(fi_temp, hi_temp)
+                
+                # Calculate weighted absolute difference with WEDF
+                if len(egdf_vals) != len(self.wedf):
+                    return 1e10
+                    
+                diff = np.abs(egdf_vals - self.wedf)
+                objective_val = np.mean(diff)
+                
+                return objective_val
+                    
+            except Exception as e:
+                return 1e10
+        
+        # Perform optimization
+        try:
+            result = minimize(
+                objective_function,
+                initial_guess,
+                bounds=opt_bounds,
+                method='L-BFGS-B',
+                options={
+                    'maxiter': 1000,
+                    'ftol': 1e-9,
+                    'gtol': 1e-9,
+                    'disp': False
+                }
+            )
+            
+            if result.success and result.fun < 1e9:
+                sx_opt, lbx_opt, ubx_opt = result.x
+                self.S_opt = sx_opt
+                self.LB_opt = lbx_opt
+                self.UB_opt = ubx_opt
+                optimization_success = True
+                min_diff = result.fun
+            else:
+                # Fallback to initial values
+                self.S_opt = sx
+                self.LB_opt = lbx
+                self.UB_opt = ubx
+                optimization_success = False
+                min_diff = objective_function(initial_guess)
+                warnings.warn("Bound optimization failed, using initial estimates")
+                    
+        except Exception as e:
+            # Fallback to initial values
+            self.S_opt = sx
+            self.LB_opt = lbx
+            self.UB_opt = ubx
+            optimization_success = False
+            min_diff = float('inf')
+            warnings.warn(f"Bound optimization failed with error: {e}, using initial estimates")
+        
+        # Update instance variables
+        self.S = self.S_opt
+        self.LB = self.LB_opt
+        self.UB = self.UB_opt
+        
+        # Store optimization results
+        if self.catch:
+            self.params.update({
+                'S_opt': self.S_opt,
+                'LB_opt': self.LB_opt,
+                'UB_opt': self.UB_opt,
+                'optimization_success': optimization_success,
+                'min_difference': min_diff,
+                'zi_bounds': {
+                    'zi_min': zi_min,
+                    'zi_max': zi_max,
+                    'zi_range': zi_range
+                },
+                'optimization_bounds': {
+                    'S_range': [s_min, s_max],
+                    'LB_range': [lb_min, lb_max], 
+                    'UB_range': [ub_min, ub_max]
+                }
+            })
+        
+        return self.S_opt, self.LB_opt, self.UB_opt
+    
     def plot(self):
         """
         plot EGDF and PDF.
@@ -285,8 +477,8 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         if self.catch:
             if self.params.get('egdf') is None or self.params.get('pdf') is None:
                 raise ValueError("EGDF and PDF must be calculated before plotting.")
-            egdf = self.egdf_values
-            pdf = self.pdf
+            egdf = self.params['egdf']
+            pdf = self.params['pdf']
         if self.catch == False:
             # raise warning only and exit function
             return print("Plot is not available with argument catch=False")
@@ -302,19 +494,19 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         ax1.set_ylabel('EGDF', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
         # Most robust version
-        lb = self.params['LB']
-        ub = self.params['UB']
+        lb = self.params['DLB']
+        ub = self.params['DUB']
 
         # Calculate range and apply 2% padding
         range_val = ub - lb
-        padding = range_val * 0.02
+        padding = range_val * 0.1
 
         x_min = lb - padding
         x_max = ub + padding
 
         ax1.set_xlim(x_min, x_max)
         ax1.set_ylim(0, 1)
-
+ 
         # Create a second y-axis for the PDF
         ax2 = ax1.twinx()
         ax2.plot(x_points, pdf, color='red', label='PDF', linewidth=2)
@@ -348,7 +540,7 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         fig.tight_layout()
         plt.show()
     
-    def _tranform_input(self):
+    def _transform_input(self):
         """
         Transform input data to the standard domain.
 
@@ -362,22 +554,45 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             self.z = dc._convert_mz(self.data, self.DLB, self.DUB)
         else:
             raise ValueError(f"Unknown data form: {self.data_form}, expected 'a' or 'm'.")
-                
-        # initial bounds
-        self._estimate_probable_bounds()
-        # infinite domain
-        self.zi = dc._convert_fininf(self.z, self.LB, self.UB)
-        # store
-        if self.catch:
-            self.params['z'] = self.z
-            self.params['zi'] = self.zi
-        else:
-            self.params['z'] = None
-            self.params['zi'] = None
-
+        
         # homogenize
         if not self.homogeneous:
             self._homogenize()
+            self.sample = self.z * self.weights
+        else:
+            self.sample = self.z * self.weights
+
+        # store
+        if self.catch:
+            self.params['zf'] = self.z
+            self.params['sample'] = self.sample
+        else:
+            self.params['zf'] = None
+            self.params['sample'] = None       
+
+    def _get_ks_points(self, N):
+        """
+        Generate Kolmogorov-Smirnov points for the EGDF.
+
+        Parameters:
+        N (int): Number of points to generate.
+
+        Returns:
+            np.ndarray: The KS points.
+        """
+        if N <= 0:
+            raise ValueError("N must be a positive integer.")
+
+        # Generate n values from 1 to N
+        n = np.arange(1, N + 1)
+
+        # Apply the KS-points formula: (2n-1)/(2N)
+        self.ks_points = (2 * n - 1) / (2 * N)
+
+        if self.catch:
+            self.params['ks_points'] = self.ks_points
+
+        return self.ks_points
     
     def _get_z_points(self):
         """
@@ -386,17 +601,8 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         Returns:
             np.ndarray: The z points.
         """
-        if self.data_form == 'a':
-            pad = (self.DUB - self.DLB) / 2
-            self.DLB_ = self.DLB - pad
-            self.DUB_ = self.DUB + pad
-        elif self.data_form == 'm':
-            self.DLB_ = self.DLB / np.sqrt(self.DUB / self.DLB)
-            self.DUB_ = self.DUB * np.sqrt(self.DUB / self.DLB)
-
-        # NOTE in future this logic can be improved to handle more complex cases
         # generate di_points
-        self.di_points = np.linspace(self.DLB_, self.DUB_, self.n_points)
+        self.di_points = np.linspace(self.DLB, self.DUB, self.n_points)
 
         # data transformation
         dc = DataConversion()
@@ -406,18 +612,13 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             self.z_points = dc._convert_mz(self.di_points, self.DLB, self.DUB)
         else:
             raise ValueError(f"Unknown data form: {self.data_form}, expected 'a' or 'm'.")
-        # finite to infinite domain conversion
-        zi_points = dc._convert_fininf(self.z_points, self.LB, self.UB)
-
-        # reshape
-        self.zi_points = zi_points.reshape(-1, 1) if zi_points.ndim == 1 else zi_points
 
         if self.catch:
             self.params['di_points'] = self.di_points
             self.params['z_points'] = self.z_points
-            self.params['zi_points'] = self.zi_points
         else:
-            self.params['zi_points'] = None
+            self.params['di_points'] = None
+            self.params['z_points'] = None
 
     def _get_wedf(self):
         """
@@ -427,75 +628,15 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             WEDF: The WEDF object.
         """
         wedf = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
-        
-        wedf_values = wedf.fit(self.di_points)
-        
+
+        wedf_values = wedf.fit(self.di_points) # NOTE need to find logic when to use data vs di_points
+
         if self.catch:
             self.params['wedf'] = wedf_values
         else:
             self.params['wedf'] = None
         return wedf_values
 
-    def _get_egdf_first_estimate(self):
-        """
-        Get the EGDF for the given scale parameter S.
-        """
-        eps = np.finfo(float).eps
-        
-        # R calculation for each zi_point against all data points
-        zi_data = self.zi.reshape(-1, 1)  # Shape: (n_data, 1)
-        zi_points_broadcast = self.zi_points.reshape(1, -1)  # Shape: (1, n_points)
-        
-        # R matrix: each row is data point, each column is evaluation point
-        R = zi_data / (zi_points_broadcast + eps)
-        
-        gc = GnosticsCharacteristics(R=R)
-        
-        # if self.s is int or float, then calculate q, q1, fi, hi
-        if isinstance(self.S, (int, float)):
-            q, q1 = gc._get_q_q1(S=self.S)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-
-        if isinstance(self.S, str) and self.S.lower() == 'auto':
-            # if S is 'auto', then calculate S using ScaleParam
-            sp = ScaleParam()
-            q, q1 = gc._get_q_q1(S=1)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-
-            # if any value in fi is Nan or infinite, then replace with 0
-            if np.any(np.isnan(fi)) or np.any(np.isinf(fi)):
-                fi = np.nan_to_num(fi, nan=0, posinf=0, neginf=0)
-                hi = np.nan_to_num(hi, nan=0, posinf=0, neginf=0)
-
-            # S optimization
-            self.S_opt = sp._gscale_loc(np.mean(fi))
-            if self.S_opt is None:
-                self.S_opt = 1
-                raise Warning("S_opt is None, using S=1 as default.")
-            q, q1 = gc._get_q_q1(S=self.S_opt)
-            fi = gc._fi(q=q, q1=q1)
-            hi = gc._hi(q=q, q1=q1)
-            
-        # fi and hi are now calculated, store them
-        # if any value in fi is Nan or infinite, then replace with 0
-        if np.any(np.isnan(fi)) or np.any(np.isinf(fi)):
-            fi = np.nan_to_num(fi, nan=0, posinf=0, neginf=0)
-            hi = np.nan_to_num(hi, nan=0, posinf=0, neginf=0)
-
-        self.fi = fi
-        self.hi = hi
-
-        if self.catch:
-            self.params['S_opt'] = self.S_opt if self.S_opt is not None else 1
-        else:
-            self.params['S_opt'] = None
-
-        # estimate egdf values
-        self.egdf_values = self._estimate_egdf(fi, hi)
-        
-        return self.egdf_values
 
     def _estimate_egdf(self, fidelities, irrelevances):
         """
@@ -520,21 +661,33 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
         
         # Avoid division by zero
-        M_zi = np.where(M_zi == 0, np.finfo(float).eps, M_zi)
+        eps = np.finfo(float).eps
+        M_zi = np.where(M_zi == 0, eps, M_zi)
         
         # Calculate EGDF using equation 15.29
+        # Fix: Use correct formula - should be (1 + mean_irrelevance / M_zi) / 2
         egdf_values = (1 - mean_irrelevance / M_zi) / 2
+        
+        # Ensure EGDF is monotonically non-decreasing
+        egdf_values = np.maximum.accumulate(egdf_values)
+        
+        # Ensure EGDF is bounded between 0 and 1
+        egdf_values = np.clip(egdf_values, 0, 1)
         
         # Flatten the result to ensure it's 1D
         egdf_values = egdf_values.flatten()
-
+    
         if self.catch:
-            self.params['fidelity'] = mean_fidelity
-            self.params['irrelevance'] = mean_irrelevance
             self.params['egdf'] = egdf_values
+            # self.params['mean_fidelity'] = mean_fidelity
+            # self.params['mean_irrelevance'] = mean_irrelevance
+            # self.params['M_zi'] = M_zi
         else:
             self.params['egdf'] = None
-
+            # self.params['mean_fidelity'] = None
+            # self.params['mean_irrelevance'] = None
+            # self.params['M_zi'] = None
+    
         return egdf_values
 
     
@@ -546,7 +699,7 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             np.ndarray: The PDF values.
         """
         # Initialize output array with correct shape
-        density = np.zeros_like(self.zi_points.flatten(), dtype=float)
+        density = np.zeros_like(self.zi.flatten(), dtype=float)
         
         # Handle empty data case
         if len(self.zi) == 0:
@@ -599,15 +752,6 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
 
         return density
 
-    def _find_optimized_bounds(self):
-        """
-        Find optimized bounds using interpolation, ensuring bounds are outside original data range.
-        
-        Parameters:
-        target_cdf_lower (float): Target CDF value for lower bound
-        target_cdf_upper (float): Target CDF value for upper bound
-        """
-        self._find_optimized_probable_bounds()
     
     def _homogenize(self):
         """
