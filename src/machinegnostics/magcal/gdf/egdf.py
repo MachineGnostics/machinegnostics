@@ -7,6 +7,7 @@ Machine Gnostics
 
 import numpy as np
 import warnings
+from scipy.optimize import minimize
 from machinegnostics.magcal.scale_param import ScaleParam
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
@@ -298,173 +299,48 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         else:
             self.params['zi'] = None
 
+        return self.egdf
+
     def _get_optimized_bounds(self):
         """
         Optimize scale parameter S, LB and UB bounds to minimize difference between EGDF and WEDF.
         
         Bounds logic: 0 < LB < min(zi) < zi_values < max(zi) < UB < ∞
         """
-        from scipy.optimize import minimize
-        import warnings
-        import numpy as np
-        
-        # First, we need to get zi values to set proper bounds
-        # Convert current sample to infinite domain using initial LB, UB estimates
-        zi_temp = DataConversion._convert_fininf(self.sample, self.LB, self.UB)
-        zi_min, zi_max = zi_temp.min(), zi_temp.max()
-        zi_range = zi_max - zi_min
-        
-        # Get initial bounds based on data form
-        sx = 1.0  # Scale parameter initial value
-        lbx = self.LB  # Initial LB estimate
-        ubx = self.UB  # Initial UB estimate
-        initial_guess = [sx, lbx, ubx]
-    
-        # Define optimization ranges for parameters in infinite domain
-        # S: scale parameter (positive)
-        s_min, s_max = 0.05, 100.0
-        
-        # LB: must be positive and less than min(zi)
-        # Add some margin to ensure LB < min(zi)
-        lb_min = np.finfo(float).eps  # Very small positive number
-        lb_max = zi_min # Ensure LB < min(zi)
-        if lb_max <= lb_min:
-            lb_max = zi_min * 0.9  # Fallback: 90% of min zi value
-        
-        # UB: must be greater than max(zi)
-        # Add some margin to ensure UB > max(zi)
-        ub_min = zi_max # Ensure UB > max(zi)
-        ub_max = np.finfo(float).max # Upper limit, but not infinity to avoid numerical issues
-        
-        # Ensure bounds are valid
-        if lb_max <= lb_min:
-            lb_min = np.finfo(float).eps
-            lb_max = zi_min * 0.5
-        
-        if ub_min >= ub_max:
-            ub_min = zi_max * 1.1
-            ub_max = zi_max * 10.0
-        
-        # Update initial guess to be within bounds
-        if lbx <= lb_min or lbx >= lb_max:
-            lbx = (lb_min + lb_max) / 2
-        if ubx <= ub_min or ubx >= ub_max:
-            ubx = (ub_min + ub_max) / 2
-        
-        initial_guess = [sx, lbx, ubx]
-        opt_bounds = [(s_min, s_max), (lb_min, lb_max), (ub_min, ub_max)]
-    
-        def objective_function(params):
-            """
-            Objective function to minimize difference between EGDF and WEDF.
-            """
-            try:
-                sx_opt, lbx_opt, ubx_opt = params
-                
-                # Validate bounds constraints: LB < min(zi) < max(zi) < UB
-                zi_temp_check = DataConversion._convert_fininf(self.sample, lbx_opt, ubx_opt)
-                zi_min_check, zi_max_check = zi_temp_check.min(), zi_temp_check.max()
-                
-                if not (lbx_opt < zi_min_check and zi_max_check < ubx_opt):
-                    return 1e10
-                
-                # Convert normalized data to infinite domain
-                zi_temp = DataConversion._convert_fininf(self.sample, lbx_opt, ubx_opt)
-                zi_points_temp = np.linspace(lbx_opt, ubx_opt, self.n_points)
-    
-                # Calculate R matrix
-                eps = np.finfo(float).eps
-                R_temp = zi_temp.reshape(-1, 1) / (zi_points_temp.reshape(1, -1) + eps)
-                
-                # Get characteristics
-                gc_temp = GnosticsCharacteristics(R=R_temp)
-                q_temp, q1_temp = gc_temp._get_q_q1(S=sx_opt)
-    
-                # Calculate fidelities and irrelevances
-                fi_temp = gc_temp._fi(q=q_temp, q1=q1_temp)
-                hi_temp = gc_temp._hi(q=q_temp, q1=q1_temp)
-    
-                # Calculate EGDF values using temporary estimation
-                egdf_vals = self._estimate_egdf(fi_temp, hi_temp)
-                
-                # Calculate weighted absolute difference with WEDF
-                if len(egdf_vals) != len(self.wedf):
-                    return 1e10
-                    
-                diff = np.abs(egdf_vals - self.wedf)
-                objective_val = np.mean(diff)
-                
-                return objective_val
-                    
-            except Exception as e:
-                return 1e10
-        
-        # Perform optimization
-        try:
-            result = minimize(
-                objective_function,
-                initial_guess,
-                bounds=opt_bounds,
-                method='L-BFGS-B',
-                options={
-                    'maxiter': 1000,
-                    'ftol': 1e-9,
-                    'gtol': 1e-9,
-                    'disp': False
-                }
-            )
-            
-            if result.success and result.fun < 1e9:
-                sx_opt, lbx_opt, ubx_opt = result.x
-                self.S_opt = sx_opt
-                self.LB_opt = lbx_opt
-                self.UB_opt = ubx_opt
-                optimization_success = True
-                min_diff = result.fun
-            else:
-                # Fallback to initial values
-                self.S_opt = sx
-                self.LB_opt = lbx
-                self.UB_opt = ubx
-                optimization_success = False
-                min_diff = objective_function(initial_guess)
-                warnings.warn("Bound optimization failed, using initial estimates")
-                    
-        except Exception as e:
-            # Fallback to initial values
-            self.S_opt = sx
-            self.LB_opt = lbx
-            self.UB_opt = ubx
-            optimization_success = False
-            min_diff = float('inf')
-            warnings.warn(f"Bound optimization failed with error: {e}, using initial estimates")
-        
-        # Update instance variables
-        self.S = self.S_opt
-        self.LB = self.LB_opt
-        self.UB = self.UB_opt
-        
-        # Store optimization results
+        # bounds range
+        s_min = 0.05
+        s_max = 100
+        lb_min = 10e-6
+        lb_max = np.exp(-1.0001)
+        ub_min = np.exp(1.0001)
+        ub_max = None
+
+        bounds = [(0, 100), (lb_min, lb_max), (ub_min, ub_max)]
+
+        initial_bounds = [s_min, lb_max, ub_min]
+
+        result = minimize(self._loss, initial_bounds, method='L-BFGS-B', bounds=bounds)
+
+        self.S_opt, self.LB_opt, self.UB_opt = result.x
+
         if self.catch:
-            self.params.update({
-                'S_opt': self.S_opt,
-                'LB_opt': self.LB_opt,
-                'UB_opt': self.UB_opt,
-                'optimization_success': optimization_success,
-                'min_difference': min_diff,
-                'zi_bounds': {
-                    'zi_min': zi_min,
-                    'zi_max': zi_max,
-                    'zi_range': zi_range
-                },
-                'optimization_bounds': {
-                    'S_range': [s_min, s_max],
-                    'LB_range': [lb_min, lb_max], 
-                    'UB_range': [ub_min, ub_max]
-                }
-            })
-        
+            self.params['S_opt'] = self.S_opt
+            self.params['LB_opt'] = self.LB_opt
+            self.params['UB_opt'] = self.UB_opt
+
         return self.S_opt, self.LB_opt, self.UB_opt
+    
+
+    def _loss(self, opt_prams):
+        """
+        egdf param optimization function
+        """
+        S, LB, UB = opt_prams
+        egdf_values = self._egdf(S, LB, UB)
+        wedf_values = self._get_wedf()
+        print(f"wedf: {wedf_values}")
+        print(f"egdf: {egdf_values}")
+        return np.sum(np.abs(egdf_values - wedf_values))
     
     def plot(self):
         """
