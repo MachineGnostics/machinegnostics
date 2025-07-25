@@ -15,6 +15,7 @@ from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.bound_estimator import BoundEstimator
+from machinegnostics.magcal.mg_weights import GnosticsWeights
 
 class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     """
@@ -29,7 +30,7 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
                  S = 'auto',
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
-                 n_points: int = 1000,
+                 n_points: int = 100,
                  homogeneous: bool = True,
                  catch: bool = True,
                  weights: np.ndarray = None):
@@ -240,6 +241,9 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         # optimize scale parameter S, LB and UB for minimum difference
         if isinstance(self.S, str) and self.S.lower() == 'auto':
             self.S_opt, self.LB_opt, self.UB_opt = self._get_optimized_bounds()
+            # optimized S
+            # scale = ScaleParam()
+            # self.S_opt = scale._gscale_loc(np.mean(self.fi))
             self._egdf(S=self.S_opt, LB=self.LB_opt, UB=self.UB_opt)
         else:
             # Use provided S value and calculate final EGDF
@@ -310,18 +314,20 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         # bounds range
         s_min = 0.05
         s_max = 100
-        lb_min = 10e-6
+        lb_min = np.finfo(float).eps  # small value to avoid zero
         lb_max = np.exp(-1.0001)
         ub_min = np.exp(1.0001)
-        ub_max = None
+        ub_max = np.finfo(float).max  # large value for upper bound
 
-        bounds = [(0, 100), (lb_min, lb_max), (ub_min, ub_max)]
+        bounds = [(s_min, s_max), (lb_min, lb_max), (ub_min, ub_max)]
 
-        initial_bounds = [s_min, lb_max, ub_min]
+        initial_bounds = [1, self.LB, self.UB]
 
         result = minimize(self._loss, initial_bounds, method='L-BFGS-B', bounds=bounds)
-
         self.S_opt, self.LB_opt, self.UB_opt = result.x
+
+        # scale = ScaleParam()
+        # self.S_opt = scale._gscale_loc(self.fi.mean())
 
         if self.catch:
             self.params['S_opt'] = self.S_opt
@@ -333,21 +339,34 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
 
     def _loss(self, opt_prams):
         """
-        egdf param optimization function
+        EGDF parameter optimization function
         """
         S, LB, UB = opt_prams
         egdf_values = self._egdf(S, LB, UB)
+        
+        # # Use scipy.integrate.trapezoid instead of deprecated np.trapz
+        # from scipy import integrate
+        
+        # egdf_area = integrate.trapezoid(egdf_values, self.zi_points)
+        # # Normalize EGDF area to 1
+        # egdf_values = egdf_values / egdf_area if egdf_area != 0 else egdf_values
+        
+        # normalize wedf
         wedf_values = self._get_wedf()
-        print(f"wedf: {wedf_values}")
-        print(f"egdf: {egdf_values}")
-        return np.sum(np.abs(egdf_values - wedf_values))
-    
+        # wedf_area = integrate.trapezoid(wedf_values, self.zi_points)
+        # wedf_values = wedf_values / wedf_area if wedf_area != 0 else wedf_values
+        
+        # Calculate loss as mean absolute difference
+        l = np.mean(np.abs(egdf_values - wedf_values))
+        return l
+
     def plot(self):
         """
-        plot EGDF and PDF.
-
-        EGDF is in blue line on y1 axis and PDF is in red line on y2 axis.
-        Optimized bounds LB and UB are shown as vertical lines.
+        plot EGDF, WEDF, and PDF.
+    
+        EGDF is in blue line on y1 axis, WEDF is in light blue dashed line on y1 axis,
+        and PDF is in red line on y2 axis.
+        Data bounds DLB and DUB, and optimized probable bounds LB and UB are shown as vertical lines.
         """
         import matplotlib.pyplot as plt
         if self.catch:
@@ -355,66 +374,76 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
                 raise ValueError("EGDF and PDF must be calculated before plotting.")
             egdf = self.params['egdf']
             pdf = self.params['pdf']
+            wedf = self.params.get('wedf')  # Get WEDF values if available
         if self.catch == False:
             # raise warning only and exit function
             return print("Plot is not available with argument catch=False")
-
+    
         # Use the original di_points (data domain) for plotting instead of zi_points
         x_points = self.di_points
-
-        fig, ax1 = plt.subplots()
-
-        # Plot EGDF
+    
+        fig, ax1 = plt.subplots(figsize=(10, 6))
+    
+        # Plot EGDF on primary y-axis
         ax1.plot(x_points, egdf, color='blue', label='EGDF', linewidth=2)
+        
+        # Plot WEDF on primary y-axis if available
+        if wedf is not None:
+            ax1.plot(x_points, wedf, color='lightblue', linestyle='--', 
+                    label='WEDF', linewidth=1.5, alpha=0.8)
+        
         ax1.set_xlabel('Data Points')
-        ax1.set_ylabel('EGDF', color='blue')
+        ax1.set_ylabel('EGDF / WEDF', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
-        # Most robust version
-        lb = self.params['DLB']
-        ub = self.params['DUB']
-
-        # Calculate range and apply 2% padding
-        range_val = ub - lb
-        padding = range_val * 0.1
-
-        x_min = lb - padding
-        x_max = ub + padding
-
-        ax1.set_xlim(x_min, x_max)
         ax1.set_ylim(0, 1)
- 
+        
         # Create a second y-axis for the PDF
         ax2 = ax1.twinx()
         ax2.plot(x_points, pdf, color='red', label='PDF', linewidth=2)
         ax2.set_ylabel('PDF', color='red')
         ax2.set_ylim(0, np.max(pdf) * 1.1)  # Adjust y-limits for PDF
         ax2.tick_params(axis='y', labelcolor='red')
-
+    
+        # Add data bounds DLB and DUB
+        if self.params.get('DLB') is not None:
+            ax1.axvline(x=self.params['DLB'], color='green', linestyle='-', linewidth=2, 
+                    alpha=0.8, label=f"DLB={self.params['DLB']:.3f}")
+        
+        if self.params.get('DUB') is not None:
+            ax1.axvline(x=self.params['DUB'], color='orange', linestyle='-', linewidth=2, 
+                    alpha=0.8, label=f"DUB={self.params['DUB']:.3f}")
+    
+        # Add probable bounds LB and UB
+        if self.params.get('LB') is not None:
+            ax1.axvline(x=self.params['LB'], color='purple', linestyle='--', linewidth=2, 
+                    alpha=0.8, label=f"LB={self.params['LB']:.3f}")
+            # Add pink shaded area to the left of LB
+            ax1.axvspan(x_points.min(), self.params['LB'], alpha=0.15, color='purple')
+    
+        if self.params.get('UB') is not None:
+            ax1.axvline(x=self.params['UB'], color='brown', linestyle='--', linewidth=2, 
+                    alpha=0.8, label=f"UB={self.params['UB']:.3f}")
+            # Add light brown shaded area to the right of UB
+            ax1.axvspan(self.params['UB'], x_points.max(), alpha=0.15, color='brown')
+    
         # Add data points as vertical lines
         for point in self.data:
-            ax1.axvline(x=point, color='gray', linestyle='--', alpha=0.5)
-
-        # Add optimized bounds if available
-        if self.params.get('LB') is not None:
-            ax1.axvline(x=self.params['LB'], color='black', linestyle='--', linewidth=1.5, 
-                    alpha=0.7)
-            # Add pink shaded area to the left of LB
-            ax1.axvspan(x_points.min(), self.params['LB'], alpha=0.2, color='pink', label=f"LB={self.params['LB']:.3f}")
-
-        if self.params.get('UB') is not None:
-            ax1.axvline(x=self.params['UB'], color='black', linestyle='--', linewidth=1.5, 
-                    alpha=0.7)
-            # Add green shaded area to the right of UB
-            ax1.axvspan(self.params['UB'], x_points.max(), alpha=0.2, color='lightgreen', label=f"UB={self.params['UB']:.3f}")
-
+            ax1.axvline(x=point, color='gray', linestyle=':', alpha=0.6, linewidth=1)
+    
+        # Set x-axis limits with padding
+        data_range = self.params['DUB'] - self.params['DLB']
+        padding = data_range * 0.1
+        x_min = self.params['DLB'] - padding
+        x_max = self.params['DUB'] + padding
+        ax1.set_xlim(x_min, x_max)
+    
         # Add legends
-        ax1.legend(loc='upper left')
-        ax2.legend(loc='upper right')
-
-        plt.title('EGDF and PDF')
+        ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
+        ax2.legend(loc='upper right', bbox_to_anchor=(1, 1))
+    
+        plt.title('EGDF, WEDF, and PDF with Data and Probable Bounds')
         ax1.grid(True, alpha=0.3)
         fig.tight_layout()
-        plt.show()
     
     def _transform_input(self):
         """
@@ -433,17 +462,20 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         
         # homogenize
         if not self.homogeneous:
-            self._homogenize()
-            self.sample = self.z * self.weights
+            # self._homogenize()
+            gw = GnosticsWeights()
+            self.gweights = gw._get_gnostic_weights(self.z)
+
+            self.sample = self.z * self.gweights
         else:
             self.sample = self.z * self.weights
 
         # store
         if self.catch:
-            self.params['zf'] = self.z
+            self.params['z'] = self.z
             self.params['sample'] = self.sample
         else:
-            self.params['zf'] = None
+            self.params['z'] = None
             self.params['sample'] = None       
 
     def _get_ks_points(self, N):
@@ -549,7 +581,9 @@ class EGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         
         # Ensure EGDF is bounded between 0 and 1
         egdf_values = np.clip(egdf_values, 0, 1)
-        
+
+        # normalize egdf
+
         # Flatten the result to ensure it's 1D
         egdf_values = egdf_values.flatten()
     
