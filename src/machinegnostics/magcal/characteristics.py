@@ -76,19 +76,19 @@ class GnosticsCharacteristics:
         self.R = R
         self.eps = eps
 
-    def _get_q_q1(self, S:int=1):
+    def _get_q_q1(self, S: int = 1):
         """
         Calculates the q and q1 for given z and z0
-
+    
         For internal use only
-
+    
         Parameters
         ----------
         R : np.ndarray
             Input values (typically residuals)
-        s : int, optional
-            Override for shape parameter s
-
+        S : int, optional
+            Override for shape parameter S
+    
         Returns
         -------
         tuple
@@ -97,19 +97,48 @@ class GnosticsCharacteristics:
         # Add small constant to prevent division by zero
         R_safe = np.abs(self.R) + self.eps
         
-        try:
-            # Compute power with safety checks
-            self.q = np.power(R_safe, 2/S)
-            self.q1 = np.power(R_safe, -2/S)
-            
-            # Ensure no negative or zero values
-            self.q = np.maximum(self.q, self.eps)
-            self.q1 = np.maximum(self.q1, self.eps)
-            
-        except RuntimeWarning:
-            # Handle any remaining warnings by clipping values
-            self.q = np.clip(np.power(R_safe, 2/S), self.eps, None)
-            self.q1 = np.clip(np.power(R_safe, -2/S), self.eps, None)
+        # Calculate exponents
+        exp_pos = 2.0 / S
+        exp_neg = -2.0 / S
+        
+        # Use log-space calculation to determine safe limits
+        log_max = np.log(np.finfo(float).max)
+        
+        # Safe upper limit calculation in log space
+        # max_safe_value = exp(log_max / 10) to prevent overflow
+        max_safe_log = log_max / 10.0
+        max_safe_value = np.exp(max_safe_log)
+        
+        # Clip R_safe to prevent overflow
+        R_safe = np.clip(R_safe, self.eps, max_safe_value)
+        
+        # Use log-space calculations for numerical stability
+        log_R = np.log(R_safe)
+        
+        # Calculate in log space to avoid overflow
+        log_q = exp_pos * log_R
+        log_q1 = exp_neg * log_R
+        
+        # Safe exponential limits
+        max_exp = log_max - 2.0  # Leave some headroom
+        min_exp = -max_exp
+        
+        # Clip log values to prevent overflow/underflow
+        log_q = np.clip(log_q, min_exp, max_exp)
+        log_q1 = np.clip(log_q1, min_exp, max_exp)
+        
+        # Convert back from log space
+        self.q = np.exp(log_q)
+        self.q1 = np.exp(log_q1)
+        
+        # Final safety checks
+        safe_max = np.finfo(float).max / 1e6
+        self.q = np.clip(self.q, self.eps, safe_max)
+        self.q1 = np.clip(self.q1, self.eps, safe_max)
+        
+        # Ensure no NaN or Inf values
+        self.q = np.nan_to_num(self.q, nan=self.eps, posinf=safe_max, neginf=self.eps)
+        self.q1 = np.nan_to_num(self.q1, nan=self.eps, posinf=safe_max, neginf=self.eps)
         
         return self.q, self.q1
         
@@ -166,12 +195,12 @@ class GnosticsCharacteristics:
     def _hi(self, q=None, q1=None):
         """
         Calculates the estimation relevance.
-
+    
         Parameters
         ----------
         q : np.ndarray or float
         q1 : np.ndarray or float
-
+    
         Returns
         -------
         h : np.ndarray or float
@@ -180,17 +209,45 @@ class GnosticsCharacteristics:
             q = self.q
         if q1 is None:
             q1 = self.q1
+            
         q = np.asarray(q)
         q1 = np.asarray(q1)
         if q.shape != q1.shape:
             raise ValueError("q and q1 must have the same shape")
         
-        eps = np.finfo(float).eps
-        denominator = q + q1
-        denominator = np.where(denominator != 0, denominator, eps)
+        # Handle potential overflow/underflow in q and q1
+        q = np.nan_to_num(q, nan=self.eps, posinf=np.finfo(float).max / 1e6)
+        q1 = np.nan_to_num(q1, nan=self.eps, posinf=np.finfo(float).max / 1e6)
         
-        # Calculate ratio with clipping to prevent overflow
-        h = np.clip((q - q1) / denominator, -1.0, 1.0)
+        # Calculate numerator and denominator separately
+        numerator = q - q1
+        denominator = q + q1
+        
+        # Handle cases where denominator is very small or zero
+        eps_threshold = self.eps * 1000  # Use larger threshold for stability
+        denominator = np.where(np.abs(denominator) < eps_threshold, 
+                              eps_threshold * np.sign(denominator), 
+                              denominator)
+        
+        # Calculate ratio with additional safety
+        with np.errstate(divide='raise', invalid='raise'):
+            try:
+                h = numerator / denominator
+            except (FloatingPointError, RuntimeWarning):
+                # Fallback calculation
+                # When q >> q1 or q1 >> q, handle separately
+                mask_q_large = q > 1000 * q1
+                mask_q1_large = q1 > 1000 * q
+                mask_normal = ~(mask_q_large | mask_q1_large)
+                
+                h = np.zeros_like(q)
+                h[mask_q_large] = 1.0  # When q >> q1, h approaches 1
+                h[mask_q1_large] = -1.0  # When q1 >> q, h approaches -1
+                h[mask_normal] = numerator[mask_normal] / denominator[mask_normal]
+        
+        # Final clipping and NaN handling
+        h = np.clip(h, -1.0, 1.0)
+        h = np.nan_to_num(h, nan=0.0)
         
         return h
     
