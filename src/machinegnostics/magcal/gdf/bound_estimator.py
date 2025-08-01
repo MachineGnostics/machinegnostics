@@ -5,6 +5,8 @@ Machine Gnostics
 Author: Nirmal Parmar
 """
 import numpy as np
+from scipy.optimize import minimize
+from machinegnostics.magcal.data_conversion import DataConversion
 
 class BoundEstimator:
     """
@@ -30,98 +32,6 @@ class BoundEstimator:
         # estimate egdf location parameters (mean, median, mode)
         pass
 
-    def _find_optimized_probable_bounds(self, target_cdf_lower=0.00001, target_cdf_upper=0.99999):
-        """
-        Estimate LB and UB (probable bounds) for EGDF.
-        LB and UB are the lower and upper bounds of the EGDF at min and max of the EGDF values.
-
-        Find optimized bounds using interpolation, ensuring bounds are outside original data range.
-        
-        Parameters:
-        target_cdf_lower (float): Target CDF value for lower bound
-        target_cdf_upper (float): Target CDF value for upper bound
-        """
-        egdf_values = self.params['egdf']
-        di_points = self.params['di_points']
-        data_min = self.data.min()
-        data_max = self.data.max()
-        
-        # Interpolate to find exact points where EGDF = target values
-        from scipy.interpolate import interp1d
-        
-        # Create interpolation function (EGDF -> di_points)
-        # Remove any duplicate EGDF values for interpolation
-        unique_indices = np.unique(egdf_values, return_index=True)[1]
-        egdf_unique = egdf_values[unique_indices]
-        di_unique = di_points[unique_indices]
-        
-        # Sort by EGDF values for interpolation
-        sort_indices = np.argsort(egdf_unique)
-        egdf_sorted = egdf_unique[sort_indices]
-        di_sorted = di_unique[sort_indices]
-        
-        if len(egdf_sorted) > 1:
-            interp_func = interp1d(egdf_sorted, di_sorted, 
-                                bounds_error=False, fill_value='extrapolate')
-            
-            # Find bounds
-            optimized_lower = float(interp_func(target_cdf_lower))
-            optimized_upper = float(interp_func(target_cdf_upper))
-            
-            # Ensure bounds are outside data range
-            # Lower bound must be < data.min()
-            if optimized_lower >= data_min:
-                # Find the rightmost di_point that is < data_min with lowest CDF
-                valid_lower_points = di_points[di_points < data_min]
-                if len(valid_lower_points) > 0:
-                    # Get the index of the rightmost valid point
-                    valid_lower_idx = np.where(di_points < data_min)[0][-1]
-                    optimized_lower = di_points[valid_lower_idx]
-                else:
-                    # If no valid points, use minimum di_point
-                    optimized_lower = di_points[0]
-            
-            # Upper bound must be > data.max()
-            if optimized_upper <= data_max:
-                # Find the leftmost di_point that is > data_max with highest CDF
-                valid_upper_points = di_points[di_points > data_max]
-                if len(valid_upper_points) > 0:
-                    # Get the index of the leftmost valid point
-                    valid_upper_idx = np.where(di_points > data_max)[0][0]
-                    optimized_upper = di_points[valid_upper_idx]
-                else:
-                    # If no valid points, use maximum di_point
-                    optimized_upper = di_points[-1]
-                    
-        else:
-            # Fallback to edge values
-            optimized_lower = di_points[0]
-            optimized_upper = di_points[-1]
-        
-        # Store optimized bounds in params
-        if self.catch:
-            self.params['LB'] = optimized_lower
-            self.params['UB'] = optimized_upper
-        else:
-            self.params['LB'] = None
-            self.params['UB'] = None
-
-    def _optimize_probable_bounds(self):
-        """
-        Optimize the probable bounds (LB, UB) and S for EGDF.
-
-        criteria function is: minimize LB, UB and S for maximum fidelity.
-        """
-        # current fidelity
-        fi = self.params['fidelity']
-        fi_mean = np.mean(fi)
-
-        # bound search range
-        z = self.params['z']
-
-        # initial bounds
-        lb_init = self.params['LB_init']
-        ub_init = self.params['UB_init']
 
     def _get_derivative(self, pdf=None):
         """
@@ -153,5 +63,153 @@ class BoundEstimator:
         
         return first_derivative, second_derivative, third_derivative
     
-    def _find_data_support_bounds(self):
-        pass
+    def _initial_probable_bounds_estimate(self):
+        """Estimate initial probable bounds (LB and UB)."""
+        # Only estimate LB if it's not provided
+        if self.LB is None:
+            if self.data_form == 'a':
+                pad = (self.DUB - self.DLB) / 2
+                lb_raw = self.DLB - pad
+                self.LB = DataConversion._convert_az(lb_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                lb_raw = self.DLB / np.sqrt(self.DUB / self.DLB)
+                self.LB = DataConversion._convert_mz(lb_raw, self.DLB, self.DUB)
+        else:
+            # Convert provided LB to appropriate form
+            if self.data_form == 'a':
+                self.LB = DataConversion._convert_az(self.LB, self.DLB, self.DUB)
+            else:
+                self.LB = DataConversion._convert_mz(self.LB, self.DLB, self.DUB)
+
+        # Only estimate UB if it's not provided
+        if self.UB is None:
+            if self.data_form == 'a':
+                pad = (self.DUB - self.DLB) / 2
+                ub_raw = self.DUB + pad
+                self.UB = DataConversion._convert_az(ub_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                ub_raw = self.DUB * np.sqrt(self.DUB / self.DLB)
+                self.UB = DataConversion._convert_mz(ub_raw, self.DLB, self.DUB)
+        else:
+            # Convert provided UB to appropriate form
+            if self.data_form == 'a':
+                self.UB = DataConversion._convert_az(self.UB, self.DLB, self.DUB)
+            else:
+                self.UB = DataConversion._convert_mz(self.UB, self.DLB, self.DUB)
+
+        if self.catch:
+            self.params['LB_init'] = self.LB
+            self.params['UB_init'] = self.UB
+    
+    def _optimize_all_parameters(self):
+        """Optimize S, LB, and UB simultaneously."""
+        # Parameter bounds for optimization
+        S_MIN, S_MAX = 0.05, 100.0
+        LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
+        UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+        
+        def transform_to_opt_space(s, lb, ub):
+            s_mz = DataConversion._convert_mz(s, S_MIN, S_MAX)
+            lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
+            ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
+            return np.log(s_mz), np.log(lb_mz), np.log(ub_mz)
+        
+        def transform_from_opt_space(s_opt, lb_opt, ub_opt):
+            s_mz = np.exp(s_opt)
+            lb_mz = np.exp(lb_opt)
+            ub_mz = np.exp(ub_opt)
+            s = DataConversion._convert_zm(s_mz, S_MIN, S_MAX)
+            lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
+            ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+            return s, lb, ub
+        
+        def loss_function(opt_params):
+            s_opt, lb_opt, ub_opt = opt_params
+            try:
+                s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
+                egdf_values = self._compute_egdf(s, lb, ub)
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+            except Exception:
+                return 1e6
+        
+        # Initial values
+        s_init = 1.0
+        lb_init = self.LB
+        ub_init = self.UB
+        
+        s_opt_init, lb_opt_init, ub_opt_init = transform_to_opt_space(s_init, lb_init, ub_init)
+        
+        # Optimization bounds
+        opt_bounds = [(-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)]
+        initial_params = [
+            np.clip(s_opt_init, -1.0, 1.0),
+            np.clip(lb_opt_init, -1.0, 1.0),
+            np.clip(ub_opt_init, -1.0, 1.0)
+        ]
+        
+        try:
+            result = minimize(loss_function, initial_params, method='L-BFGS-B', bounds=opt_bounds,
+                            options={'maxiter': 1000, 'ftol': 1e-9})
+            s_opt_final, lb_opt_final, ub_opt_final = result.x
+            return transform_from_opt_space(s_opt_final, lb_opt_final, ub_opt_final)
+        except Exception:
+            return s_init, lb_init, ub_init
+
+    #10
+    def _optimize_s_only(self, lb, ub):
+        """Optimize only S parameter for given LB and UB."""
+        def loss_function(s):
+            try:
+                egdf_values = self._compute_egdf(s[0], lb, ub)
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+            except Exception:
+                return 1e6
+        
+        try:
+            result = minimize(loss_function, [1.0], bounds=[(0.05, 100.0)],
+                            method='L-BFGS-B', options={'maxiter': 1000})
+            return result.x[0]
+        except Exception:
+            return 1.0
+
+    #11
+    def _optimize_bounds_only(self, s):
+        """Optimize only LB and UB for given S."""
+        LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
+        UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+
+        def transform_bounds_to_opt_space(lb, ub):
+            lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
+            ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
+            return np.log(lb_mz), np.log(ub_mz)
+        
+        def transform_bounds_from_opt_space(lb_opt, ub_opt):
+            lb_mz = np.exp(lb_opt)
+            ub_mz = np.exp(ub_opt)
+            lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
+            ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+            return lb, ub
+        
+        def loss_function(opt_params):
+            lb_opt, ub_opt = opt_params
+            try:
+                lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
+                egdf_values = self._compute_egdf(s, lb, ub)
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+            except Exception:
+                return 1e6
+        
+        lb_opt_init, ub_opt_init = transform_bounds_to_opt_space(self.LB, self.UB)
+        initial_params = [
+            np.clip(lb_opt_init, -1.0, 1.0),
+            np.clip(ub_opt_init, -1.0, 1.0)
+        ]
+        
+        try:
+            result = minimize(loss_function, initial_params, method='L-BFGS-B',
+                            bounds=[(-1.0, 1.0), (-1.0, 1.0)], options={'maxiter': 1000})
+            lb_opt_final, ub_opt_final = result.x
+            lb_final, ub_final = transform_bounds_from_opt_space(lb_opt_final, ub_opt_final)
+            return s, lb_final, ub_final
+        except Exception:
+            return s, self.LB, self.UB

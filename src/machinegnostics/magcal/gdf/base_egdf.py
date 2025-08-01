@@ -33,7 +33,8 @@ class BaseEGDF(BaseDistFunc):
                 n_points: int = 500,
                 homogeneous: bool = True,
                 catch: bool = True,
-                weights: np.ndarray = None):
+                weights: np.ndarray = None,
+                wedf: bool = True):
         """Initialize the EGDF class."""
         
         self.data = data
@@ -48,6 +49,7 @@ class BaseEGDF(BaseDistFunc):
         self.homogeneous = homogeneous
         self.catch = catch
         self.weights = weights if weights is not None else np.ones_like(data)
+        self.wedf = wedf
         self.params = {}
 
         # Validation
@@ -63,8 +65,8 @@ class BaseEGDF(BaseDistFunc):
             self._store_initial_params()
 
         # Initialize parent classes
-        DataHomogeneity.__init__(self, params=self.params, data=self.data, catch=self.catch)
-        BoundEstimator.__init__(self, params=self.params, data=self.data, catch=self.catch)
+        # DataHomogeneity.__init__(self, params=self.params, data=self.data, catch=self.catch)
+        # BoundEstimator.__init__(self, params=self.params, data=self.data, catch=self.catch)
 
     #1
     def _validate_inputs(self):
@@ -233,21 +235,33 @@ class BaseEGDF(BaseDistFunc):
             self.params['di_points_n'] = self.di_points_n
 
     #7
-    def _get_wedf(self, smooth=False):
+    def _get_df(self, smooth=False, wedf: bool = True):
         """
         Get WEDF values for optimization.
         Weighted Emperical Distribution Function (WEDF) is used to optimize the EGDF.
         """
-        wedf = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
-        if smooth:
-            wedf_values = wedf.fit(self.di_points_n)
+        if wedf:
+            wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
+            if smooth:
+                df_values = wedf_.fit(self.di_points_n)
+            else:
+                df_values = wedf_.fit(self.data)
+    
+            if self.catch:
+                self.params['wedf'] = df_values
+            
+            return df_values
         else:
-            wedf_values = wedf.fit(self.data)
-
-        if self.catch:
-            self.params['wedf'] = wedf_values
-        
-        return wedf_values
+            # FIX: Swap the logic - use len(data) for non-smooth, n_points for smooth
+            if smooth:
+                df_values = self._get_ks_points(self.n_points)
+            else:
+                df_values = self._get_ks_points(len(self.data))
+    
+            if self.catch:
+                self.params['ksdf'] = df_values
+    
+            return df_values
     
     #8
     def _optimize_parameters(self):
@@ -304,7 +318,7 @@ class BaseEGDF(BaseDistFunc):
             try:
                 s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -337,7 +351,7 @@ class BaseEGDF(BaseDistFunc):
         def loss_function(s):
             try:
                 egdf_values = self._compute_egdf(s[0], lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -371,7 +385,7 @@ class BaseEGDF(BaseDistFunc):
             try:
                 lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
+                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -504,7 +518,7 @@ class BaseEGDF(BaseDistFunc):
     
 
     #17
-    def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True):
+    def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True):
         """
         Plot EGDF, WEDF, and/or PDF.
         
@@ -538,6 +552,7 @@ class BaseEGDF(BaseDistFunc):
         egdf_plot = self.params.get('egdf')
         pdf_plot = self.params.get('pdf')
         wedf = self.params.get('wedf')
+        ksdf = self.params.get('ksdf')
         
         # Check smooth plotting availability
         has_smooth = (hasattr(self, 'di_points_n') and hasattr(self, 'egdf_points') 
@@ -557,11 +572,17 @@ class BaseEGDF(BaseDistFunc):
                 # Plot with connecting lines when smooth is False
                 ax1.plot(x_points, egdf_plot, 'o-', color='blue', label='EGDF', 
                         markersize=4, linewidth=1, alpha=0.8)
-            
-            # Plot WEDF if available
-            if wedf is not None:
-                ax1.plot(x_points, wedf, 's', color='lightblue', 
-                        label='WEDF', markersize=3, alpha=0.8)
+                
+            if extra_df:
+                # Plot WEDF if available
+                if wedf is not None:
+                    ax1.plot(x_points, wedf, 's', color='lightblue', 
+                            label='WEDF', markersize=3, alpha=0.8)
+                    
+                # Plot KSDF if available
+                if ksdf is not None:
+                    ax1.plot(x_points, ksdf, 's', color='cyan', 
+                            label='KS Points', markersize=3, alpha=0.8)
             
             ax1.set_ylabel('EGDF', color='blue')
             ax1.tick_params(axis='y', labelcolor='blue')
@@ -649,9 +670,33 @@ class BaseEGDF(BaseDistFunc):
         ax1.grid(True, alpha=0.3)
         fig.tight_layout()
         plt.show()
-
     
     #18
+    def _get_ks_points(self, N):
+        """
+        Generate Kolmogorov-Smirnov points for the EGDF.
+
+        Parameters:
+        N (int): Number of points to generate.
+
+        Returns:
+            np.ndarray: The KS points.
+        """
+        if N <= 0:
+            raise ValueError("N must be a positive integer.")
+
+        # Generate n values from 1 to N
+        n = np.arange(1, N + 1)
+
+        # Apply the KS-points formula: (2n-1)/(2N)
+        self.ks_points = (2 * n - 1) / (2 * N)
+
+        if self.catch:
+            self.params['ks_points'] = self.ks_points
+
+        return self.ks_points
+    
+    #19
     def _generate_smooth_egdf(self):
         """Generate smooth EGDF with n_points for plotting."""
         try:
@@ -745,7 +790,7 @@ class BaseEGDF(BaseDistFunc):
                 })
 
 
-    #19
+    #20
     def _fit(self):
         """Fit the EGDF model to the data."""
 
@@ -764,8 +809,8 @@ class BaseEGDF(BaseDistFunc):
         # Step 2: Initial probable bounds estimation
         self._initial_probable_bounds_estimate()
         
-        # Step 3: Get WEDF for optimization
-        self.wedf_values = self._get_wedf(smooth=False)
+        # Step 3: Get WEDF/KS points for optimization
+        self.df_values = self._get_df(smooth=False, wedf=self.wedf)
         
         # Step 4: Determine optimization strategy based on provided parameters
         self._optimize_parameters()
