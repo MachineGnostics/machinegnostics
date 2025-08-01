@@ -19,10 +19,8 @@ class EGDF(BaseEGDF):
                  LB: float = None,
                  UB: float = None,
                  S = 'auto',
-                 tolerance: float = 1e-3,
                  data_form: str = 'a',
                  n_points: int = 100,
-                 homogeneous: bool = True,
                  catch: bool = True,
                  weights: np.ndarray = None):
         
@@ -36,10 +34,8 @@ class EGDF(BaseEGDF):
         LB (float): Lower (Probable) Bound.
         UB (float): Upper (Probable) Bound.
         S (float): Scale parameter.
-        tolerance (float): Tolerance for convergence.
         data_form (str): Form of the data ('a' for additive, 'm' for multiplicative).
         n_points (int): Number of points in the distribution function.
-        homogeneous (bool): Whether given data is homogeneous, True by default. if False, in that case data will be homogenized.
         catch (bool): To catch calculated values or not, True by default.
         weights (np.ndarray): Priory Weights for the data points.
         data_pad (float): Padding for the data range.
@@ -51,10 +47,10 @@ class EGDF(BaseEGDF):
         self.LB = LB
         self.UB = UB
         self.S = S
-        self.tolerance = tolerance
+        self.tolerance = 1e-3
         self.data_form = data_form
         self.n_points = n_points
-        self.homogeneous = homogeneous
+        self.homogeneous = True
         self.catch = catch
         self.weights = weights if weights is not None else np.ones_like(data)
         self.params = {}
@@ -64,9 +60,10 @@ class EGDF(BaseEGDF):
         self._fit()
 
     #2
-    def plot(self, plot_smooth: bool = True):
-        self._plot(plot_smooth=plot_smooth)
+    def plot(self, plot_smooth: bool = True, plot: str ='gdf', bounds: bool = False):
+        self._plot(plot_smooth=plot_smooth, plot=plot, bounds=bounds)
 
+    #3
     def marginal_analysis(self):
         """
         Perform marginal analysis on the EGDF.

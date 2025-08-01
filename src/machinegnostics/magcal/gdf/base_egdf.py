@@ -33,7 +33,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
                 S = 'auto',
                 tolerance: float = 1e-3,
                 data_form: str = 'a',
-                n_points: int = 100,
+                n_points: int = 500,
                 homogeneous: bool = True,
                 catch: bool = True,
                 weights: np.ndarray = None):
@@ -133,6 +133,14 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         # Normalize weights to sum to n (number of data points)
         self.weights = self.weights / np.sum(self.weights) * len(self.weights)
 
+        # Apply homogenization if needed
+        if not self.homogeneous:
+            gw = GnosticsWeights()
+            self.gweights = gw._get_gnostic_weights(self.z)
+            self.weights = self.gweights * self.weights
+        else:
+            self.weights = self.weights
+
         if self.catch:
             self.params['weights'] = self.weights
 
@@ -188,7 +196,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             self.params['UB_init'] = self.UB
 
     #6
-    def _transform_input(self):
+    def _transform_input(self, smooth=False):
         """Transform input data to standard domain."""
         dc = DataConversion()
 
@@ -197,26 +205,48 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         elif self.data_form == 'm':
             self.z = dc._convert_mz(self.data, self.DLB, self.DUB)
 
-        # Apply homogenization if needed
-        if not self.homogeneous:
-            gw = GnosticsWeights()
-            self.gweights = gw._get_gnostic_weights(self.z)
-            self.sample = self.z * self.gweights * self.weights
+        # # Apply homogenization if needed
+        # if not self.homogeneous:
+        #     gw = GnosticsWeights()
+        #     self.gweights = gw._get_gnostic_weights(self.z)
+        #     self.sample = self.z * self.gweights * self.weights
+        # else:
+        #     self.sample = self.z * self.weights
+
+        
+        # Generate smooth points in data domain
+        self.di_points_n = np.linspace(self.DLB, self.DUB, self.n_points)
+        
+        # Transform to z domain
+        dc = DataConversion()
+        if self.data_form == 'a':
+            self.z_points_n = dc._convert_az(self.di_points_n, self.DLB, self.DUB)
         else:
-            self.sample = self.z * self.weights
+            self.z_points_n = dc._convert_mz(self.di_points_n, self.DLB, self.DUB)
+
+        # sample
+        if smooth:
+            self.sample = self.z_points_n
+        else:
+            self.sample = self.z
 
         if self.catch:
             self.params.update({'z': self.z, 'sample': self.sample})
+            self.params['z_points_n'] = self.z_points_n
+            self.params['di_points_n'] = self.di_points_n
 
     #7
-    def _get_wedf(self):
+    def _get_wedf(self, smooth=False):
         """
         Get WEDF values for optimization.
         Weighted Emperical Distribution Function (WEDF) is used to optimize the EGDF.
         """
         wedf = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
-        wedf_values = wedf.fit(self.data)
-        
+        if smooth:
+            wedf_values = wedf.fit(self.di_points_n)
+        else:
+            wedf_values = wedf.fit(self.data)
+
         if self.catch:
             self.params['wedf'] = wedf_values
         
@@ -277,7 +307,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             try:
                 s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values))
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -310,7 +340,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         def loss_function(s):
             try:
                 egdf_values = self._compute_egdf(s[0], lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values))
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -344,7 +374,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             try:
                 lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.wedf_values))
+                return np.mean(np.abs(egdf_values - self.wedf_values) * self.weights) 
             except Exception:
                 return 1e6
         
@@ -367,12 +397,13 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     def _compute_egdf(self, S, LB, UB):
         """Core EGDF computation logic."""
         # Convert to infinite domain
-        zi = DataConversion._convert_fininf(self.sample, LB, UB)
+        zi_n = DataConversion._convert_fininf(self.z, LB, UB)
+        zi_d = DataConversion._convert_fininf(self.sample, LB, UB)
         
         # Calculate R matrix
         eps = np.finfo(float).eps
-        R = zi.reshape(-1, 1) / (zi + eps).reshape(1, -1)
-        
+        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
+
         # Get characteristics
         gc = GnosticsCharacteristics(R=R)
         q, q1 = gc._get_q_q1(S=S)
@@ -388,6 +419,9 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     def _estimate_egdf(self, fidelities, irrelevances):
         """Estimate EGDF from fidelities and irrelevances."""
         weights = self.weights.reshape(-1, 1)
+
+        # shape check
+        # print(f"Fidelities shape: {fidelities.shape}, Irrelevances shape: {irrelevances.shape}, Weights shape: {weights.shape}")
         
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
         mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
@@ -406,12 +440,15 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     def _calculate_final_egdf_pdf(self):
         """Calculate final EGDF and PDF with optimized parameters."""
         # Store zi for later use
-        self.zi = DataConversion._convert_fininf(self.sample, self.LB_opt, self.UB_opt)
-        
+        # Convert to infinite domain
+        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        zi_d = DataConversion._convert_fininf(self.sample, self.LB_opt, self.UB_opt)
+        # self.zi = DataConversion._convert_fininf(self.sample, self.LB_opt, self.UB_opt)
+        self.zi = zi_d
         # Calculate R matrix
         eps = np.finfo(float).eps
-        R = self.zi.reshape(-1, 1) / (self.zi + eps).reshape(1, -1)
-        
+        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
+
         # Get characteristics
         gc = GnosticsCharacteristics(R=R)
         q, q1 = gc._get_q_q1(S=self.S_opt)
@@ -450,7 +487,8 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         M_zi_cubed = M_zi**3
 
         numerator = ((mean_fidelity**2) * F2) + (mean_fidelity * mean_irrelevance * FH)
-        density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed)
+        # density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
+        density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
 
         if np.any(density < 0):
             warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data", RuntimeWarning)
@@ -469,84 +507,128 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
     
 
     #17
-    def _plot(self, plot_smooth: bool = True):
-        """Plot EGDF, WEDF, and PDF."""
+    def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True):
+        """
+        Plot EGDF, WEDF, and/or PDF.
+        
+        Parameters:
+        -----------
+        plot_smooth : bool, default True
+            Whether to plot smooth curves if available
+        plot : str, default 'both'
+            What to plot: 'gdf' for EGDF only, 'pdf' for PDF only, 'both' for both
+        bounds : bool, default True
+            Whether to display LB, UB, DLB, DUB bounds on the plot
+        """
         import matplotlib.pyplot as plt
         
         if not self.catch:
             print("Plot is not available with argument catch=False")
             return
         
-        if self.params.get('egdf') is None or self.params.get('pdf') is None:
-            raise ValueError("EGDF and PDF must be calculated before plotting.")
-
-        # Use original data points for EGDF and PDF plotting
-        x_points = self.data
-        egdf_plot = self.params['egdf']
-        pdf_plot = self.params['pdf']
+        # Validate plot parameter
+        if plot not in ['gdf', 'pdf', 'both']:
+            raise ValueError("plot parameter must be 'gdf', 'pdf', or 'both'")
         
-        # # Use smooth n_points for additional smooth curve if available
-        # plot_smooth = (hasattr(self, 'egdf_n_points') and hasattr(self, 'pdf_n_points') 
-        #               and hasattr(self, 'di_points') and self.egdf_n_points is not None)
-
+        # Check required data availability
+        if plot in ['gdf', 'both'] and self.params.get('egdf') is None:
+            raise ValueError("EGDF must be calculated before plotting GDF")
+        if plot in ['pdf', 'both'] and self.params.get('pdf') is None:
+            raise ValueError("PDF must be calculated before plotting PDF")
+    
+        # Use original data points for plotting
+        x_points = self.data
+        egdf_plot = self.params.get('egdf')
+        pdf_plot = self.params.get('pdf')
         wedf = self.params.get('wedf')
+        
+        # Check smooth plotting availability
+        has_smooth = (hasattr(self, 'di_points_n') and hasattr(self, 'egdf_points') 
+                     and hasattr(self, 'pdf_points') and self.di_points_n is not None)
+        plot_smooth = plot_smooth and has_smooth
         
         fig, ax1 = plt.subplots(figsize=(10, 6))
         
-        # Plot EGDF
-        ax1.plot(x_points, egdf_plot, 'o--', color='blue', label='EGDF', markersize=4)
+        # Plot EGDF (GDF) if requested
+        if plot in ['gdf', 'both']:
+            if plot_smooth and hasattr(self, 'egdf_points'):
+                # Plot smooth EGDF
+                ax1.plot(x_points, egdf_plot, 'o', color='blue', label='EGDF', markersize=4)
+                ax1.plot(self.di_points_n, self.egdf_points, color='blue', 
+                        linestyle='-', linewidth=2, alpha=0.8)
+            else:
+                # Plot with connecting lines when smooth is False
+                ax1.plot(x_points, egdf_plot, 'o-', color='blue', label='EGDF', 
+                        markersize=4, linewidth=1, alpha=0.8)
+            
+            # Plot WEDF if available
+            if wedf is not None:
+                ax1.plot(x_points, wedf, 's', color='lightblue', 
+                        label='WEDF', markersize=3, alpha=0.8)
+            
+            ax1.set_ylabel('EGDF', color='blue')
+            ax1.tick_params(axis='y', labelcolor='blue')
+            ax1.set_ylim(0, 1)
         
-        # Plot smooth EGDF if available
-        if plot_smooth:
-            ax1.plot(self.di_points_n, self.egdf_n_points, color='blue', 
-                    linestyle='-', linewidth=2, alpha=0.8)
+        # Plot PDF if requested
+        if plot in ['pdf', 'both']:
+            if plot == 'pdf':
+                # PDF only - use primary axis
+                if plot_smooth and hasattr(self, 'pdf_points'):
+                    # Plot smooth PDF
+                    ax1.plot(x_points, pdf_plot, 'o', color='red', label='PDF', markersize=4)
+                    ax1.plot(self.di_points_n, self.pdf_points, color='red', 
+                            linestyle='-', linewidth=2, alpha=0.8)
+                else:
+                    # Plot with connecting lines when smooth is False
+                    ax1.plot(x_points, pdf_plot, 'o-', color='red', label='PDF', 
+                            markersize=4, linewidth=1, alpha=0.8)
+                
+                ax1.set_ylabel('PDF', color='red')
+                ax1.tick_params(axis='y', labelcolor='red')
+                max_pdf = np.max(self.pdf_points) if (plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None) else np.max(pdf_plot)
+                ax1.set_ylim(0, max_pdf * 1.1)
+                ax_pdf = ax1
+            else:
+                # Both - use secondary axis for PDF
+                ax2 = ax1.twinx()
+                if plot_smooth and hasattr(self, 'pdf_points'):
+                    # Plot smooth PDF
+                    ax2.plot(x_points, pdf_plot, 'o', color='red', label='PDF', markersize=4)
+                    ax2.plot(self.di_points_n, self.pdf_points, color='red', 
+                            linestyle='-', linewidth=2, alpha=0.8)
+                else:
+                    # Plot with connecting lines when smooth is False
+                    ax2.plot(x_points, pdf_plot, 'o-', color='red', label='PDF', 
+                            markersize=4, linewidth=1, alpha=0.8)
+                
+                ax2.set_ylabel('PDF', color='red')
+                ax2.tick_params(axis='y', labelcolor='red')
+                max_pdf = np.max(self.pdf_points) if (plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None) else np.max(pdf_plot)
+                ax2.set_ylim(0, max_pdf * 1.1)
+                ax_pdf = ax2
         
-        # Plot WEDF if available
-        if wedf is not None:
-            ax1.plot(x_points, wedf, 's', color='lightblue', 
-                    label='WEDF', markersize=3, alpha=0.8)
-        
+        # Common settings
         ax1.set_xlabel('Data Points')
-        ax1.set_ylabel('EGDF', color='blue')
-        ax1.tick_params(axis='y', labelcolor='blue')
-        ax1.set_ylim(0, 1)
         
-        # Plot PDF on secondary axis
-        ax2 = ax1.twinx()
-        ax2.plot(x_points, pdf_plot, 'o--', color='red', label='PDF', markersize=4)
-        
-        # Plot smooth PDF if available
-        if plot_smooth:
-            ax2.plot(self.di_points_n, self.pdf_n_points, color='red', 
-                    linestyle='-', linewidth=2, alpha=0.8)
+        # Add bounds only if bounds=True
+        if bounds:
+            # Add bound lines (only for primary axis to avoid duplication)
+            for bound, color, style, name in [
+                (self.params.get('DLB'), 'green', '-', 'DLB'),
+                (self.params.get('DUB'), 'orange', '-', 'DUB'),
+                (self.params.get('LB'), 'purple', '--', 'LB'),
+                (self.params.get('UB'), 'brown', '--', 'UB')
+            ]:
+                if bound is not None:
+                    ax1.axvline(x=bound, color=color, linestyle=style, linewidth=2, 
+                               alpha=0.8, label=f"{name}={bound:.3f}")
             
-        print(f"plot smooth: {plot_smooth}")
-            
-        ax2.set_ylabel('PDF', color='red')
-        max_pdf = np.max(self.pdf_n_points) if (plot_smooth and self.pdf_n_points is not None) else np.max(pdf_plot)
-        ax2.set_ylim(0, max_pdf * 1.1)
-        ax2.tick_params(axis='y', labelcolor='red')
-        
-        # Add bounds
-        for bound, color, style, name in [
-            (self.params.get('DLB'), 'green', '-', 'DLB'),
-            (self.params.get('DUB'), 'orange', '-', 'DUB'),
-            (self.params.get('LB'), 'purple', '--', 'LB'),
-            (self.params.get('UB'), 'brown', '--', 'UB')
-        ]:
-            if bound is not None:
-                ax1.axvline(x=bound, color=color, linestyle=style, linewidth=2, 
-                           alpha=0.8, label=f"{name}={bound:.3f}")
-        
-        # Add shaded regions for probable bounds
-        if self.params.get('LB') is not None:
-            ax1.axvspan(x_points.min(), self.params['LB'], alpha=0.15, color='purple')
-        if self.params.get('UB') is not None:
-            ax1.axvspan(self.params['UB'], x_points.max(), alpha=0.15, color='brown')
-        
-        # # Add data points as vertical lines
-        # for point in self.data:
-        #     ax1.axvline(x=point, color='gray', linestyle=':', alpha=0.6, linewidth=1)
+            # Add shaded regions for probable bounds
+            if self.params.get('LB') is not None:
+                ax1.axvspan(x_points.min(), self.params['LB'], alpha=0.15, color='purple')
+            if self.params.get('UB') is not None:
+                ax1.axvspan(self.params['UB'], x_points.max(), alpha=0.15, color='brown')
         
         # Set x-axis limits
         data_range = self.params['DUB'] - self.params['DLB']
@@ -555,9 +637,18 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         
         # Add legends
         ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
-        ax2.legend(loc='upper right', bbox_to_anchor=(1, 1))
+        if plot == 'both':
+            ax_pdf.legend(loc='upper right', bbox_to_anchor=(1, 1))
         
-        plt.title('EGDF, WEDF, and PDF with Data and Probable Bounds')
+        # Set title based on what's being plotted
+        if plot == 'gdf':
+            title = 'EGDF' + (' with Bounds' if bounds else '')
+        elif plot == 'pdf':
+            title = 'PDF' + (' with Bounds' if bounds else '')
+        else:
+            title = 'EGDF and PDF' + (' with Bounds' if bounds else '')
+        
+        plt.title(title)
         ax1.grid(True, alpha=0.3)
         fig.tight_layout()
         plt.show()
@@ -573,25 +664,34 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             # Transform to z domain
             dc = DataConversion()
             if self.data_form == 'a':
-                z_points_n = dc._convert_az(self.di_points_n, self.DLB, self.DUB)
+                self.z_points_n = dc._convert_az(self.di_points_n, self.DLB, self.DUB)
             else:
-                z_points_n = dc._convert_mz(self.di_points_n, self.DLB, self.DUB)
+                self.z_points_n = dc._convert_mz(self.di_points_n, self.DLB, self.DUB)
+
+            # CRITICAL FIX: For smooth evaluation points, use the SAME transformation
+            # approach as the original data but WITHOUT applying original data weights
+            # to smooth points. The smooth points are just evaluation locations.
             
-            # CRITICAL FIX: For smooth points, DO NOT apply gnostic weights
-            # The smooth curve should evaluate the distribution at smooth points
-            # using the SAME sample transformation that was used for the original data
-            # The gnostic weights were already applied to self.sample (used to create self.zi)
-            # For smooth evaluation, use uniform transformation
-            sample_n = z_points_n * np.ones_like(z_points_n)
+            # # Apply the same transformation logic as original data
+            # if not self.homogeneous:
+            #     # Apply gnostic weights to smooth evaluation points
+            #     gw = GnosticsWeights()
+            #     gweights_n = gw._get_gnostic_weights(self.z_points_n) 
+            #     sample_n = self.z_points_n * gweights_n
+            # else:
+            #     # For homogeneous case, no gnostic weights needed
+            #     sample_n = self.z_points_n
+
+            sample_n = self.z_points_n  
             # Convert to infinite domain
-            zi_n = DataConversion._convert_fininf(sample_n, self.LB_opt, self.UB_opt)
-            
-            # CORRECT APPROACH: Use original data zi for rows, smooth zi_n for columns
+            self.zi_n = DataConversion._convert_fininf(sample_n, self.LB_opt, self.UB_opt)
+
+            # CORRECT APPROACH: Use original data zi for rows, smooth self.zi_n for columns
             # This evaluates EGDF/PDF at smooth points based on original data
             eps = np.finfo(float).eps
             
             # R matrix: original data points (rows) vs smooth evaluation points (columns)
-            R_n = self.zi.reshape(-1, 1) / (zi_n.reshape(1, -1) + eps)
+            R_n = self.zi.reshape(-1, 1) / (self.zi_n.reshape(1, -1) + eps)
             
             gc_n = GnosticsCharacteristics(R=R_n)
             q_n, q1_n = gc_n._get_q_q1(S=self.S_opt)
@@ -599,7 +699,7 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             fi_n = gc_n._fi(q=q_n, q1=q1_n)
             hi_n = gc_n._hi(q=q_n, q1=q1_n)
             
-            # Use original data weights (not uniform weights for smooth points)
+            # Use original data weights (for weighting the original data contributions)
             weights_matrix = self.weights.reshape(-1, 1)
             
             # Calculate EGDF at smooth points
@@ -609,9 +709,9 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
             M_zi = np.where(M_zi == 0, eps, M_zi)
             
-            self.egdf_n_points = (1 - mean_irrelevance / M_zi) / 2
-            self.egdf_n_points = np.maximum.accumulate(self.egdf_n_points)
-            self.egdf_n_points = np.clip(self.egdf_n_points, 0, 1).flatten()
+            self.egdf_points = (1 - mean_irrelevance / M_zi) / 2
+            self.egdf_points = np.maximum.accumulate(self.egdf_points)
+            self.egdf_points = np.clip(self.egdf_points, 0, 1).flatten()
             
             # Calculate PDF at smooth points
             F2 = np.sum(weights_matrix * fi_n**2, axis=0) / np.sum(weights_matrix)
@@ -619,25 +719,32 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             
             M_zi_cubed = M_zi**3
             numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
-            self.pdf_n_points = (1 / (self.S_opt * zi_n)) * (numerator / M_zi_cubed)
-            self.pdf_n_points = self.pdf_n_points.flatten()
-            
+            # self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
+            self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
+            self.pdf_points = self.pdf_points.flatten()
+
+            # # pdf with gradient
+            # self.pdf_points = np.gradient(self.egdf_points, self.di_points_n)
+
+            if np.any(self.pdf_points < 0):
+                warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data sample!", RuntimeWarning)
+
             if self.catch:
                 self.params.update({
-                    'di_points': self.di_points_n,
-                    'egdf_n_points': self.egdf_n_points,
-                    'pdf_n_points': self.pdf_n_points,
-                    'zi_n_points': zi_n
+                    'di_points_n': self.di_points_n,
+                    'egdf_points': self.egdf_points,
+                    'pdf_points': self.pdf_points,
+                    'self.zi_points': self.zi_n
                 })
         except Exception as e:
             # If smooth generation fails, just skip it
             print(f"Warning: Could not generate smooth n_points: {e}")
             if self.catch:
                 self.params.update({
-                    'di_points': None,
-                    'egdf_n_points': None,
-                    'pdf_n_points': None,
-                    'zi_n_points': None
+                    'di_points_n': None,
+                    'egdf_points': None,
+                    'pdf_points': None,
+                    'self.zi_points': None
                 })
 
 
@@ -648,20 +755,20 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         # Initial processing
         self.data = np.sort(self.data)
         self._estimate_data_bounds()
-        self._estimate_weights()
-
+        
         # Store parameters
         if self.catch:
             self._store_initial_params()
 
         # Step 1: Transform input data
-        self._transform_input()
+        self._transform_input(smooth=False)
+        self._estimate_weights()
         
         # Step 2: Initial probable bounds estimation
         self._initial_probable_bounds_estimate()
         
         # Step 3: Get WEDF for optimization
-        self.wedf_values = self._get_wedf()
+        self.wedf_values = self._get_wedf(smooth=False)
         
         # Step 4: Determine optimization strategy based on provided parameters
         self._optimize_parameters()
@@ -670,8 +777,9 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
         self._calculate_final_egdf_pdf()
         
         # Step 6: Generate smooth n_points for plotting
-        self._generate_smooth_egdf()
-        
+        if len(self.data) < 50:
+            self._generate_smooth_egdf()
+
         # Step 7: Transform bounds back to original domain
         self._transform_bounds_back()
         
