@@ -9,17 +9,14 @@ Machine Gnostics
 import numpy as np
 import warnings
 from scipy.optimize import minimize
-from machinegnostics.magcal.scale_param import ScaleParam
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
-from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
-from machinegnostics.magcal.gdf.bound_estimator import BoundEstimator
 from machinegnostics.magcal.mg_weights import GnosticsWeights
 
 
-class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
+class BaseEGDF(BaseDistFunc):
     '''
     Base class for EGDF (Estimating Global Distribution Function).
     
@@ -792,5 +789,4 @@ class BaseEGDF(BaseDistFunc, DataHomogeneity, BoundEstimator):
             })
         
         # Step 9: Check homogeneity if needed
-        # if not self.homogeneous and self.catch:
-        #     self._is_homogeneous()
+        # will add later if needed
