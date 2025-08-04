@@ -76,11 +76,13 @@ class EGDF(BaseEGDF):
                  UB: float = None,
                  S = 'auto',
                  data_form: str = 'a',
-                 n_points: int = 100,
+                 n_points: int = 500,
                  catch: bool = True,
                  weights: np.ndarray = None,
-                 wedf: bool = True):
-        
+                 wedf: bool = True,
+                 opt_method: str = 'L-BFGS-B',
+                 tolerance: float = 1e-3,
+                 verbose: bool = False):
         """
         Initialize the EGDF class.
 
@@ -104,13 +106,15 @@ class EGDF(BaseEGDF):
         self.LB = LB
         self.UB = UB
         self.S = S
-        self.tolerance = 1e-3
         self.data_form = data_form
         self.n_points = n_points
         self.homogeneous = True
         self.catch = catch
         self.weights = weights if weights is not None else np.ones_like(data)
         self.wedf = wedf
+        self.opt_method = opt_method
+        self.tolerance = tolerance
+        self.verbose = verbose
         self.params = {}
 
     #1

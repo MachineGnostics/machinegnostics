@@ -14,6 +14,7 @@ from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.mg_weights import GnosticsWeights
+from machinegnostics.magcal.scale_param import ScaleParam
 
 
 class BaseEGDF(BaseDistFunc):
@@ -34,7 +35,9 @@ class BaseEGDF(BaseDistFunc):
                 homogeneous: bool = True,
                 catch: bool = True,
                 weights: np.ndarray = None,
-                wedf: bool = True):
+                wedf: bool = True,
+                opt_method: str = 'L-BFGS-B',
+                verbose: bool = False):
         """Initialize the EGDF class."""
         
         self.data = data
@@ -50,23 +53,16 @@ class BaseEGDF(BaseDistFunc):
         self.catch = catch
         self.weights = weights if weights is not None else np.ones_like(data)
         self.wedf = wedf
+        self.opt_method = opt_method
+        self.verbose = verbose
         self.params = {}
 
         # Validation
         self._validate_inputs()
-        
-        # # Initial processing
-        # self.data = np.sort(data)
-        # self._estimate_data_bounds()
-        # self._estimate_weights()
 
         # Store parameters
         if self.catch:
             self._store_initial_params()
-
-        # Initialize parent classes
-        # DataHomogeneity.__init__(self, params=self.params, data=self.data, catch=self.catch)
-        # BoundEstimator.__init__(self, params=self.params, data=self.data, catch=self.catch)
 
     #1
     def _validate_inputs(self):
@@ -101,7 +97,17 @@ class BaseEGDF(BaseDistFunc):
                 raise ValueError("weights must be a numpy array.")
             if len(self.weights) != len(self.data):
                 raise ValueError("Weights must have the same length as data.")
-    
+        
+        if not isinstance(self.wedf, bool):
+            raise ValueError("wedf must be a boolean value.")
+        
+        if self.opt_method not in ['L-BFGS-B', 'Nelder-Mead', 'Powell']:
+            raise ValueError("opt_method must be one of 'L-BFGS-B', 'Nelder-Mead', or 'Powell'. OR a appropriate method from scipy.optimize.minimize")
+
+        if not isinstance(self.verbose, bool):
+            raise ValueError("verbose must be a boolean value.")
+        
+
     #2
     def _store_initial_params(self):
         """Store initial parameters if catch is True."""
@@ -163,36 +169,36 @@ class BaseEGDF(BaseDistFunc):
             if self.data_form == 'a':
                 pad = (self.DUB - self.DLB) / 2
                 lb_raw = self.DLB - pad
-                self.LB = DataConversion._convert_az(lb_raw, self.DLB, self.DUB)
+                self.LB_init = DataConversion._convert_az(lb_raw, self.DLB, self.DUB)
             elif self.data_form == 'm':
                 lb_raw = self.DLB / np.sqrt(self.DUB / self.DLB)
-                self.LB = DataConversion._convert_mz(lb_raw, self.DLB, self.DUB)
+                self.LB_init = DataConversion._convert_mz(lb_raw, self.DLB, self.DUB)
         else:
             # Convert provided LB to appropriate form
             if self.data_form == 'a':
-                self.LB = DataConversion._convert_az(self.LB, self.DLB, self.DUB)
+                self.LB_init = DataConversion._convert_az(self.LB, self.DLB, self.DUB)
             else:
-                self.LB = DataConversion._convert_mz(self.LB, self.DLB, self.DUB)
+                self.LB_init = DataConversion._convert_mz(self.LB, self.DLB, self.DUB)
 
         # Only estimate UB if it's not provided
         if self.UB is None:
             if self.data_form == 'a':
                 pad = (self.DUB - self.DLB) / 2
                 ub_raw = self.DUB + pad
-                self.UB = DataConversion._convert_az(ub_raw, self.DLB, self.DUB)
+                self.UB_init = DataConversion._convert_az(ub_raw, self.DLB, self.DUB)
             elif self.data_form == 'm':
                 ub_raw = self.DUB * np.sqrt(self.DUB / self.DLB)
-                self.UB = DataConversion._convert_mz(ub_raw, self.DLB, self.DUB)
+                self.UB_init = DataConversion._convert_mz(ub_raw, self.DLB, self.DUB)
         else:
             # Convert provided UB to appropriate form
             if self.data_form == 'a':
-                self.UB = DataConversion._convert_az(self.UB, self.DLB, self.DUB)
+                self.UB_init = DataConversion._convert_az(self.UB, self.DLB, self.DUB)
             else:
-                self.UB = DataConversion._convert_mz(self.UB, self.DLB, self.DUB)
+                self.UB_init = DataConversion._convert_mz(self.UB, self.DLB, self.DUB)
 
         if self.catch:
-            self.params['LB_init'] = self.LB
-            self.params['UB_init'] = self.UB
+            self.params['LB_init'] = self.LB_init
+            self.params['UB_init'] = self.UB_init
 
     #6
     def _transform_input(self, smooth=False):
@@ -250,6 +256,8 @@ class BaseEGDF(BaseDistFunc):
             if self.catch:
                 self.params['wedf'] = df_values
             
+            if self.verbose:
+                print("WEDF values computed.")
             return df_values
         else:
             # FIX: Swap the logic - use len(data) for non-smooth, n_points for smooth
@@ -260,20 +268,26 @@ class BaseEGDF(BaseDistFunc):
     
             if self.catch:
                 self.params['ksdf'] = df_values
-    
+
+            if self.verbose:
+                print("KSD values computed.")
             return df_values
     
     #8
     def _optimize_parameters(self):
         """Optimize S, LB, UB based on what's provided."""
-        # Case 1: S='auto' - optimize all parameters
-        # LB and UB can be None, in which case they will be optimized
-        if isinstance(self.S, str) and self.S.lower() == 'auto' and self.LB is None and self.UB is None:
-            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
-        
+        # Case 1: S='auto' and LB/UB are None - optimize all parameters
+        if (isinstance(self.S, str) and self.S.lower() == 'auto') and self.LB is None and self.UB is None:
+            if self.verbose:
+                print("Optimizing all parameters: S, LB, UB.")
+            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()          
+
         # Case 2: LB and UB provided, S='auto' - optimize only S
         elif (self.LB is not None and self.UB is not None and 
               isinstance(self.S, str) and self.S.lower() == 'auto'):
+            if self.verbose:
+                print(f"Optimizing S with provided LB: {self.LB_opt}, UB: {self.UB_opt}.")
+
             self.LB_opt = self.LB
             self.UB_opt = self.UB
             self.S_opt = self._optimize_s_only(self.LB_opt, self.UB_opt)
@@ -281,6 +295,9 @@ class BaseEGDF(BaseDistFunc):
         # Case 3: S provided, LB/UB not provided - optimize LB, UB
         elif (not isinstance(self.S, str) and 
               (self.LB is None or self.UB is None)):
+            if self.verbose:
+                print(f"Optimizing bounds with provided S: {self.S}.")
+
             self.S_opt = self.S
             self.S_opt, self.LB_opt, self.UB_opt = self._optimize_bounds_only(self.S_opt)
         
@@ -289,61 +306,92 @@ class BaseEGDF(BaseDistFunc):
             self.S_opt = self.S if not isinstance(self.S, str) else 1.0
             self.LB_opt = self.LB
             self.UB_opt = self.UB
+            if self.verbose:
+                print(f"Using provided parameters: S: {self.S_opt}, LB: {self.LB_opt}, UB: {self.UB_opt}.")
 
     #9
+    # with custom log transformation
     def _optimize_all_parameters(self):
-        """Optimize S, LB, and UB simultaneously."""
+        """Optimize with normalized parameter space [0,1] for each parameter."""
         # Parameter bounds for optimization
         S_MIN, S_MAX = 0.05, 100.0
-        LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
-        UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+        LB_MIN, LB_MAX = 1e-6, np.exp(-1.00001)
+        UB_MIN, UB_MAX = np.exp(1.00001), 1e6
         
-        def transform_to_opt_space(s, lb, ub):
-            s_mz = DataConversion._convert_mz(s, S_MIN, S_MAX)
-            lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
-            ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
-            return np.log(s_mz), np.log(lb_mz), np.log(ub_mz)
+        def normalize_params(s, lb, ub):
+            """Normalize parameters to [0,1] space."""
+            s_norm = (s - S_MIN) / (S_MAX - S_MIN)
+            lb_norm = (lb - LB_MIN) / (LB_MAX - LB_MIN)
+            ub_norm = (ub - UB_MIN) / (UB_MAX - UB_MIN)
+            return s_norm, lb_norm, ub_norm
         
-        def transform_from_opt_space(s_opt, lb_opt, ub_opt):
-            s_mz = np.exp(s_opt)
-            lb_mz = np.exp(lb_opt)
-            ub_mz = np.exp(ub_opt)
-            s = DataConversion._convert_zm(s_mz, S_MIN, S_MAX)
-            lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
-            ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+        def denormalize_params(s_norm, lb_norm, ub_norm):
+            """Denormalize parameters from [0,1] space."""
+            s = S_MIN + s_norm * (S_MAX - S_MIN)
+            lb = LB_MIN + lb_norm * (LB_MAX - LB_MIN)
+            ub = UB_MIN + ub_norm * (UB_MAX - UB_MIN)
             return s, lb, ub
         
-        def loss_function(opt_params):
-            s_opt, lb_opt, ub_opt = opt_params
+        def loss_function(norm_params):
+            s_norm, lb_norm, ub_norm = norm_params
             try:
-                s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
+                s, lb, ub = denormalize_params(s_norm, lb_norm, ub_norm)
+                
+                # Ensure valid parameter ranges
+                if s <= 0 or ub <= lb:
+                    return 1e6
+                    
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
-            except Exception:
-                return 1e6
+                
+                # Primary loss
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+                # Regularization in normalized space (prefer smaller normalized values)
+                s_reg = 0.01 * s_norm**2  # Prefer smaller S
+                lb_reg = 0.001 * (lb_norm)**2 # Prefer smaller |LB|
+                ub_reg = 0.001 * ub_norm**2  # Prefer smaller UB
+                
+                total_loss = diff + s_reg + lb_reg + ub_reg
+                
+                if self.verbose:
+                    # Print detailed loss information
+                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.3f}, UB: {ub:.3f}")
+                return total_loss
+                
+            except Exception as e:
+                return 1
         
-        # Initial values
-        s_init = 1.0
-        lb_init = self.LB
-        ub_init = self.UB
+        # Initial values (normalized)
+        s_init = 0.1  # Default S value
+        lb_init = self.LB_init if self.LB_init is not None else LB_MIN
+        ub_init = self.UB_init if self.UB_init is not None else UB_MAX
+
+        s_norm_init, lb_norm_init, ub_norm_init = normalize_params(s_init, lb_init, ub_init)
+        initial_params = [s_norm_init, lb_norm_init, ub_norm_init]
         
-        s_opt_init, lb_opt_init, ub_opt_init = transform_to_opt_space(s_init, lb_init, ub_init)
-        
-        # Optimization bounds
-        opt_bounds = [(-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0)]
-        initial_params = [
-            np.clip(s_opt_init, -1.0, 1.0),
-            np.clip(lb_opt_init, -1.0, 1.0),
-            np.clip(ub_opt_init, -1.0, 1.0)
-        ]
-        
+        # All bounds are [0, 1] in normalized space
+        norm_bounds = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)]
+
         try:
-            result = minimize(loss_function, initial_params, method='L-BFGS-B', bounds=opt_bounds,
-                            options={'maxiter': 1000, 'ftol': 1e-9})
-            s_opt_final, lb_opt_final, ub_opt_final = result.x
-            return transform_from_opt_space(s_opt_final, lb_opt_final, ub_opt_final)
-        except Exception:
+            result = minimize(loss_function, 
+                              initial_params, 
+                              method=self.opt_method, 
+                              bounds=norm_bounds,
+                              options={'maxiter': 10000, 'ftol': self.tolerance}, 
+                              tol=self.tolerance)
+            
+            s_opt, lb_opt, ub_opt = denormalize_params(*result.x)
+            
+            if lb_opt >= ub_opt:
+                print("Warning: Optimized LB >= UB, using initial values")
+                return s_init, lb_init, ub_init
+                
+            return s_opt, lb_opt, ub_opt
+            
+        except Exception as e:
+            print(f"Optimization failed: {e}")
             return s_init, lb_init, ub_init
+            
 
     #10
     def _optimize_s_only(self, lb, ub):
@@ -351,57 +399,109 @@ class BaseEGDF(BaseDistFunc):
         def loss_function(s):
             try:
                 egdf_values = self._compute_egdf(s[0], lb, ub)
-                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                if self.verbose:
+                    # Print detailed loss information
+                    print(f"Loss: {diff:.6f}, S: {s[0]:.3f}, LB: {lb:.3f}, UB: {ub:.3f}")
+                return diff
             except Exception:
                 return 1e6
         
         try:
             result = minimize(loss_function, [1.0], bounds=[(0.05, 100.0)],
-                            method='L-BFGS-B', options={'maxiter': 1000})
+                            method=self.opt_method, options={'maxiter': 1000})
             return result.x[0]
         except Exception:
             return 1.0
 
+
     #11
     def _optimize_bounds_only(self, s):
-        """Optimize only LB and UB for given S."""
-        LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
-        UB_MIN, UB_MAX = np.exp(1.00001), 1e10
-
-        def transform_bounds_to_opt_space(lb, ub):
-            lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
-            ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
-            return np.log(lb_mz), np.log(ub_mz)
+        """Optimize only LB and UB for given S with normalized parameter space [0,1]."""
+        # Parameter bounds for optimization
+        LB_MIN, LB_MAX = 1e-6, np.exp(-1.00001)
+        UB_MIN, UB_MAX = np.exp(1.00001), 1e6
         
-        def transform_bounds_from_opt_space(lb_opt, ub_opt):
-            lb_mz = np.exp(lb_opt)
-            ub_mz = np.exp(ub_opt)
-            lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
-            ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+        def normalize_bounds(lb, ub):
+            """Normalize LB and UB to [0,1] space."""
+            lb_norm = (lb - LB_MIN) / (LB_MAX - LB_MIN)
+            ub_norm = (ub - UB_MIN) / (UB_MAX - UB_MIN)
+            return lb_norm, ub_norm
+        
+        def denormalize_bounds(lb_norm, ub_norm):
+            """Denormalize LB and UB from [0,1] space."""
+            lb = LB_MIN + lb_norm * (LB_MAX - LB_MIN)
+            ub = UB_MIN + ub_norm * (UB_MAX - UB_MIN)
             return lb, ub
         
-        def loss_function(opt_params):
-            lb_opt, ub_opt = opt_params
+        def loss_function(norm_params):
+            lb_norm, ub_norm = norm_params
             try:
-                lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
+                lb, ub = denormalize_bounds(lb_norm, ub_norm)
+                
+                # Ensure valid parameter ranges
+                if lb <= 0 or ub <= lb:
+                    return 1e6
+                    
                 egdf_values = self._compute_egdf(s, lb, ub)
-                return np.mean(np.abs(egdf_values - self.df_values) * self.weights) 
-            except Exception:
+                
+                # Primary loss
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+                # Regularization in normalized space (prefer smaller normalized values)
+                lb_reg = 0.001 * lb_norm**2  # Prefer smaller |LB|
+                ub_reg = 0.001 * ub_norm**2  # Prefer smaller UB
+                
+                total_loss = diff + lb_reg + ub_reg
+                
+                if self.verbose:
+                    # Print detailed loss information
+                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
+                return total_loss
+                
+            except Exception as e:
+                print(f"Error in loss function: {e}")
                 return 1e6
         
-        lb_opt_init, ub_opt_init = transform_bounds_to_opt_space(self.LB, self.UB)
-        initial_params = [
-            np.clip(lb_opt_init, -1.0, 1.0),
-            np.clip(ub_opt_init, -1.0, 1.0)
-        ]
+        # Initial values
+        lb_init = self.LB_init if self.LB_init is not None else LB_MIN
+        ub_init = self.UB_init if self.UB_init is not None else UB_MIN
+
+        # Ensure initial values are within bounds
+        lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
+        ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
+        
+        # Ensure lb < ub
+        if lb_init >= ub_init:
+            lb_init = LB_MIN / 10
+            ub_init = UB_MIN * 10
+        
+        # Normalize initial values
+        lb_norm_init, ub_norm_init = normalize_bounds(lb_init, ub_init)
+        initial_params = [lb_norm_init, ub_norm_init]
+        
+        # All bounds are [0, 1] in normalized space
+        norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
         
         try:
-            result = minimize(loss_function, initial_params, method='L-BFGS-B',
-                            bounds=[(-1.0, 1.0), (-1.0, 1.0)], options={'maxiter': 1000})
-            lb_opt_final, ub_opt_final = result.x
-            lb_final, ub_final = transform_bounds_from_opt_space(lb_opt_final, ub_opt_final)
-            return s, lb_final, ub_final
-        except Exception:
+            result = minimize(loss_function, 
+                              initial_params, 
+                              method=self.opt_method,
+                              bounds=norm_bounds,
+                              options={'maxiter': 1000, 'ftol': self.tolerance}, 
+                              tol=self.tolerance)
+            
+            lb_opt, ub_opt = denormalize_bounds(*result.x)
+            
+            # Validate final results
+            if lb_opt >= ub_opt:
+                print("Warning: Optimized LB >= UB, using initial values")
+                return s, lb_init, ub_init
+                
+            return s, lb_opt, ub_opt
+            
+        except Exception as e:
+            print(f"Optimization failed: {e}")
             return s, self.LB, self.UB
         
     #12
@@ -572,7 +672,7 @@ class BaseEGDF(BaseDistFunc):
                 # Plot with connecting lines when smooth is False
                 ax1.plot(x_points, egdf_plot, 'o-', color='blue', label='EGDF', 
                         markersize=4, linewidth=1, alpha=0.8)
-                
+                        
             if extra_df:
                 # Plot WEDF if available
                 if wedf is not None:
@@ -794,6 +894,8 @@ class BaseEGDF(BaseDistFunc):
     def _fit(self):
         """Fit the EGDF model to the data."""
 
+        if self.verbose:
+            print("Fitting EGDF model to data...")
         # Initial processing
         self.data = np.sort(self.data)
         self._estimate_data_bounds()
@@ -832,6 +934,265 @@ class BaseEGDF(BaseDistFunc):
                 'UB': self.UB,
                 'S_opt': self.S_opt
             })
-        
+        if self.verbose:
+            print(f"Fitting completed. Calculated parameters: \nS: {self.S_opt}, \nLB: {self.LB}, \nUB: {self.UB}")
         # Step 9: Check homogeneity if needed
         # will add later if needed
+
+
+
+# -- previous code was not used (functions 9 and 11) --
+
+    #9
+    # def _optimize_all_parameters(self):
+    #     """Optimize S, LB, and UB simultaneously."""
+    #     # Parameter bounds for optimization
+    #     S_MIN, S_MAX = 0.05, 100.0
+    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
+    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+        
+    #     def transform_to_opt_space(s, lb, ub):
+    #         s_mz = DataConversion._convert_mz(s, S_MIN, S_MAX)
+    #         lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
+    #         ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
+    #         return np.log(s_mz), np.log(lb_mz), np.log(ub_mz)
+        
+    #     def transform_from_opt_space(s_opt, lb_opt, ub_opt):
+    #         s_mz = np.exp(s_opt)
+    #         lb_mz = np.exp(lb_opt)
+    #         ub_mz = np.exp(ub_opt)
+    #         s = DataConversion._convert_zm(s_mz, S_MIN, S_MAX)
+    #         lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
+    #         ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+    #         return s, lb, ub
+        
+    #     def loss_function(opt_params):
+    #         s_opt, lb_opt, ub_opt = opt_params
+    #         try:
+    #             s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
+    #             egdf_values = self._compute_egdf(s, lb, ub)
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
+    #             return diff
+    #         except Exception:
+    #             return 1e6
+        
+    #     # Initial values
+    #     s_init = 1.0
+    #     lb_init = self.LB if self.LB is not None else LB_MIN * 10  # Use a reasonable default
+    #     ub_init = self.UB if self.UB is not None else UB_MIN * 10  # Use a reasonable default
+        
+    #     # Transform initial values to optimization space
+    #     s_opt_init, lb_opt_init, ub_opt_init = transform_to_opt_space(s_init, lb_init, ub_init)
+        
+    #     # Optimization bounds in transformed space (log space typically ranges from -10 to 10)
+    #     opt_bounds = [(-10.0, 10.0), (-10.0, 10.0), (-10.0, 10.0)]
+    #     initial_params = [s_opt_init, lb_opt_init, ub_opt_init]
+        
+    #     # Clip initial parameters to bounds
+    #     initial_params = [
+    #         np.clip(s_opt_init, -10.0, 10.0),
+    #         np.clip(lb_opt_init, -10.0, 10.0),
+    #         np.clip(ub_opt_init, -10.0, 10.0)
+    #     ]
+    
+    #     try:
+    #         result = minimize(loss_function, 
+    #                           initial_params, 
+    #                           method=self.opt_method, 
+    #                           bounds=opt_bounds,
+    #                           options={'maxiter': 1000, 'ftol': self.tolerance}, 
+    #                           tol=self.tolerance,
+    #                         )
+    #         s_opt_final, lb_opt_final, ub_opt_final = result.x
+    #         return transform_from_opt_space(s_opt_final, lb_opt_final, ub_opt_final)
+    #     except Exception as e:
+    #         print(f"Optimization failed: {e}")
+    #         return s_init, lb_init, ub_init
+
+    # alternative way without transformation
+    # def _optimize_all_parameters(self):
+    #     """Optimize S, LB, and UB simultaneously with preference for smaller values."""
+    #     # Parameter bounds for optimization (direct bounds without transformation)
+    #     S_MIN, S_MAX = 0.05, 100.0
+    #     LB_MIN, LB_MAX = np.finfo(float).eps, np.exp(-1.00001)
+    #     UB_MIN, UB_MAX = np.exp(1.00001), np.finfo(float).max
+    
+    #     def loss_function(params):
+    #         s, lb, ub = params
+    #         try:
+    #             # Ensure valid parameter ranges
+    #             if s <= 0 or lb <= 0 or ub <= lb:
+    #                 return 1e6
+                    
+    #             egdf_values = self._compute_egdf(s, lb, ub)
+                
+    #             # Primary loss: difference between EGDF and target values
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+    #             # Regularization terms to prefer smaller values
+    #             # Scale regularization based on parameter ranges
+    #             s_reg = 0.01 * (s - S_MIN) / (S_MAX - S_MIN)  # Prefer smaller S
+    #             lb_reg = 0.001 * np.abs(lb) / LB_MAX  # Prefer smaller |LB|
+    #             ub_reg = 0.001 * (ub - UB_MIN) / (UB_MAX - UB_MIN)  # Prefer smaller UB
+                
+    #             total_loss = diff + s_reg + lb_reg + ub_reg
+                
+    #             print(f"Loss: {diff:.6f}, S_reg: {s_reg:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
+    #             return total_loss
+                
+    #         except Exception as e:
+    #             print(f"Error in loss function: {e}")
+    #             return 1e6
+        
+    #     # Initial values - start with smaller values
+    #     s_init = 0.1  # Start with smaller S
+    #     lb_init = self.LB if self.LB is not None else LB_MIN * 2
+    #     ub_init = self.UB if self.UB is not None else UB_MIN * 2
+    
+    #     # Ensure initial values are within bounds
+    #     s_init = np.clip(s_init, S_MIN, S_MAX)
+    #     lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
+    #     ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
+        
+    #     # Ensure lb < ub
+    #     if lb_init >= ub_init:
+    #         lb_init = LB_MIN * 2
+    #         ub_init = UB_MIN * 2
+        
+    #     initial_params = [s_init, lb_init, ub_init]
+        
+    #     # Direct optimization bounds
+    #     opt_bounds = [(S_MIN, S_MAX), (LB_MIN, LB_MAX), (UB_MIN, UB_MAX)]
+        
+    #     try:
+    #         result = minimize(loss_function, 
+    #                           initial_params, 
+    #                           method=self.opt_method, 
+    #                           bounds=opt_bounds,
+    #                           options={'maxiter': 1000, 'ftol': self.tolerance}, 
+    #                           tol=self.tolerance)
+            
+    #         s_opt_final, lb_opt_final, ub_opt_final = result.x
+            
+    #         # Validate final results
+    #         if lb_opt_final >= ub_opt_final:
+    #             print("Warning: Optimized LB >= UB, using initial values")
+    #             return s_init, lb_init, ub_init
+                
+    #         return s_opt_final, lb_opt_final, ub_opt_final
+            
+    #     except Exception as e:
+    #         print(f"Optimization failed: {e}")
+    #         return s_init, lb_init, ub_init
+
+        #11
+    # def _optimize_bounds_only(self, s):
+    #     """Optimize only LB and UB for given S."""
+    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
+    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+
+    #     def transform_bounds_to_opt_space(lb, ub):
+    #         lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
+    #         ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
+    #         return np.log(lb_mz), np.log(ub_mz)
+        
+    #     def transform_bounds_from_opt_space(lb_opt, ub_opt):
+    #         lb_mz = np.exp(lb_opt)
+    #         ub_mz = np.exp(ub_opt)
+    #         lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
+    #         ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
+    #         return lb, ub
+        
+    #     def loss_function(opt_params):
+    #         lb_opt, ub_opt = opt_params
+    #         try:
+    #             lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
+    #             egdf_values = self._compute_egdf(s, lb, ub)
+    #             # # fidelity
+    #             # R_ = egdf_values / (self.df_values + 1e-10)
+    #             # gc = GnosticsCharacteristics(R=R_)
+    #             # q, q1 = gc._get_q_q1(S=s)
+    #             # fi = np.mean(gc._fi(q=q, q1=q1))
+    #             # print(f"Fidelity: {fi}, S: {s}, LB: {lb}, UB: {ub}")  # Debugging output
+    #             # return -fi
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
+    #             return diff
+    #         except Exception:
+    #             return 1e6
+        
+    #     lb_opt_init, ub_opt_init = transform_bounds_to_opt_space(self.LB, self.UB)
+    #     initial_params = [
+    #         np.clip(lb_opt_init, -1.0, 1.0),
+    #         np.clip(ub_opt_init, -1.0, 1.0)
+    #     ]
+        
+    #     try:
+    #         result = minimize(loss_function, initial_params, method=self.opt_method,
+    #                         bounds=[(-1.0, 1.0), (-1.0, 1.0)], options={'maxiter': 1000})
+    #         lb_opt_final, ub_opt_final = result.x
+    #         lb_final, ub_final = transform_bounds_from_opt_space(lb_opt_final, ub_opt_final)
+    #         return s, lb_final, ub_final
+    #     except Exception:
+    #         return s, self.LB, self.UB
+
+    # def _optimize_bounds_only(self, s):
+    #     """Optimize only LB and UB for given S without bound transformation."""
+    #     # Parameter bounds for optimization (direct bounds without transformation)
+    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
+    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+        
+    #     def loss_function(params):
+    #         lb, ub = params
+    #         try:
+    #             # Ensure valid parameter ranges
+    #             if lb <= 0 or ub <= lb:
+    #                 return 1e6
+                    
+    #             egdf_values = self._compute_egdf(s, lb, ub)
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
+    #             return diff
+    #         except Exception as e:
+    #             print(f"Error in loss function: {e}")
+    #             return 1e6
+        
+    #     # Initial values
+    #     lb_init = self.LB if self.LB is not None else LB_MIN * 10
+    #     ub_init = self.UB if self.UB is not None else UB_MIN * 10
+        
+    #     # Ensure initial values are within bounds
+    #     lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
+    #     ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
+        
+    #     # Ensure lb < ub
+    #     if lb_init >= ub_init:
+    #         lb_init = LB_MIN * 10
+    #         ub_init = UB_MIN * 10
+        
+    #     initial_params = [lb_init, ub_init]
+        
+    #     # Direct optimization bounds
+    #     opt_bounds = [(LB_MIN, LB_MAX), (UB_MIN, UB_MAX)]
+        
+    #     try:
+    #         result = minimize(loss_function, 
+    #                         initial_params, 
+    #                         method=self.opt_method,
+    #                         bounds=opt_bounds,
+    #                         options={'maxiter': 1000, 'ftol': self.tolerance}, 
+    #                         tol=self.tolerance)
+            
+    #         lb_opt_final, ub_opt_final = result.x
+            
+    #         # Validate final results
+    #         if lb_opt_final >= ub_opt_final:
+    #             print("Warning: Optimized LB >= UB, using initial values")
+    #             return s, lb_init, ub_init
+                
+    #         return s, lb_opt_final, ub_opt_final
+            
+    #     except Exception as e:
+    #         print(f"Optimization failed: {e}")
+    #         return s, self.LB, self.UB

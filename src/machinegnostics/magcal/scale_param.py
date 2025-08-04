@@ -263,7 +263,7 @@ class ScaleParam():
             return np.mean(fidelities)
     
         # Search through S values from minimum to maximum
-        s_values = np.linspace(0.01, 100, 1000)  # Fine grid for accurate search
+        s_values = np.linspace(0.05, 100, 1000)  # Fine grid for accurate search
         
         max_fidelity = -np.inf
         optimal_s = None
