@@ -79,7 +79,7 @@ class EGDF(BaseEGDF):
                  n_points: int = 500,
                  catch: bool = True,
                  weights: np.ndarray = None,
-                 wedf: bool = True,
+                 wedf: bool = False,
                  opt_method: str = 'L-BFGS-B',
                  tolerance: float = 1e-3,
                  verbose: bool = False):

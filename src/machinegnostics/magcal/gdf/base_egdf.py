@@ -347,10 +347,10 @@ class BaseEGDF(BaseDistFunc):
                 diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
                 
                 # Regularization in normalized space (prefer smaller normalized values)
-                s_reg = 0.01 * s_norm**2  # Prefer smaller S
-                lb_reg = 0.001 * (lb_norm)**2 # Prefer smaller |LB|
-                ub_reg = 0.001 * ub_norm**2  # Prefer smaller UB
-                
+                s_reg = s_norm**2  # Prefer smaller S
+                lb_reg = (lb_norm)**2 # Prefer smaller |LB|
+                ub_reg = (ub_norm)**2  # Prefer smaller UB
+
                 total_loss = diff + s_reg + lb_reg + ub_reg
                 
                 if self.verbose:
@@ -449,9 +449,9 @@ class BaseEGDF(BaseDistFunc):
                 diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
                 
                 # Regularization in normalized space (prefer smaller normalized values)
-                lb_reg = 0.001 * lb_norm**2  # Prefer smaller |LB|
-                ub_reg = 0.001 * ub_norm**2  # Prefer smaller UB
-                
+                lb_reg = lb_norm**2  # Prefer smaller |LB|
+                ub_reg = ub_norm**2  # Prefer smaller UB
+
                 total_loss = diff + lb_reg + ub_reg
                 
                 if self.verbose:
@@ -488,7 +488,7 @@ class BaseEGDF(BaseDistFunc):
                               initial_params, 
                               method=self.opt_method,
                               bounds=norm_bounds,
-                              options={'maxiter': 1000, 'ftol': self.tolerance}, 
+                              options={'maxiter': 10000, 'ftol': self.tolerance}, 
                               tol=self.tolerance)
             
             lb_opt, ub_opt = denormalize_bounds(*result.x)
@@ -598,8 +598,8 @@ class BaseEGDF(BaseDistFunc):
         M_zi_cubed = M_zi**3
 
         numerator = ((mean_fidelity**2) * F2) + (mean_fidelity * mean_irrelevance * FH)
-        # density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
-        density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
+        density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
+        # density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
 
         if np.any(density < 0):
             warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data", RuntimeWarning)
@@ -861,8 +861,8 @@ class BaseEGDF(BaseDistFunc):
             
             M_zi_cubed = M_zi**3
             numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
-            # self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
-            self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
+            self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
+            # self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
             self.pdf_points = self.pdf_points.flatten()
 
             # # pdf with gradient
