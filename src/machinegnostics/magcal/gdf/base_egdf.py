@@ -37,7 +37,8 @@ class BaseEGDF(BaseDistFunc):
                 weights: np.ndarray = None,
                 wedf: bool = True,
                 opt_method: str = 'L-BFGS-B',
-                verbose: bool = False):
+                verbose: bool = False,
+                max_data_size: int = 100):
         """Initialize the EGDF class."""
         
         self.data = data
@@ -55,6 +56,7 @@ class BaseEGDF(BaseDistFunc):
         self.wedf = wedf
         self.opt_method = opt_method
         self.verbose = verbose
+        self.max_data_size = max_data_size
         self.params = {}
 
         # Validation
@@ -893,7 +895,7 @@ class BaseEGDF(BaseDistFunc):
     #20
     def _fit(self):
         """Fit the EGDF model to the data."""
-
+        SMOOTH = False # NOTE do not use as argument, it is used for internal processing
         if self.verbose:
             print("Fitting EGDF model to data...")
         # Initial processing
@@ -905,15 +907,15 @@ class BaseEGDF(BaseDistFunc):
             self._store_initial_params()
 
         # Step 1: Transform input data
-        self._transform_input(smooth=False)
+        self._transform_input(smooth=SMOOTH)
         self._estimate_weights()
         
         # Step 2: Initial probable bounds estimation
         self._initial_probable_bounds_estimate()
         
         # Step 3: Get WEDF/KS points for optimization
-        self.df_values = self._get_df(smooth=False, wedf=self.wedf)
-        
+        self.df_values = self._get_df(smooth=SMOOTH, wedf=self.wedf)
+
         # Step 4: Determine optimization strategy based on provided parameters
         self._optimize_parameters()
         
@@ -921,8 +923,16 @@ class BaseEGDF(BaseDistFunc):
         self._calculate_final_egdf_pdf()
         
         # Step 6: Generate smooth n_points for plotting
-        if len(self.data) < 50:
+        if len(self.data) < self.max_data_size:
             self._generate_smooth_egdf()
+            if self.verbose:
+                print("Generated smooth EGDF and PDF for plotting. Total points:", len(self.di_points_n))
+        else:
+            self.di_points_n = None
+            self.egdf_points = None
+            self.pdf_points = None
+            if self.verbose:
+                print("Data size too large for smooth EGDF generation, skipping smooth points to avoid excessive memory usage.")
 
         # Step 7: Transform bounds back to original domain
         self._transform_bounds_back()
