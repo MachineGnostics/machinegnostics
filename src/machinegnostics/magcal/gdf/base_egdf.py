@@ -14,7 +14,6 @@ from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.mg_weights import GnosticsWeights
-from machinegnostics.magcal.scale_param import ScaleParam
 
 
 class BaseEGDF(BaseDistFunc):
@@ -361,8 +360,8 @@ class BaseEGDF(BaseDistFunc):
                 return total_loss
                 
             except Exception as e:
-                return 1
-        
+                return 1e6
+
         # Initial values (normalized)
         s_init = 0.1  # Default S value
         lb_init = self.LB_init if self.LB_init is not None else LB_MIN
