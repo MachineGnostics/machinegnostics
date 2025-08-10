@@ -7,6 +7,7 @@ Machine Gnostics
 
 import numpy as np
 from machinegnostics.magcal.gdf.base_egdf import BaseEGDF
+from machinegnostics.magcal.gdf.bound_estimator import BoundEstimator
 
 class EGDF(BaseEGDF):
     """
@@ -339,69 +340,67 @@ class EGDF(BaseEGDF):
                    bounds=bounds, 
                    extra_df=extra_df)
 
-    def marginal_analysis(self):
-        """
-        Perform marginal analysis on the fitted Global Distribution Function.
+    # def marginal_analysis(self):
+    #     """
+    #     Perform marginal analysis on the fitted Global Distribution Function.
 
-        This method conducts detailed statistical analysis of the fitted distribution,
-        examining marginal properties, parameter sensitivities, and distribution characteristics.
-        Marginal analysis helps understand how changes in parameters or data subsets affect
-        the overall distribution and provides insights into the robustness of the fitted model.
+    #     This method conducts detailed statistical analysis of the fitted distribution,
+    #     examining marginal properties, parameter sensitivities, and distribution characteristics.
+    #     Marginal analysis helps understand how changes in parameters or data subsets affect
+    #     the overall distribution and provides insights into the robustness of the fitted model.
 
-        The analysis typically includes examination of parameter confidence intervals,
-        sensitivity analysis, marginal distributions of multi-dimensional parameters,
-        and assessment of the distribution's behavior at the boundaries and extremes.
+    #     The analysis typically includes examination of parameter confidence intervals,
+    #     sensitivity analysis, marginal distributions of multi-dimensional parameters,
+    #     and assessment of the distribution's behavior at the boundaries and extremes.
 
-        Parameters:
-            None
+    #     Parameters:
+    #         None
 
-        Returns:
-            None: The method may print analysis results to the console or store them in
-                 instance attributes. The specific output depends on the implementation
-                 in derived classes or the base class.
+    #     Returns:
+    #         None: The method may print analysis results to the console or store them in
+    #              instance attributes. The specific output depends on the implementation
+    #              in derived classes or the base class.
 
-        Raises:
-            RuntimeError: If fit() has not been called before performing marginal analysis.
-            AnalysisError: If the marginal analysis encounters numerical or computational issues.
+    #     Raises:
+    #         RuntimeError: If fit() has not been called before performing marginal analysis.
+    #         AnalysisError: If the marginal analysis encounters numerical or computational issues.
 
-        Side Effects:
-            - May print detailed analysis results to the console
-            - May populate additional attributes with analysis results
-            - May generate additional plots or visualizations
-            - Updates internal analysis state
+    #     Side Effects:
+    #         - May print detailed analysis results to the console
+    #         - May populate additional attributes with analysis results
+    #         - May generate additional plots or visualizations
+    #         - Updates internal analysis state
 
-        Examples:
-            Basic marginal analysis:
-            >>> egdf = EGDF(data)
-            >>> egdf.fit()
-            >>> egdf.marginal_analysis()
+    #     Examples:
+    #         Basic marginal analysis:
+    #         >>> egdf = EGDF(data)
+    #         >>> egdf.fit()
+    #         >>> egdf.marginal_analysis()
             
-            Analysis after complex fitting:
-            >>> data = np.random.multimodal_distribution(1000)
-            >>> egdf = EGDF(data, DLB=0, DUB=10)
-            >>> egdf.fit()
-            >>> egdf.marginal_analysis()  # Analyze parameter sensitivity
+    #         Analysis after complex fitting:
+    #         >>> data = np.random.multimodal_distribution(1000)
+    #         >>> egdf = EGDF(data, DLB=0, DUB=10)
+    #         >>> egdf.fit()
+    #         >>> egdf.marginal_analysis()  # Analyze parameter sensitivity
 
-        Notes:
-            - This method provides a default implementation that can be overridden in subclasses
-            - The current implementation serves as a placeholder for custom analysis logic
-            - Subclasses may provide specific marginal analysis tailored to particular distribution types
-            - The analysis quality depends on the quality of the initial fit
-            - For complex distributions, marginal analysis may reveal parameter correlations
-            - Results should be interpreted in conjunction with goodness-of-fit metrics
+    #     Notes:
+    #         - This method provides a default implementation that can be overridden in subclasses
+    #         - The current implementation serves as a placeholder for custom analysis logic
+    #         - Subclasses may provide specific marginal analysis tailored to particular distribution types
+    #         - The analysis quality depends on the quality of the initial fit
+    #         - For complex distributions, marginal analysis may reveal parameter correlations
+    #         - Results should be interpreted in conjunction with goodness-of-fit metrics
 
-        Todo:
-            - Implement parameter sensitivity analysis
-            - Add confidence interval calculations
-            - Include marginal distribution plots
-            - Provide statistical significance tests
-            - Add bootstrap-based uncertainty quantification
+    #     Todo:
+    #         - Implement parameter sensitivity analysis
+    #         - Add confidence interval calculations
+    #         - Include marginal distribution plots
+    #         - Provide statistical significance tests
+    #         - Add bootstrap-based uncertainty quantification
 
-        See Also:
-            fit(): Must be called before marginal analysis
-            plot(): For visual inspection of the distribution
-            scipy.stats: For additional statistical analysis tools
-        """
-        # Default implementation does nothing
-        # This method can be overridden in subclasses to provide custom marginal analysis logic
-        pass
+    #     See Also:
+    #         fit(): Must be called before marginal analysis
+    #         plot(): For visual inspection of the distribution
+    #         scipy.stats: For additional statistical analysis tools
+    #     """
+    #     lsb, usb = self.estimate_bounds(z_values=self.zi_n)
