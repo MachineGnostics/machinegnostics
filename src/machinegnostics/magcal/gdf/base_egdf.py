@@ -238,8 +238,8 @@ class BaseEGDF(BaseDistFunc):
 
         if self.catch:
             self.params.update({'z': self.z, 'sample': self.sample})
-            self.params['z_points_n'] = self.z_points_n
-            self.params['di_points_n'] = self.di_points_n
+            self.params['z_points'] = self.z_points_n
+            self.params['di_points'] = self.di_points_n
 
     #7
     def _get_df(self, smooth=False, wedf: bool = True):
@@ -599,8 +599,8 @@ class BaseEGDF(BaseDistFunc):
         M_zi_cubed = M_zi**3
 
         numerator = ((mean_fidelity**2) * F2) + (mean_fidelity * mean_irrelevance * FH)
-        density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
-        # density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
+        # density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
+        density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
 
         if np.any(density < 0):
             warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data", RuntimeWarning)
@@ -862,8 +862,8 @@ class BaseEGDF(BaseDistFunc):
             
             M_zi_cubed = M_zi**3
             numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
-            self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
-            # self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
+            # self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
+            self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
             self.pdf_points = self.pdf_points.flatten()
 
             # # pdf with gradient
@@ -874,20 +874,20 @@ class BaseEGDF(BaseDistFunc):
 
             if self.catch:
                 self.params.update({
-                    'di_points_n': self.di_points_n,
+                    'di_points': self.di_points_n,
                     'egdf_points': self.egdf_points,
                     'pdf_points': self.pdf_points,
-                    'self.zi_points': self.zi_n
+                    'zi_points': self.zi_n
                 })
         except Exception as e:
             # If smooth generation fails, just skip it
             print(f"Warning: Could not generate smooth n_points: {e}")
             if self.catch:
                 self.params.update({
-                    'di_points_n': None,
+                    'di_points': None,
                     'egdf_points': None,
                     'pdf_points': None,
-                    'self.zi_points': None
+                    'zi_points': None
                 })
 
 
@@ -948,260 +948,278 @@ class BaseEGDF(BaseDistFunc):
         # Step 9: Check homogeneity if needed
         # will add later if needed
 
+    # ...existing code...
 
+    def _get_egdf_first_derivative(self):
+        """Calculate first derivative of EGDF (which is the PDF) from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before first derivative estimation.")
+        
+        weights = self.weights.reshape(-1, 1)
+        
+        # First order moments
+        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)  # mean_fidelity
+        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)  # mean_irrelevance
+        
+        # Second order moments (scaled by S as in MATLAB)
+        f2s = np.sum(weights * (self.fi**2 / self.S_opt), axis=0) / np.sum(weights)
+        fhs = np.sum(weights * (self.fi * self.hi / self.S_opt), axis=0) / np.sum(weights)
+        
+        # Calculate denominator w = (f1^2 + h1^2)^(3/2)
+        w = (f1**2 + h1**2)**(3/2)
+        eps = np.finfo(float).eps
+        w = np.where(w == 0, eps, w)
+        
+        # First derivative formula from MATLAB: y = (f1^2 * f2s + f1 * h1 * fhs) / w
+        numerator = f1**2 * f2s + f1 * h1 * fhs
+        first_derivative = numerator / w
+        # first_derivative = first_derivative / self.zi
+        
+        if np.any(first_derivative < 0):
+            warnings.warn("EGDF first derivative (PDF) contains negative values", RuntimeWarning)
+        
+        return first_derivative.flatten()
 
-# -- previous code was not used (functions 9 and 11) --
+    def _get_egdf_second_derivative(self):
+        """Calculate second derivative of EGDF from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
+        
+        weights = self.weights.reshape(-1, 1)
+        
+        # Moment calculations
+        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
+        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
+        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
+        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
+        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
+        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
+        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
+        
+        # Calculate components
+        b = f1**2 * f2 + f1 * h1 * fh
+        d = f1**2 + h1**2
+        eps = np.finfo(float).eps
+        d = np.where(d == 0, eps, d)
+        
+        # Following
+        term1 = f1 * (h1 * (f3 - fh2) - f2 * fh)
+        term2 = 2 * f1**2 * f2h + h1 * fh**2
+        term3 = (6 * b * (f1 * fh - h1 * f2)) / d
+        
+        d2 = -1 / (d**(1.5)) * (2 * (term1 - term2) + term3)
+        second_derivative = d2 / (self.S_opt**2)
+        # second_derivative = second_derivative / self.zi**2 
+        return second_derivative.flatten()
 
-    #9
-    # def _optimize_all_parameters(self):
-    #     """Optimize S, LB, and UB simultaneously."""
-    #     # Parameter bounds for optimization
-    #     S_MIN, S_MAX = 0.05, 100.0
-    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
-    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+    def _get_egdf_third_derivative(self):
+        """Calculate third derivative of EGDF from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
         
-    #     def transform_to_opt_space(s, lb, ub):
-    #         s_mz = DataConversion._convert_mz(s, S_MIN, S_MAX)
-    #         lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
-    #         ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
-    #         return np.log(s_mz), np.log(lb_mz), np.log(ub_mz)
+        weights = self.weights.reshape(-1, 1)
         
-    #     def transform_from_opt_space(s_opt, lb_opt, ub_opt):
-    #         s_mz = np.exp(s_opt)
-    #         lb_mz = np.exp(lb_opt)
-    #         ub_mz = np.exp(ub_opt)
-    #         s = DataConversion._convert_zm(s_mz, S_MIN, S_MAX)
-    #         lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
-    #         ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
-    #         return s, lb, ub
+        # All required moments
+        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
+        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
+        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
+        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
+        f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
+        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
+        h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
+        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
+        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
+        f2h2 = np.sum(weights * self.fi**2 * self.hi**2, axis=0) / np.sum(weights)
+        f3h = np.sum(weights * self.fi**3 * self.hi, axis=0) / np.sum(weights)
+        fh3 = np.sum(weights * self.fi * self.hi**3, axis=0) / np.sum(weights)
         
-    #     def loss_function(opt_params):
-    #         s_opt, lb_opt, ub_opt = opt_params
-    #         try:
-    #             s, lb, ub = transform_from_opt_space(s_opt, lb_opt, ub_opt)
-    #             egdf_values = self._compute_egdf(s, lb, ub)
-    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
-    #             return diff
-    #         except Exception:
-    #             return 1e6
+        # Following
+        # Derivative calculations
+        dh1 = -f2
+        df1 = fh
+        df2 = 2 * f2h
+        dfh = -f3 + fh2
+        dfh2 = -2 * f3h + fh3
+        df3 = 3 * f3h
+        df2h = -f4 + 2 * f2h2
         
-    #     # Initial values
-    #     s_init = 1.0
-    #     lb_init = self.LB if self.LB is not None else LB_MIN * 10  # Use a reasonable default
-    #     ub_init = self.UB if self.UB is not None else UB_MIN * 10  # Use a reasonable default
+        # u4 and its derivative
+        u4 = h1 * f3 - h1 * fh2 - f2 * fh
+        du4 = dh1 * f3 + h1 * df3 - dh1 * fh2 - h1 * dfh2 - df2 * fh - f2 * dfh
         
-    #     # Transform initial values to optimization space
-    #     s_opt_init, lb_opt_init, ub_opt_init = transform_to_opt_space(s_init, lb_init, ub_init)
+        # u and its derivative
+        u = f1 * u4
+        du = df1 * u4 + f1 * du4
         
-    #     # Optimization bounds in transformed space (log space typically ranges from -10 to 10)
-    #     opt_bounds = [(-10.0, 10.0), (-10.0, 10.0), (-10.0, 10.0)]
-    #     initial_params = [s_opt_init, lb_opt_init, ub_opt_init]
+        # v components
+        v4a = (f1**2) * f2h
+        dv4a = 2 * f1 * df1 * f2h + (f1**2) * df2h
+        v4b = h1 * fh**2
+        dv4b = dh1 * (fh**2) + 2 * h1 * fh * dfh
         
-    #     # Clip initial parameters to bounds
-    #     initial_params = [
-    #         np.clip(s_opt_init, -10.0, 10.0),
-    #         np.clip(lb_opt_init, -10.0, 10.0),
-    #         np.clip(ub_opt_init, -10.0, 10.0)
-    #     ]
-    
-    #     try:
-    #         result = minimize(loss_function, 
-    #                           initial_params, 
-    #                           method=self.opt_method, 
-    #                           bounds=opt_bounds,
-    #                           options={'maxiter': 1000, 'ftol': self.tolerance}, 
-    #                           tol=self.tolerance,
-    #                         )
-    #         s_opt_final, lb_opt_final, ub_opt_final = result.x
-    #         return transform_from_opt_space(s_opt_final, lb_opt_final, ub_opt_final)
-    #     except Exception as e:
-    #         print(f"Optimization failed: {e}")
-    #         return s_init, lb_init, ub_init
+        v = 2 * v4a + v4b
+        dv = 2 * dv4a + dv4b
+        
+        # x components
+        x4a = f1**2 * f2 + f1 * h1 * fh
+        dx4a = 2 * f1 * df1 * f2 + (f1**2) * df2 + df1 * h1 * fh + f1 * dh1 * fh + f1 * h1 * dfh
+        x4b = f1 * fh - h1 * f2
+        dx4b = df1 * fh + f1 * dfh - dh1 * f2 - h1 * df2
+        
+        x = 6 * x4a * x4b
+        dx = 6 * (dx4a * x4b + x4a * dx4b)
+        
+        # d components
+        d = f1**2 + h1**2
+        dd = 2 * (f1 * df1 + h1 * dh1)
+        eps = np.finfo(float).eps
+        d = np.where(d == 0, eps, d)
+        
+        # Final calculation
+        term1 = (du - dv) / (d**1.5) - (1.5 * (u - v)) / (d**2.5) * dd
+        term2 = dx / (d**2.5) - (2.5 * x) / (d**3.5) * dd
+        
+        d3p = -2 * term1 - term2
+        third_derivative = 2 * d3p / (self.S_opt**3)
+        # third_derivative = third_derivative / (self.zi**3)
+        return third_derivative.flatten()
 
-    # alternative way without transformation
-    # def _optimize_all_parameters(self):
-    #     """Optimize S, LB, and UB simultaneously with preference for smaller values."""
-    #     # Parameter bounds for optimization (direct bounds without transformation)
-    #     S_MIN, S_MAX = 0.05, 100.0
-    #     LB_MIN, LB_MAX = np.finfo(float).eps, np.exp(-1.00001)
-    #     UB_MIN, UB_MAX = np.exp(1.00001), np.finfo(float).max
-    
-    #     def loss_function(params):
-    #         s, lb, ub = params
-    #         try:
-    #             # Ensure valid parameter ranges
-    #             if s <= 0 or lb <= 0 or ub <= lb:
-    #                 return 1e6
-                    
-    #             egdf_values = self._compute_egdf(s, lb, ub)
-                
-    #             # Primary loss: difference between EGDF and target values
-    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                
-    #             # Regularization terms to prefer smaller values
-    #             # Scale regularization based on parameter ranges
-    #             s_reg = 0.01 * (s - S_MIN) / (S_MAX - S_MIN)  # Prefer smaller S
-    #             lb_reg = 0.001 * np.abs(lb) / LB_MAX  # Prefer smaller |LB|
-    #             ub_reg = 0.001 * (ub - UB_MIN) / (UB_MAX - UB_MIN)  # Prefer smaller UB
-                
-    #             total_loss = diff + s_reg + lb_reg + ub_reg
-                
-    #             print(f"Loss: {diff:.6f}, S_reg: {s_reg:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
-    #             return total_loss
-                
-    #         except Exception as e:
-    #             print(f"Error in loss function: {e}")
-    #             return 1e6
+    def _get_egdf_fourth_derivative(self):
+        """Calculate fourth derivative of EGDF using numerical differentiation."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
         
-    #     # Initial values - start with smaller values
-    #     s_init = 0.1  # Start with smaller S
-    #     lb_init = self.LB if self.LB is not None else LB_MIN * 2
-    #     ub_init = self.UB if self.UB is not None else UB_MIN * 2
-    
-    #     # Ensure initial values are within bounds
-    #     s_init = np.clip(s_init, S_MIN, S_MAX)
-    #     lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
-    #     ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
+        # For fourth derivative, use numerical differentiation as it's complex
+        dz = 1e-7
         
-    #     # Ensure lb < ub
-    #     if lb_init >= ub_init:
-    #         lb_init = LB_MIN * 2
-    #         ub_init = UB_MIN * 2
+        # Get third derivatives at slightly shifted points
+        zi_plus = self.zi + dz
+        zi_minus = self.zi - dz
         
-    #     initial_params = [s_init, lb_init, ub_init]
+        # Store original zi
+        original_zi = self.zi.copy()
         
-    #     # Direct optimization bounds
-    #     opt_bounds = [(S_MIN, S_MAX), (LB_MIN, LB_MAX), (UB_MIN, UB_MAX)]
+        # Calculate third derivative at zi + dz
+        self.zi = zi_plus
+        self._calculate_fidelities_irrelevances()
+        third_plus = self._get_egdf_third_derivative()
         
-    #     try:
-    #         result = minimize(loss_function, 
-    #                           initial_params, 
-    #                           method=self.opt_method, 
-    #                           bounds=opt_bounds,
-    #                           options={'maxiter': 1000, 'ftol': self.tolerance}, 
-    #                           tol=self.tolerance)
-            
-    #         s_opt_final, lb_opt_final, ub_opt_final = result.x
-            
-    #         # Validate final results
-    #         if lb_opt_final >= ub_opt_final:
-    #             print("Warning: Optimized LB >= UB, using initial values")
-    #             return s_init, lb_init, ub_init
-                
-    #         return s_opt_final, lb_opt_final, ub_opt_final
-            
-    #     except Exception as e:
-    #         print(f"Optimization failed: {e}")
-    #         return s_init, lb_init, ub_init
+        # Calculate third derivative at zi - dz  
+        self.zi = zi_minus
+        self._calculate_fidelities_irrelevances()
+        third_minus = self._get_egdf_third_derivative()
+        
+        # Restore original zi and recalculate fi, hi
+        self.zi = original_zi
+        self._calculate_fidelities_irrelevances()
+        
+        # Numerical derivative
+        fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
+        
+        return fourth_derivative.flatten()
 
-        #11
-    # def _optimize_bounds_only(self, s):
-    #     """Optimize only LB and UB for given S."""
-    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
-    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+    def _calculate_fidelities_irrelevances(self):
+        """Helper method to recalculate fidelities and irrelevances for current zi."""
+        # Convert to infinite domain
+        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        zi_d = self.zi
+        
+        # Calculate R matrix
+        eps = np.finfo(float).eps
+        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
 
-    #     def transform_bounds_to_opt_space(lb, ub):
-    #         lb_mz = DataConversion._convert_mz(lb, LB_MIN, LB_MAX)
-    #         ub_mz = DataConversion._convert_mz(ub, UB_MIN, UB_MAX)
-    #         return np.log(lb_mz), np.log(ub_mz)
+        # Get characteristics
+        gc = GnosticsCharacteristics(R=R)
+        q, q1 = gc._get_q_q1(S=self.S_opt)
         
-    #     def transform_bounds_from_opt_space(lb_opt, ub_opt):
-    #         lb_mz = np.exp(lb_opt)
-    #         ub_mz = np.exp(ub_opt)
-    #         lb = DataConversion._convert_zm(lb_mz, LB_MIN, LB_MAX)
-    #         ub = DataConversion._convert_zm(ub_mz, UB_MIN, UB_MAX)
-    #         return lb, ub
-        
-    #     def loss_function(opt_params):
-    #         lb_opt, ub_opt = opt_params
-    #         try:
-    #             lb, ub = transform_bounds_from_opt_space(lb_opt, ub_opt)
-    #             egdf_values = self._compute_egdf(s, lb, ub)
-    #             # # fidelity
-    #             # R_ = egdf_values / (self.df_values + 1e-10)
-    #             # gc = GnosticsCharacteristics(R=R_)
-    #             # q, q1 = gc._get_q_q1(S=s)
-    #             # fi = np.mean(gc._fi(q=q, q1=q1))
-    #             # print(f"Fidelity: {fi}, S: {s}, LB: {lb}, UB: {ub}")  # Debugging output
-    #             # return -fi
-    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
-    #             return diff
-    #         except Exception:
-    #             return 1e6
-        
-    #     lb_opt_init, ub_opt_init = transform_bounds_to_opt_space(self.LB, self.UB)
-    #     initial_params = [
-    #         np.clip(lb_opt_init, -1.0, 1.0),
-    #         np.clip(ub_opt_init, -1.0, 1.0)
-    #     ]
-        
-    #     try:
-    #         result = minimize(loss_function, initial_params, method=self.opt_method,
-    #                         bounds=[(-1.0, 1.0), (-1.0, 1.0)], options={'maxiter': 1000})
-    #         lb_opt_final, ub_opt_final = result.x
-    #         lb_final, ub_final = transform_bounds_from_opt_space(lb_opt_final, ub_opt_final)
-    #         return s, lb_final, ub_final
-    #     except Exception:
-    #         return s, self.LB, self.UB
+        # Store fidelities and irrelevances
+        self.fi = gc._fi(q=q, q1=q1)
+        self.hi = gc._hi(q=q, q1=q1)
 
-    # def _optimize_bounds_only(self, s):
-    #     """Optimize only LB and UB for given S without bound transformation."""
-    #     # Parameter bounds for optimization (direct bounds without transformation)
-    #     LB_MIN, LB_MAX = 1e-10, np.exp(-1.00001)
-    #     UB_MIN, UB_MAX = np.exp(1.00001), 1e10
+    # ...existing code (rest remains the same)...
+    def _egdf_marginal_analysis(self):
+        """Estimate all derivatives of EGDF."""
+        # Calculate all EGDF derivatives
+        self.egdf_first_derivative = self._get_egdf_first_derivative()   # This is PDF
+        self.egdf_second_derivative = self._get_egdf_second_derivative()
+        self.egdf_third_derivative = self._get_egdf_third_derivative()
+        self.egdf_fourth_derivative = self._get_egdf_fourth_derivative()
         
-    #     def loss_function(params):
-    #         lb, ub = params
-    #         try:
-    #             # Ensure valid parameter ranges
-    #             if lb <= 0 or ub <= lb:
-    #                 return 1e6
-                    
-    #             egdf_values = self._compute_egdf(s, lb, ub)
-    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-    #             print(f"Optimization difference: {diff}, S: {s}, LB: {lb}, UB: {ub}")
-    #             return diff
-    #         except Exception as e:
-    #             print(f"Error in loss function: {e}")
-    #             return 1e6
+        # Store in params if catch is enabled
+        if self.catch:
+            self.params.update({
+                'egdf_first_derivative': self.egdf_first_derivative,   # This is PDF
+                'egdf_second_derivative': self.egdf_second_derivative,
+                'egdf_third_derivative': self.egdf_third_derivative,
+                'egdf_fourth_derivative': self.egdf_fourth_derivative,
+            })
+
+    def _plot_derivatives(self, derivatives: list = [1, 2, 3], normalize: bool = False):
+        """
+        Plot derivatives of EGDF.
         
-    #     # Initial values
-    #     lb_init = self.LB if self.LB is not None else LB_MIN * 10
-    #     ub_init = self.UB if self.UB is not None else UB_MIN * 10
+        Parameters:
+        -----------
+        derivatives : list, default [1, 2, 3]
+            Which derivatives to plot: [1, 2, 3, 4]
+            Note: 1st derivative is the PDF
+        normalize : bool, default False
+            Whether to normalize derivatives for better visualization
+        """
+        # Calculate derivatives
+        self._egdf_marginal_analysis()
+
+        import matplotlib.pyplot as plt
         
-    #     # Ensure initial values are within bounds
-    #     lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
-    #     ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
+        if not self.catch:
+            print("Plot is not available with argument catch=False")
+            return
         
-    #     # Ensure lb < ub
-    #     if lb_init >= ub_init:
-    #         lb_init = LB_MIN * 10
-    #         ub_init = UB_MIN * 10
+        # Validate derivatives parameter
+        if not all(d in [1, 2, 3, 4] for d in derivatives):
+            raise ValueError("derivatives must contain values from [1, 2, 3, 4]")
         
-    #     initial_params = [lb_init, ub_init]
+        fig, ax = plt.subplots(figsize=(12, 8))
         
-    #     # Direct optimization bounds
-    #     opt_bounds = [(LB_MIN, LB_MAX), (UB_MIN, UB_MAX)]
+        x_points = self.data
+        colors = ['blue', 'green', 'red', 'purple']
+        line_styles = ['-', '--', '-.', ':']
         
-    #     try:
-    #         result = minimize(loss_function, 
-    #                         initial_params, 
-    #                         method=self.opt_method,
-    #                         bounds=opt_bounds,
-    #                         options={'maxiter': 1000, 'ftol': self.tolerance}, 
-    #                         tol=self.tolerance)
-            
-    #         lb_opt_final, ub_opt_final = result.x
-            
-    #         # Validate final results
-    #         if lb_opt_final >= ub_opt_final:
-    #             print("Warning: Optimized LB >= UB, using initial values")
-    #             return s, lb_init, ub_init
+        # Map derivatives to data and labels
+        derivative_data = {
+            1: (self.egdf_first_derivative, 'EGDF 1st Derivative (PDF)'),
+            2: (self.egdf_second_derivative, 'EGDF 2nd Derivative'),
+            3: (self.egdf_third_derivative, 'EGDF 3rd Derivative'),
+            4: (self.egdf_fourth_derivative, 'EGDF 4th Derivative')
+        }
+        
+        # Plot requested derivatives
+        for i, deriv_order in enumerate(derivatives):
+            if deriv_order in derivative_data:
+                data, label = derivative_data[deriv_order]
                 
-    #         return s, lb_opt_final, ub_opt_final
-            
-    #     except Exception as e:
-    #         print(f"Optimization failed: {e}")
-    #         return s, self.LB, self.UB
+                # Normalize if requested
+                if normalize and len(data) > 0:
+                    data_max = np.max(np.abs(data))
+                    if data_max > 0:
+                        data = data / data_max
+                        label += ' (normalized)'
+                
+                ax.plot(x_points, data, 
+                        label=label, 
+                        color=colors[i % len(colors)], 
+                        linestyle=line_styles[i % len(line_styles)],
+                        linewidth=2,
+                        alpha=0.8)
+        
+        ax.set_xlabel('Data Points')
+        ax.set_ylabel('Derivative Values' + (' (normalized)' if normalize else ''))
+        ax.set_title(f'EGDF Derivatives: {derivatives}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add zero line for reference
+        ax.axhline(y=0, color='black', linestyle=':', alpha=0.5)
+        
+        fig.tight_layout()
+        plt.show()
