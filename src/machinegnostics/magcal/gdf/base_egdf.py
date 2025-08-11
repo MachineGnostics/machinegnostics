@@ -8,7 +8,7 @@ Machine Gnostics
 
 import numpy as np
 import warnings
-from scipy.optimize import minimize
+from scipy.optimize import minimize, minimize_scalar
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
@@ -17,29 +17,48 @@ from machinegnostics.magcal.mg_weights import GnosticsWeights
 
 
 class BaseEGDF(BaseDistFunc):
-    '''
+    """
     Base class for EGDF (Estimating Global Distribution Function).
     
-    '''
+    This class provides a comprehensive framework for estimating global distribution
+    functions with optimization capabilities and derivative analysis.
+    """
+    
+    # Class constants for optimization bounds
+    _OPTIMIZATION_BOUNDS = {
+        'S_MIN': 0.05, 'S_MAX': 100.0,
+        'LB_MIN': 1e-6, 'LB_MAX': np.exp(-1.000001),
+        'UB_MIN': np.exp(1.000001), 'UB_MAX': 1e6,
+        'Z0_SEARCH_FACTOR': 0.1  # For Z0 search range
+    }
+    
+    # Numerical constants
+    _NUMERICAL_EPS = np.finfo(float).eps
+    _NUMERICAL_MAX = 1e6
+    _DERIVATIVE_TOLERANCE = 1e-6
+    # _Z0_OPTIMIZATION_TOLERANCE = 1e-8
+
     def __init__(self,
-                data: np.ndarray,
-                DLB: float = None,
-                DUB: float = None,
-                LB: float = None,
-                UB: float = None,
-                S = 'auto',
-                tolerance: float = 1e-3,
-                data_form: str = 'a',
-                n_points: int = 500,
-                homogeneous: bool = True,
-                catch: bool = True,
-                weights: np.ndarray = None,
-                wedf: bool = True,
-                opt_method: str = 'L-BFGS-B',
-                verbose: bool = False,
-                max_data_size: int = 100):
-        """Initialize the EGDF class."""
+                 data: np.ndarray,
+                 DLB: float = None,
+                 DUB: float = None,
+                 LB: float = None,
+                 UB: float = None,
+                 S = 'auto',
+                 tolerance: float = 1e-3,
+                 data_form: str = 'a',
+                 n_points: int = 500,
+                 homogeneous: bool = True,
+                 catch: bool = True,
+                 weights: np.ndarray = None,
+                 wedf: bool = True,
+                 opt_method: str = 'L-BFGS-B',
+                 verbose: bool = False,
+                 max_data_size: int = 1000,
+                 flush: bool = True):
+        """Initialize the EGDF class with comprehensive validation."""
         
+        # Store raw inputs
         self.data = data
         self.DLB = DLB
         self.DUB = DUB
@@ -56,30 +75,56 @@ class BaseEGDF(BaseDistFunc):
         self.opt_method = opt_method
         self.verbose = verbose
         self.max_data_size = max_data_size
+        self.flush = flush
+        
+        # Initialize state variables
         self.params = {}
-
-        # Validation
+        self._fitted = False
+        self._derivatives_calculated = False
+        self._marginal_analysis_done = False
+        
+        # Initialize computation cache
+        self._computation_cache = {
+            'data_converter': None,
+            'characteristics_computer': None,
+            'weights_normalized': None,
+            'smooth_curves_generated': False
+        }
+        
+        # Validate all inputs
         self._validate_inputs()
-
-        # Store parameters
+        
+        # Store initial parameters if catching
         if self.catch:
             self._store_initial_params()
 
-    #1
+    # =============================================================================
+    # VALIDATION AND INITIALIZATION
+    # =============================================================================
+    
     def _validate_inputs(self):
-        """Validate input arguments."""
+        """Comprehensive input validation."""
+        # Data validation
         if not isinstance(self.data, np.ndarray):
             raise ValueError("Data must be a numpy array.")
+        if self.data.size == 0:
+            raise ValueError("Data array cannot be empty.")
+        if not np.isfinite(self.data).all():
+            raise ValueError("Data must contain only finite values.")
         
+        # Bounds validation
         for bound, name in [(self.DLB, 'DLB'), (self.DUB, 'DUB'), (self.LB, 'LB'), (self.UB, 'UB')]:
-            if bound is not None and not isinstance(bound, (int, float)):
-                raise ValueError(f"{name} must be a numeric value or None.")
+            if bound is not None and (not isinstance(bound, (int, float)) or not np.isfinite(bound)):
+                raise ValueError(f"{name} must be a finite numeric value or None.")
         
+        # Parameter validation
         if not isinstance(self.S, (int, float, str)):
             raise ValueError("S must be a numeric positive value or 'auto'.")
+        if isinstance(self.S, (int, float)) and self.S <= 0:
+            raise ValueError("S must be positive when specified as a number.")
         
-        if not isinstance(self.tolerance, (int, float)):
-            raise ValueError("Tolerance must be a numeric value.")
+        if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
+            raise ValueError("Tolerance must be a positive numeric value.")
         
         if self.data_form not in ['a', 'm']:
             raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
@@ -87,33 +132,34 @@ class BaseEGDF(BaseDistFunc):
         if not isinstance(self.n_points, int) or self.n_points <= 0:
             raise ValueError("n_points must be a positive integer.")
         
-        if not isinstance(self.homogeneous, bool):
-            raise ValueError("homogeneous must be a boolean value.")
-        
-        if not isinstance(self.catch, bool):
-            raise ValueError("catch must be a boolean value.")
-
+        # Weights validation
         if self.weights is not None:
             if not isinstance(self.weights, np.ndarray):
                 raise ValueError("weights must be a numpy array.")
             if len(self.weights) != len(self.data):
                 raise ValueError("Weights must have the same length as data.")
+            if not np.all(self.weights >= 0):
+                raise ValueError("All weights must be non-negative.")
         
-        if not isinstance(self.wedf, bool):
-            raise ValueError("wedf must be a boolean value.")
-        
-        if self.opt_method not in ['L-BFGS-B', 'Nelder-Mead', 'Powell']:
-            raise ValueError("opt_method must be one of 'L-BFGS-B', 'Nelder-Mead', or 'Powell'. OR a appropriate method from scipy.optimize.minimize")
+        # flush parameter validation
+        if not isinstance(self.flush, bool):
+            raise ValueError("flush must be a boolean value.")
+        # if length of data exceeds max_data_size, set flush to True
+        if len(self.data) > self.max_data_size and not self.flush:
+            warnings.warn(f"Data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). "
+                          "For optimal compute performance, set 'flush=True' or increase 'max_data_size'.")
+            self.flush = True
 
-        if not isinstance(self.verbose, bool):
-            raise ValueError("verbose must be a boolean value.")
-        
+        # Boolean parameters
+        for param, name in [(self.homogeneous, 'homogeneous'), (self.catch, 'catch'), 
+                           (self.wedf, 'wedf'), (self.verbose, 'verbose')]:
+            if not isinstance(param, bool):
+                raise ValueError(f"{name} must be a boolean value.")
 
-    #2
     def _store_initial_params(self):
-        """Store initial parameters if catch is True."""
+        """Store initial parameters for reference."""
         self.params.update({
-            'data': self.data,
+            'data': self.data.copy(),
             'DLB': self.DLB,
             'DUB': self.DUB,
             'LB': self.LB,
@@ -123,399 +169,186 @@ class BaseEGDF(BaseDistFunc):
             'data_form': self.data_form,
             'n_points': self.n_points,
             'homogeneous': self.homogeneous,
-            'weights': self.weights
+            'weights': self.weights.copy() if self.weights is not None else None
         })
 
-    #3
-    def _estimate_weights(self):
-        """Estimate weights for the EGDF."""
-        if self.weights is None:
-            self.weights = np.ones_like(self.data)
-        else:
-            self.weights = np.asarray(self.weights)
-            if len(self.weights) != len(self.data):
-                raise ValueError("weights must have the same length as data")
-        
-        # Normalize weights to sum to n (number of data points)
-        self.weights = self.weights / np.sum(self.weights) * len(self.weights)
+    # =============================================================================
+    # DATA PREPROCESSING AND TRANSFORMATION
+    # =============================================================================
+    
+    def _get_data_converter(self):
+        """Get or create cached data converter."""
+        if self._computation_cache['data_converter'] is None:
+            self._computation_cache['data_converter'] = DataConversion()
+        return self._computation_cache['data_converter']
 
-        # Apply homogenization if needed
-        if not self.homogeneous:
-            gw = GnosticsWeights()
-            self.gweights = gw._get_gnostic_weights(self.z)
-            self.weights = self.gweights * self.weights
-        else:
-            self.weights = self.weights
-
-        if self.catch:
-            self.params['weights'] = self.weights
-
-    #4
     def _estimate_data_bounds(self):
-        """Estimate data bounds (DLB and DUB)."""
+        """Estimate data bounds (DLB and DUB) if not provided."""
         if self.DLB is None:
             self.DLB = np.min(self.data)
         if self.DUB is None:
             self.DUB = np.max(self.data)
         
+        # Validate bounds
+        if self.DLB >= self.DUB:
+            raise ValueError("DLB must be less than DUB.")
+        
         if self.catch:
-            self.params['DLB'] = self.DLB
-            self.params['DUB'] = self.DUB
+            self.params.update({'DLB': self.DLB, 'DUB': self.DUB})
 
-    #5
-    def _initial_probable_bounds_estimate(self):
-        """Estimate initial probable bounds (LB and UB)."""
-        # Only estimate LB if it's not provided
-        if self.LB is None:
-            if self.data_form == 'a':
-                pad = (self.DUB - self.DLB) / 2
-                lb_raw = self.DLB - pad
-                self.LB_init = DataConversion._convert_az(lb_raw, self.DLB, self.DUB)
-            elif self.data_form == 'm':
-                lb_raw = self.DLB / np.sqrt(self.DUB / self.DLB)
-                self.LB_init = DataConversion._convert_mz(lb_raw, self.DLB, self.DUB)
+    def _estimate_weights(self):
+        """Process and normalize weights."""
+        if self.weights is None:
+            self.weights = np.ones_like(self.data, dtype=float)
         else:
-            # Convert provided LB to appropriate form
-            if self.data_form == 'a':
-                self.LB_init = DataConversion._convert_az(self.LB, self.DLB, self.DUB)
-            else:
-                self.LB_init = DataConversion._convert_mz(self.LB, self.DLB, self.DUB)
-
-        # Only estimate UB if it's not provided
-        if self.UB is None:
-            if self.data_form == 'a':
-                pad = (self.DUB - self.DLB) / 2
-                ub_raw = self.DUB + pad
-                self.UB_init = DataConversion._convert_az(ub_raw, self.DLB, self.DUB)
-            elif self.data_form == 'm':
-                ub_raw = self.DUB * np.sqrt(self.DUB / self.DLB)
-                self.UB_init = DataConversion._convert_mz(ub_raw, self.DLB, self.DUB)
+            self.weights = np.asarray(self.weights, dtype=float)
+        
+        # Normalize weights to sum to n (number of data points)
+        weight_sum = np.sum(self.weights)
+        if weight_sum > 0:
+            self.weights = self.weights / weight_sum * len(self.weights)
         else:
-            # Convert provided UB to appropriate form
-            if self.data_form == 'a':
-                self.UB_init = DataConversion._convert_az(self.UB, self.DLB, self.DUB)
-            else:
-                self.UB_init = DataConversion._convert_mz(self.UB, self.DLB, self.DUB)
-
+            raise ValueError("Sum of weights must be positive.")
+        
+        # Apply gnostic weights for non-homogeneous data
+        if not self.homogeneous:
+            gw = GnosticsWeights()
+            self.gweights = gw._get_gnostic_weights(self.z)
+            self.weights = self.gweights * self.weights
+        
+        # Cache normalized weights
+        self._computation_cache['weights_normalized'] = self.weights.copy()
+        
         if self.catch:
-            self.params['LB_init'] = self.LB_init
-            self.params['UB_init'] = self.UB_init
+            self.params['weights'] = self.weights.copy()
 
-    #6
-    def _transform_input(self, smooth=False):
-        """Transform input data to standard domain."""
-        dc = DataConversion()
-
+    def _transform_data_to_standard_domain(self):
+        """Transform data to standard z-domain."""
+        dc = self._get_data_converter()
+        
         if self.data_form == 'a':
             self.z = dc._convert_az(self.data, self.DLB, self.DUB)
         elif self.data_form == 'm':
             self.z = dc._convert_mz(self.data, self.DLB, self.DUB)
-
-        # # Apply homogenization if needed
-        # if not self.homogeneous:
-        #     gw = GnosticsWeights()
-        #     self.gweights = gw._get_gnostic_weights(self.z)
-        #     self.sample = self.z * self.gweights * self.weights
-        # else:
-        #     self.sample = self.z * self.weights
-
         
-        # Generate smooth points in data domain
+        if self.catch:
+            self.params['z'] = self.z.copy()
+
+    def _generate_evaluation_points(self):
+        """Generate points for smooth evaluation."""
         self.di_points_n = np.linspace(self.DLB, self.DUB, self.n_points)
         
-        # Transform to z domain
-        dc = DataConversion()
+        dc = self._get_data_converter()
         if self.data_form == 'a':
             self.z_points_n = dc._convert_az(self.di_points_n, self.DLB, self.DUB)
         else:
             self.z_points_n = dc._convert_mz(self.di_points_n, self.DLB, self.DUB)
+        
+        if self.catch:
+            self.params.update({
+                'z_points': self.z_points_n.copy(),
+                'di_points': self.di_points_n.copy()
+            })
 
-        # sample
-        if smooth:
-            self.sample = self.z_points_n
+    # =============================================================================
+    # BOUNDS ESTIMATION
+    # =============================================================================
+    
+    def _estimate_initial_probable_bounds(self):
+        """Estimate initial probable bounds (LB and UB)."""
+        dc = self._get_data_converter()
+        
+        # Estimate LB if not provided
+        if self.LB is None:
+            if self.data_form == 'a':
+                pad = (self.DUB - self.DLB) / 2
+                lb_raw = self.DLB - pad
+                self.LB_init = dc._convert_az(lb_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                lb_raw = self.DLB / np.sqrt(self.DUB / self.DLB)
+                self.LB_init = dc._convert_mz(lb_raw, self.DLB, self.DUB)
         else:
-            self.sample = self.z
+            if self.data_form == 'a':
+                self.LB_init = dc._convert_az(self.LB, self.DLB, self.DUB)
+            else:
+                self.LB_init = dc._convert_mz(self.LB, self.DLB, self.DUB)
+
+        # Estimate UB if not provided
+        if self.UB is None:
+            if self.data_form == 'a':
+                pad = (self.DUB - self.DLB) / 2
+                ub_raw = self.DUB + pad
+                self.UB_init = dc._convert_az(ub_raw, self.DLB, self.DUB)
+            elif self.data_form == 'm':
+                ub_raw = self.DUB * np.sqrt(self.DUB / self.DLB)
+                self.UB_init = dc._convert_mz(ub_raw, self.DLB, self.DUB)
+        else:
+            if self.data_form == 'a':
+                self.UB_init = dc._convert_az(self.UB, self.DLB, self.DUB)
+            else:
+                self.UB_init = dc._convert_mz(self.UB, self.DLB, self.DUB)
 
         if self.catch:
-            self.params.update({'z': self.z, 'sample': self.sample})
-            self.params['z_points'] = self.z_points_n
-            self.params['di_points'] = self.di_points_n
+            self.params.update({'LB_init': self.LB_init, 'UB_init': self.UB_init})
 
-    #7
-    def _get_df(self, smooth=False, wedf: bool = True):
-        """
-        Get WEDF values for optimization.
-        Weighted Emperical Distribution Function (WEDF) is used to optimize the EGDF.
-        """
-        if wedf:
+    # =============================================================================
+    # DISTRIBUTION FUNCTION COMPUTATION
+    # =============================================================================
+    
+    def _get_distribution_function_values(self, use_wedf=True, smooth=False):
+        """Get WEDF or KS points for optimization."""
+        if use_wedf:
             wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
             if smooth:
                 df_values = wedf_.fit(self.di_points_n)
             else:
                 df_values = wedf_.fit(self.data)
-    
+            
             if self.catch:
-                self.params['wedf'] = df_values
+                self.params['wedf'] = df_values.copy()
             
             if self.verbose:
                 print("WEDF values computed.")
             return df_values
         else:
-            # FIX: Swap the logic - use len(data) for non-smooth, n_points for smooth
-            if smooth:
-                df_values = self._get_ks_points(self.n_points)
-            else:
-                df_values = self._get_ks_points(len(self.data))
-    
+            n_points = self.n_points if smooth else len(self.data)
+            df_values = self._generate_ks_points(n_points)
+            
             if self.catch:
-                self.params['ksdf'] = df_values
-
+                self.params['ksdf'] = df_values.copy()
+            
             if self.verbose:
-                print("KSD values computed.")
+                print("KS points computed.")
             return df_values
-    
-    #8
-    def _optimize_parameters(self):
-        """Optimize S, LB, UB based on what's provided."""
-        # Case 1: S='auto' and LB/UB are None - optimize all parameters
-        if (isinstance(self.S, str) and self.S.lower() == 'auto') and self.LB is None and self.UB is None:
-            if self.verbose:
-                print("Optimizing all parameters: S, LB, UB.")
-            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()          
 
-        # Case 2: LB and UB provided, S='auto' - optimize only S
-        elif (self.LB is not None and self.UB is not None and 
-              isinstance(self.S, str) and self.S.lower() == 'auto'):
-            if self.verbose:
-                print(f"Optimizing S with provided LB: {self.LB_opt}, UB: {self.UB_opt}.")
+    def _generate_ks_points(self, N):
+        """Generate Kolmogorov-Smirnov points."""
+        if N <= 0:
+            raise ValueError("N must be a positive integer.")
+        
+        n = np.arange(1, N + 1)
+        ks_points = (2 * n - 1) / (2 * N)
+        
+        if self.catch:
+            self.params['ks_points'] = ks_points.copy()
+        
+        return ks_points
 
-            self.LB_opt = self.LB
-            self.UB_opt = self.UB
-            self.S_opt = self._optimize_s_only(self.LB_opt, self.UB_opt)
+    def _compute_egdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
+        """Core EGDF computation with caching."""
+        # Use provided data or default to instance data
+        if zi_data is None:
+            zi_data = self.z
+        if zi_eval is None:
+            zi_eval = zi_data
         
-        # Case 3: S provided, LB/UB not provided - optimize LB, UB
-        elif (not isinstance(self.S, str) and 
-              (self.LB is None or self.UB is None)):
-            if self.verbose:
-                print(f"Optimizing bounds with provided S: {self.S}.")
-
-            self.S_opt = self.S
-            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_bounds_only(self.S_opt)
-        
-        # Case 4: All parameters provided - use as is
-        else:
-            self.S_opt = self.S if not isinstance(self.S, str) else 1.0
-            self.LB_opt = self.LB
-            self.UB_opt = self.UB
-            if self.verbose:
-                print(f"Using provided parameters: S: {self.S_opt}, LB: {self.LB_opt}, UB: {self.UB_opt}.")
-
-    #9
-    # with custom log transformation
-    def _optimize_all_parameters(self):
-        """Optimize with normalized parameter space [0,1] for each parameter."""
-        # Parameter bounds for optimization
-        S_MIN, S_MAX = 0.05, 100.0
-        LB_MIN, LB_MAX = 1e-6, np.exp(-1.00001)
-        UB_MIN, UB_MAX = np.exp(1.00001), 1e6
-        
-        def normalize_params(s, lb, ub):
-            """Normalize parameters to [0,1] space."""
-            s_norm = (s - S_MIN) / (S_MAX - S_MIN)
-            lb_norm = (lb - LB_MIN) / (LB_MAX - LB_MIN)
-            ub_norm = (ub - UB_MIN) / (UB_MAX - UB_MIN)
-            return s_norm, lb_norm, ub_norm
-        
-        def denormalize_params(s_norm, lb_norm, ub_norm):
-            """Denormalize parameters from [0,1] space."""
-            s = S_MIN + s_norm * (S_MAX - S_MIN)
-            lb = LB_MIN + lb_norm * (LB_MAX - LB_MIN)
-            ub = UB_MIN + ub_norm * (UB_MAX - UB_MIN)
-            return s, lb, ub
-        
-        def loss_function(norm_params):
-            s_norm, lb_norm, ub_norm = norm_params
-            try:
-                s, lb, ub = denormalize_params(s_norm, lb_norm, ub_norm)
-                
-                # Ensure valid parameter ranges
-                if s <= 0 or ub <= lb:
-                    return 1e6
-                    
-                egdf_values = self._compute_egdf(s, lb, ub)
-                
-                # Primary loss
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                
-                # Regularization in normalized space (prefer smaller normalized values)
-                s_reg = s_norm**2  # Prefer smaller S
-                lb_reg = (lb_norm)**2 # Prefer smaller |LB|
-                ub_reg = (ub_norm)**2  # Prefer smaller UB
-
-                total_loss = diff + s_reg + lb_reg + ub_reg
-                
-                if self.verbose:
-                    # Print detailed loss information
-                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.3f}, UB: {ub:.3f}")
-                return total_loss
-                
-            except Exception as e:
-                return 1e6
-
-        # Initial values (normalized)
-        s_init = 0.1  # Default S value
-        lb_init = self.LB_init if self.LB_init is not None else LB_MIN
-        ub_init = self.UB_init if self.UB_init is not None else UB_MAX
-
-        s_norm_init, lb_norm_init, ub_norm_init = normalize_params(s_init, lb_init, ub_init)
-        initial_params = [s_norm_init, lb_norm_init, ub_norm_init]
-        
-        # All bounds are [0, 1] in normalized space
-        norm_bounds = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)]
-
-        try:
-            result = minimize(loss_function, 
-                              initial_params, 
-                              method=self.opt_method, 
-                              bounds=norm_bounds,
-                              options={'maxiter': 10000, 'ftol': self.tolerance}, 
-                              tol=self.tolerance)
-            
-            s_opt, lb_opt, ub_opt = denormalize_params(*result.x)
-            
-            if lb_opt >= ub_opt:
-                print("Warning: Optimized LB >= UB, using initial values")
-                return s_init, lb_init, ub_init
-                
-            return s_opt, lb_opt, ub_opt
-            
-        except Exception as e:
-            print(f"Optimization failed: {e}")
-            return s_init, lb_init, ub_init
-            
-
-    #10
-    def _optimize_s_only(self, lb, ub):
-        """Optimize only S parameter for given LB and UB."""
-        def loss_function(s):
-            try:
-                egdf_values = self._compute_egdf(s[0], lb, ub)
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                if self.verbose:
-                    # Print detailed loss information
-                    print(f"Loss: {diff:.6f}, S: {s[0]:.3f}, LB: {lb:.3f}, UB: {ub:.3f}")
-                return diff
-            except Exception:
-                return 1e6
-        
-        try:
-            result = minimize(loss_function, [1.0], bounds=[(0.05, 100.0)],
-                            method=self.opt_method, options={'maxiter': 1000})
-            return result.x[0]
-        except Exception:
-            return 1.0
-
-
-    #11
-    def _optimize_bounds_only(self, s):
-        """Optimize only LB and UB for given S with normalized parameter space [0,1]."""
-        # Parameter bounds for optimization
-        LB_MIN, LB_MAX = 1e-6, np.exp(-1.00001)
-        UB_MIN, UB_MAX = np.exp(1.00001), 1e6
-        
-        def normalize_bounds(lb, ub):
-            """Normalize LB and UB to [0,1] space."""
-            lb_norm = (lb - LB_MIN) / (LB_MAX - LB_MIN)
-            ub_norm = (ub - UB_MIN) / (UB_MAX - UB_MIN)
-            return lb_norm, ub_norm
-        
-        def denormalize_bounds(lb_norm, ub_norm):
-            """Denormalize LB and UB from [0,1] space."""
-            lb = LB_MIN + lb_norm * (LB_MAX - LB_MIN)
-            ub = UB_MIN + ub_norm * (UB_MAX - UB_MIN)
-            return lb, ub
-        
-        def loss_function(norm_params):
-            lb_norm, ub_norm = norm_params
-            try:
-                lb, ub = denormalize_bounds(lb_norm, ub_norm)
-                
-                # Ensure valid parameter ranges
-                if lb <= 0 or ub <= lb:
-                    return 1e6
-                    
-                egdf_values = self._compute_egdf(s, lb, ub)
-                
-                # Primary loss
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                
-                # Regularization in normalized space (prefer smaller normalized values)
-                lb_reg = lb_norm**2  # Prefer smaller |LB|
-                ub_reg = ub_norm**2  # Prefer smaller UB
-
-                total_loss = diff + lb_reg + ub_reg
-                
-                if self.verbose:
-                    # Print detailed loss information
-                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
-                return total_loss
-                
-            except Exception as e:
-                print(f"Error in loss function: {e}")
-                return 1e6
-        
-        # Initial values
-        lb_init = self.LB_init if self.LB_init is not None else LB_MIN
-        ub_init = self.UB_init if self.UB_init is not None else UB_MIN
-
-        # Ensure initial values are within bounds
-        lb_init = np.clip(lb_init, LB_MIN, LB_MAX)
-        ub_init = np.clip(ub_init, UB_MIN, UB_MAX)
-        
-        # Ensure lb < ub
-        if lb_init >= ub_init:
-            lb_init = LB_MIN / 10
-            ub_init = UB_MIN * 10
-        
-        # Normalize initial values
-        lb_norm_init, ub_norm_init = normalize_bounds(lb_init, ub_init)
-        initial_params = [lb_norm_init, ub_norm_init]
-        
-        # All bounds are [0, 1] in normalized space
-        norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
-        
-        try:
-            result = minimize(loss_function, 
-                              initial_params, 
-                              method=self.opt_method,
-                              bounds=norm_bounds,
-                              options={'maxiter': 10000, 'ftol': self.tolerance}, 
-                              tol=self.tolerance)
-            
-            lb_opt, ub_opt = denormalize_bounds(*result.x)
-            
-            # Validate final results
-            if lb_opt >= ub_opt:
-                print("Warning: Optimized LB >= UB, using initial values")
-                return s, lb_init, ub_init
-                
-            return s, lb_opt, ub_opt
-            
-        except Exception as e:
-            print(f"Optimization failed: {e}")
-            return s, self.LB, self.UB
-        
-    #12
-    def _compute_egdf(self, S, LB, UB):
-        """Core EGDF computation logic."""
         # Convert to infinite domain
-        zi_n = DataConversion._convert_fininf(self.z, LB, UB)
-        zi_d = DataConversion._convert_fininf(self.sample, LB, UB)
+        zi_n = DataConversion._convert_fininf(zi_eval, LB, UB)
+        zi_d = DataConversion._convert_fininf(zi_data, LB, UB)
         
-        # Calculate R matrix
-        eps = np.finfo(float).eps
-        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
-
+        # Calculate R matrix with numerical stability
+        R = zi_n.reshape(-1, 1) / (zi_d.reshape(1, -1) + self._NUMERICAL_EPS)
+        
         # Get characteristics
         gc = GnosticsCharacteristics(R=R)
         q, q1 = gc._get_q_q1(S=S)
@@ -525,130 +358,406 @@ class BaseEGDF(BaseDistFunc):
         hi = gc._hi(q=q, q1=q1)
         
         # Estimate EGDF
-        return self._estimate_egdf(fi, hi)
-    
-    #13
-    def _estimate_egdf(self, fidelities, irrelevances):
-        """Estimate EGDF from fidelities and irrelevances."""
-        weights = self.weights.reshape(-1, 1)
+        return self._estimate_egdf_from_moments(fi, hi), fi, hi
 
-        # shape check
-        # print(f"Fidelities shape: {fidelities.shape}, Irrelevances shape: {irrelevances.shape}, Weights shape: {weights.shape}")
+    def _estimate_egdf_from_moments(self, fidelities, irrelevances):
+        """Estimate EGDF from fidelities and irrelevances."""
+        weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
         mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
         
         M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
-        eps = np.finfo(float).eps
-        M_zi = np.where(M_zi == 0, eps, M_zi)
+        M_zi = np.where(M_zi == 0, self._NUMERICAL_EPS, M_zi)
         
         egdf_values = (1 - mean_irrelevance / M_zi) / 2
         egdf_values = np.maximum.accumulate(egdf_values)
         egdf_values = np.clip(egdf_values, 0, 1)
         
         return egdf_values.flatten()
+
+    # =============================================================================
+    # OPTIMIZATION
+    # =============================================================================
     
-    #14
-    def _calculate_final_egdf_pdf(self):
+    def _determine_optimization_strategy(self):
+        """Determine which parameters to optimize based on inputs."""
+        s_is_auto = isinstance(self.S, str) and self.S.lower() == 'auto'
+        lb_provided = self.LB is not None
+        ub_provided = self.UB is not None
+        
+        if s_is_auto and not lb_provided and not ub_provided:
+            # Optimize all parameters
+            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
+        elif lb_provided and ub_provided and s_is_auto:
+            # Optimize only S
+            self.LB_opt = self.LB
+            self.UB_opt = self.UB
+            self.S_opt = self._optimize_s_parameter(self.LB_opt, self.UB_opt)
+        elif not s_is_auto and (not lb_provided or not ub_provided):
+            # Optimize bounds only
+            self.S_opt = self.S
+            _, self.LB_opt, self.UB_opt = self._optimize_bounds_parameters(self.S_opt)
+        else:
+            # Use provided parameters
+            self.S_opt = self.S if not s_is_auto else 1.0
+            self.LB_opt = self.LB
+            self.UB_opt = self.UB
+        
+        if self.verbose:
+            print(f"Optimized parameters: S={self.S_opt:.6f}, LB={self.LB_opt:.6f}, UB={self.UB_opt:.6f}")
+
+    def _optimize_all_parameters(self):
+        """Optimize all parameters using normalized parameter space."""
+        bounds = self._OPTIMIZATION_BOUNDS
+        
+        def normalize_params(s, lb, ub):
+            s_norm = (s - bounds['S_MIN']) / (bounds['S_MAX'] - bounds['S_MIN'])
+            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
+            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
+            return s_norm, lb_norm, ub_norm
+        
+        def denormalize_params(s_norm, lb_norm, ub_norm):
+            s = bounds['S_MIN'] + s_norm * (bounds['S_MAX'] - bounds['S_MIN'])
+            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
+            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
+            return s, lb, ub
+        
+        def objective_function(norm_params):
+            try:
+                s, lb, ub = denormalize_params(*norm_params)
+                
+                if s <= 0 or ub <= lb:
+                    return 1e6
+                
+                egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+                # Regularization
+                reg = np.sum(np.array(norm_params)**2)
+                
+                total_loss = diff + reg
+                
+                if self.verbose:
+                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
+                
+                return total_loss
+            except:
+                return 1e6
+        
+        # Initial values
+        s_init = 0.05
+        lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
+        ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MAX']
+        
+        initial_params = normalize_params(s_init, lb_init, ub_init)
+        norm_bounds = [(0.0, 1.0)]
+        
+        try:
+            result = minimize(
+                objective_function,
+                initial_params,
+                method=self.opt_method,
+                bounds=norm_bounds,
+                options={'maxiter': 10000, 'ftol': self.tolerance},
+                tol=self.tolerance  
+            )
+            
+            s_opt, lb_opt, ub_opt = denormalize_params(*result.x)
+            
+            if lb_opt >= ub_opt:
+                if self.verbose:
+                    print("Warning: Optimized LB >= UB, using initial values")
+                return s_init, lb_init, ub_init
+            
+            return s_opt, lb_opt, ub_opt
+        except Exception as e:
+            if self.verbose:
+                print(f"Optimization failed: {e}")
+            return s_init, lb_init, ub_init
+
+    def _optimize_s_parameter(self, lb, ub):
+        """Optimize only S parameter."""
+        def objective_function(s):
+            try:
+                egdf_values, _, _ = self._compute_egdf_core(s[0], lb, ub)
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                if self.verbose:
+                    print(f"S optimization - Loss: {diff:.6f}, S: {s[0]:.3f}")
+                return diff
+            except:
+                return 1e6
+        
+        try:
+            result = minimize(
+                objective_function,
+                [1.0],
+                bounds=[(self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX'])],
+                method=self.opt_method,
+                options={'maxiter': 1000}
+            )
+            return result.x[0]
+        except:
+            return 1.0
+
+    def _optimize_bounds_parameters(self, s):
+        """Optimize only LB and UB parameters."""
+        bounds = self._OPTIMIZATION_BOUNDS
+        
+        def normalize_bounds(lb, ub):
+            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
+            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
+            return lb_norm, ub_norm
+        
+        def denormalize_bounds(lb_norm, ub_norm):
+            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
+            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
+            return lb, ub
+        
+        def objective_function(norm_params):
+            try:
+                lb, ub = denormalize_bounds(*norm_params)
+                
+                if lb <= 0 or ub <= lb:
+                    return 1e6
+                
+                egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
+                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+                # Regularization
+                reg = np.sum(np.array(norm_params)**2)
+                total_loss = diff + reg
+                
+                if self.verbose:
+                    print(f"Bounds optimization - Loss: {diff:.6f}, Total: {total_loss:.6f}, LB: {lb:.6f}, UB: {ub:.3f}")
+                
+                return total_loss
+            except:
+                return 1e6
+        
+        # Initial values
+        lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
+        ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MIN']
+        
+        lb_init = np.clip(lb_init, bounds['LB_MIN'], bounds['LB_MAX'])
+        ub_init = np.clip(ub_init, bounds['UB_MIN'], bounds['UB_MAX'])
+        
+        if lb_init >= ub_init:
+            lb_init = bounds['LB_MIN']
+            ub_init = bounds['UB_MIN']
+        
+        initial_params = normalize_bounds(lb_init, ub_init)
+        norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
+        
+        try:
+            result = minimize(
+                objective_function,
+                initial_params,
+                method=self.opt_method,
+                bounds=norm_bounds,
+                options={'maxiter': 10000, 'ftol': self.tolerance},
+                tol=self.tolerance
+            )
+            
+            lb_opt, ub_opt = denormalize_bounds(*result.x)
+            
+            if lb_opt >= ub_opt:
+                if self.verbose:
+                    print("Warning: Optimized LB >= UB, using initial values")
+                return s, lb_init, ub_init
+            
+            return s, lb_opt, ub_opt
+        except Exception as e:
+            if self.verbose:
+                print(f"Bounds optimization failed: {e}")
+            return s, self.LB, self.UB
+
+
+    # =============================================================================
+    # PDF AND DERIVATIVE CALCULATIONS
+    # =============================================================================
+    
+    def _calculate_pdf_from_moments(self, fidelities, irrelevances):
+        """Calculate PDF from fidelities and irrelevances."""
+        weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
+        
+        mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
+        mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
+        
+        F2 = np.sum(weights * fidelities**2, axis=0) / np.sum(weights)
+        FH = np.sum(weights * fidelities * irrelevances, axis=0) / np.sum(weights)
+        
+        M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
+        M_zi = np.where(M_zi == 0, self._NUMERICAL_EPS, M_zi)
+        M_zi_cubed = M_zi**3
+        
+        numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
+        S_value = self.S_opt if hasattr(self, 'S_opt') else 1.0
+        density = (1 / S_value) * (numerator / M_zi_cubed)
+        
+        if np.any(density < 0):
+            warnings.warn("PDF contains negative values, indicating potential non-homogeneous data", RuntimeWarning)
+        
+        return density.flatten()
+
+
+
+    # =============================================================================
+    # HOMOGENEITY TESTING
+    # =============================================================================
+    
+    def _test_data_homogeneity(self):
+        """
+        Test if the given data sample is homogeneous.
+        
+        Conditions for homogeneous data:
+        1. PDF has single peak (one global maximum)
+        2. PDF values are never negative
+        """
+        # Use PDF from smooth points if available, otherwise from data points
+        if hasattr(self, 'pdf_points') and self.pdf_points is not None:
+            pdf_to_test = self.pdf_points
+        elif hasattr(self, 'pdf') and self.pdf is not None:
+            pdf_to_test = self.pdf
+        else:
+            # Calculate PDF if not available
+            if hasattr(self, 'fi') and hasattr(self, 'hi'):
+                pdf_to_test = self._calculate_pdf_from_moments(self.fi, self.hi)
+            else:
+                if self.verbose:
+                    print("Warning: Cannot test homogeneity - PDF not available")
+                return {'is_homogeneous': None, 'error': 'PDF not available'}
+        
+        # Check for negative PDF values
+        has_negative_pdf = np.any(pdf_to_test < 0)
+        
+        # Find peaks in PDF
+        pdf_peaks = []
+        for i in range(1, len(pdf_to_test) - 1):
+            if pdf_to_test[i] > pdf_to_test[i-1] and pdf_to_test[i] > pdf_to_test[i+1]:
+                pdf_peaks.append(i)
+        
+        # Check for single global maximum
+        has_single_peak = len(pdf_peaks) <= 1
+        
+        # Overall homogeneity assessment
+        is_homogeneous = not has_negative_pdf and has_single_peak
+        
+        homogeneity_results = {
+            'is_homogeneous': is_homogeneous,
+            'has_negative_pdf': has_negative_pdf,
+            'number_of_peaks': len(pdf_peaks),
+            'peak_locations': pdf_peaks,
+            'has_single_peak': has_single_peak
+        }
+        
+        return homogeneity_results
+
+
+    def _calculate_final_results(self):
         """Calculate final EGDF and PDF with optimized parameters."""
-        # Store zi for later use
         # Convert to infinite domain
         zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
-        zi_d = DataConversion._convert_fininf(self.sample, self.LB_opt, self.UB_opt)
-        # self.zi = DataConversion._convert_fininf(self.sample, self.LB_opt, self.UB_opt)
+        zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         self.zi = zi_d
-        # Calculate R matrix
-        eps = np.finfo(float).eps
-        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
-
-        # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
-        q, q1 = gc._get_q_q1(S=self.S_opt)
         
-        # Store fidelities and irrelevances for PDF calculation
-        self.fi = gc._fi(q=q, q1=q1)
-        self.hi = gc._hi(q=q, q1=q1)
+        # Calculate EGDF and get moments
+        egdf_values, fi, hi = self._compute_egdf_core(self.S_opt, self.LB_opt, self.UB_opt)
         
-        # Calculate EGDF and PDF
-        self.egdf = self._estimate_egdf(self.fi, self.hi)
-        self.pdf = self._get_pdf()
+        # Store for derivative calculations
+        self.fi = fi
+        self.hi = hi
+        self.egdf = egdf_values
+        self.pdf = self._calculate_pdf_from_moments(fi, hi)
         
         if self.catch:
             self.params.update({
-                'egdf': self.egdf,
-                'pdf': self.pdf,
-                'zi': self.zi
+                'egdf': self.egdf.copy(),
+                'pdf': self.pdf.copy(),
+                'zi': self.zi.copy()
             })
-    #15
-    def _get_pdf(self):
-        """Calculate PDF from stored fidelities and irrelevances."""
-        if self.fi is None or self.hi is None:
-            raise ValueError("Fidelities and irrelevances must be calculated before PDF estimation.")
-        
-        weights = self.weights.reshape(-1, 1)
-        
-        mean_fidelity = np.sum(weights * self.fi, axis=0) / np.sum(weights)
-        mean_irrelevance = np.sum(weights * self.hi, axis=0) / np.sum(weights)
-        
-        F2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        FH = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-        
-        M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
-        eps = np.finfo(float).eps
-        M_zi = np.where(M_zi == 0, eps, M_zi)
-        M_zi_cubed = M_zi**3
 
-        numerator = ((mean_fidelity**2) * F2) + (mean_fidelity * mean_irrelevance * FH)
-        # density = (1 / (self.S_opt * self.zi)) * (numerator / M_zi_cubed) # NOTE devide by ZO
-        density = (1 / (self.S_opt)) * (numerator / M_zi_cubed)
+    def _generate_smooth_curves(self):
+        """Generate smooth curves for plotting and analysis."""
+        try:
+            # Generate smooth EGDF and PDF
+            smooth_egdf, smooth_fi, smooth_hi = self._compute_egdf_core(
+                self.S_opt, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            
+            smooth_pdf = self._calculate_pdf_from_moments(smooth_fi, smooth_hi)
+            
+            self.egdf_points = smooth_egdf
+            self.pdf_points = smooth_pdf
+            
+            # Store zi_n for derivative calculations
+            self.zi_n = DataConversion._convert_fininf(self.z_points_n, self.LB_opt, self.UB_opt)
+            
+            # Mark as generated
+            self._computation_cache['smooth_curves_generated'] = True
+            
+            if self.catch:
+                self.params.update({
+                    'egdf_points': self.egdf_points.copy(),
+                    'pdf_points': self.pdf_points.copy(),
+                    'zi_n': self.zi_n.copy()
+                })
+            
+            if self.verbose:
+                print(f"Generated smooth curves with {self.n_points} points.")
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: Could not generate smooth curves: {e}")
+            # Create fallback points using original data
+            self.egdf_points = self.egdf.copy() if hasattr(self, 'egdf') else None
+            self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
+            self._computation_cache['smooth_curves_generated'] = False
 
-        if np.any(density < 0):
-            warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data", RuntimeWarning)
-        
-        return density.flatten()
-    
-    #16
-    def _transform_bounds_back(self):
+    def _transform_bounds_to_original_domain(self):
         """Transform optimized bounds back to original domain."""
+        dc = self._get_data_converter()
+        
         if self.data_form == 'a':
-            self.LB = DataConversion._convert_za(self.LB_opt, self.DLB, self.DUB)
-            self.UB = DataConversion._convert_za(self.UB_opt, self.DLB, self.DUB)
+            self.LB = dc._convert_za(self.LB_opt, self.DLB, self.DUB)
+            self.UB = dc._convert_za(self.UB_opt, self.DLB, self.DUB)
         else:
-            self.LB = DataConversion._convert_zm(self.LB_opt, self.DLB, self.DUB)
-            self.UB = DataConversion._convert_zm(self.UB_opt, self.DLB, self.DUB)
-    
+            self.LB = dc._convert_zm(self.LB_opt, self.DLB, self.DUB)
+            self.UB = dc._convert_zm(self.UB_opt, self.DLB, self.DUB)
+        
+        if self.catch:
+            self.params.update({'LB': self.LB, 'UB': self.UB, 'S_opt': self.S_opt})
 
-    #17
-    def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True):
-        """
-        Plot EGDF, WEDF, and/or PDF.
-        
-        Parameters:
-        -----------
-        plot_smooth : bool, default True
-            Whether to plot smooth curves if available
-        plot : str, default 'both'
-            What to plot: 'gdf' for EGDF only, 'pdf' for PDF only, 'both' for both
-        bounds : bool, default True
-            Whether to display LB, UB, DLB, DUB bounds on the plot
-        """
+    # =============================================================================
+    # PLOTTING FUNCTIONALITY - IMPROVED
+    # =============================================================================
+    
+    def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
+        """Enhanced plotting with better organization."""
         import matplotlib.pyplot as plt
-        
+
+        if plot_smooth and (len(self.data) > self.max_data_size) and self.verbose:
+            print(f"Warning: Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
+
         if not self.catch:
             print("Plot is not available with argument catch=False")
             return
+        
+        if not self._fitted:
+            raise RuntimeError("Must fit EGDF before plotting.")
         
         # Validate plot parameter
         if plot not in ['gdf', 'pdf', 'both']:
             raise ValueError("plot parameter must be 'gdf', 'pdf', or 'both'")
         
-        # Check required data availability
+        # Check data availability
         if plot in ['gdf', 'both'] and self.params.get('egdf') is None:
             raise ValueError("EGDF must be calculated before plotting GDF")
         if plot in ['pdf', 'both'] and self.params.get('pdf') is None:
             raise ValueError("PDF must be calculated before plotting PDF")
-    
-        # Use original data points for plotting
+        
+        # Prepare data
         x_points = self.data
         egdf_plot = self.params.get('egdf')
         pdf_plot = self.params.get('pdf')
@@ -657,569 +766,204 @@ class BaseEGDF(BaseDistFunc):
         
         # Check smooth plotting availability
         has_smooth = (hasattr(self, 'di_points_n') and hasattr(self, 'egdf_points') 
-                     and hasattr(self, 'pdf_points') and self.di_points_n is not None)
+                     and hasattr(self, 'pdf_points') and self.di_points_n is not None
+                     and self.egdf_points is not None and self.pdf_points is not None)
         plot_smooth = plot_smooth and has_smooth
         
-        fig, ax1 = plt.subplots(figsize=(10, 6))
-        
-        # Plot EGDF (GDF) if requested
+        # Create figure
+        fig, ax1 = plt.subplots(figsize=figsize)
+
+        # Plot EGDF if requested
         if plot in ['gdf', 'both']:
-            if plot_smooth and hasattr(self, 'egdf_points'):
-                # Plot smooth EGDF
-                ax1.plot(x_points, egdf_plot, 'o', color='blue', label='EGDF', markersize=4)
-                ax1.plot(self.di_points_n, self.egdf_points, color='blue', 
-                        linestyle='-', linewidth=2, alpha=0.8)
-            else:
-                # Plot with connecting lines when smooth is False
-                ax1.plot(x_points, egdf_plot, 'o-', color='blue', label='EGDF', 
-                        markersize=4, linewidth=1, alpha=0.8)
-                        
-            if extra_df:
-                # Plot WEDF if available
-                if wedf is not None:
-                    ax1.plot(x_points, wedf, 's', color='lightblue', 
-                            label='WEDF', markersize=3, alpha=0.8)
-                    
-                # Plot KSDF if available
-                if ksdf is not None:
-                    ax1.plot(x_points, ksdf, 's', color='cyan', 
-                            label='KS Points', markersize=3, alpha=0.8)
-            
-            ax1.set_ylabel('EGDF', color='blue')
-            ax1.tick_params(axis='y', labelcolor='blue')
-            ax1.set_ylim(0, 1)
+            self._plot_egdf(ax1, x_points, egdf_plot, plot_smooth, extra_df, wedf, ksdf)
         
         # Plot PDF if requested
         if plot in ['pdf', 'both']:
             if plot == 'pdf':
-                # PDF only - use primary axis
-                if plot_smooth and hasattr(self, 'pdf_points'):
-                    # Plot smooth PDF
-                    ax1.plot(x_points, pdf_plot, 'o', color='red', label='PDF', markersize=4)
-                    ax1.plot(self.di_points_n, self.pdf_points, color='red', 
-                            linestyle='-', linewidth=2, alpha=0.8)
-                else:
-                    # Plot with connecting lines when smooth is False
-                    ax1.plot(x_points, pdf_plot, 'o-', color='red', label='PDF', 
-                            markersize=4, linewidth=1, alpha=0.8)
-                
-                ax1.set_ylabel('PDF', color='red')
-                ax1.tick_params(axis='y', labelcolor='red')
-                max_pdf = np.max(self.pdf_points) if (plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None) else np.max(pdf_plot)
-                ax1.set_ylim(0, max_pdf * 1.1)
-                ax_pdf = ax1
+                self._plot_pdf(ax1, x_points, pdf_plot, plot_smooth, is_secondary=False)
             else:
-                # Both - use secondary axis for PDF
                 ax2 = ax1.twinx()
-                if plot_smooth and hasattr(self, 'pdf_points'):
-                    # Plot smooth PDF
-                    ax2.plot(x_points, pdf_plot, 'o', color='red', label='PDF', markersize=4)
-                    ax2.plot(self.di_points_n, self.pdf_points, color='red', 
-                            linestyle='-', linewidth=2, alpha=0.8)
-                else:
-                    # Plot with connecting lines when smooth is False
-                    ax2.plot(x_points, pdf_plot, 'o-', color='red', label='PDF', 
-                            markersize=4, linewidth=1, alpha=0.8)
-                
-                ax2.set_ylabel('PDF', color='red')
-                ax2.tick_params(axis='y', labelcolor='red')
-                max_pdf = np.max(self.pdf_points) if (plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None) else np.max(pdf_plot)
-                ax2.set_ylim(0, max_pdf * 1.1)
-                ax_pdf = ax2
+                self._plot_pdf(ax2, x_points, pdf_plot, plot_smooth, is_secondary=True)
         
-        # Common settings
+        # Add bounds and formatting
+        self._add_plot_formatting(ax1, plot, bounds)
+        
+        plt.tight_layout()
+        plt.show()
+
+    def _plot_egdf(self, ax, x_points, egdf_plot, plot_smooth, extra_df, wedf, ksdf):
+        """Plot EGDF components."""
+        if plot_smooth and hasattr(self, 'egdf_points') and self.egdf_points is not None:
+            ax.plot(x_points, egdf_plot, 'o', color='blue', label='EGDF', markersize=4)
+            ax.plot(self.di_points_n, self.egdf_points, color='blue', 
+                   linestyle='-', linewidth=2, alpha=0.8)
+        else:
+            ax.plot(x_points, egdf_plot, 'o-', color='blue', label='EGDF', 
+                   markersize=4, linewidth=1, alpha=0.8)
+        
+        if extra_df:
+            if wedf is not None:
+                ax.plot(x_points, wedf, 's', color='lightblue', 
+                       label='WEDF', markersize=3, alpha=0.8)
+            if ksdf is not None:
+                ax.plot(x_points, ksdf, 's', color='cyan', 
+                       label='KS Points', markersize=3, alpha=0.8)
+        
+        ax.set_ylabel('EGDF', color='blue')
+        ax.tick_params(axis='y', labelcolor='blue')
+        ax.set_ylim(0, 1)
+
+    def _plot_pdf(self, ax, x_points, pdf_plot, plot_smooth, is_secondary=False):
+        """Plot PDF components."""
+        color = 'red'
+
+        if plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None:
+            ax.plot(x_points, pdf_plot, 'o', color=color, label='PDF', markersize=4)
+            ax.plot(self.di_points_n, self.pdf_points, color=color, 
+                   linestyle='-', linewidth=2, alpha=0.8)
+            max_pdf = np.max(self.pdf_points)
+        else:
+            ax.plot(x_points, pdf_plot, 'o-', color=color, label='PDF', 
+                   markersize=4, linewidth=1, alpha=0.8)
+            max_pdf = np.max(pdf_plot)
+        
+        ax.set_ylabel('PDF', color=color)
+        ax.tick_params(axis='y', labelcolor=color)
+        ax.set_ylim(0, max_pdf * 1.1)
+        
+        if is_secondary:
+            ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
+
+    def _add_plot_formatting(self, ax1, plot, bounds):
+        """Add formatting, bounds, and legends to plot."""
         ax1.set_xlabel('Data Points')
         
-        # Add bounds only if bounds=True
+        # Add bounds if requested
         if bounds:
-            # Add bound lines (only for primary axis to avoid duplication)
-            for bound, color, style, name in [
+            bound_info = [
                 (self.params.get('DLB'), 'green', '-', 'DLB'),
                 (self.params.get('DUB'), 'orange', '-', 'DUB'),
                 (self.params.get('LB'), 'purple', '--', 'LB'),
                 (self.params.get('UB'), 'brown', '--', 'UB')
-            ]:
+            ]
+            
+            for bound, color, style, name in bound_info:
                 if bound is not None:
                     ax1.axvline(x=bound, color=color, linestyle=style, linewidth=2, 
                                alpha=0.8, label=f"{name}={bound:.3f}")
             
-            # Add shaded regions for probable bounds
+            # Add shaded regions
             if self.params.get('LB') is not None:
-                ax1.axvspan(x_points.min(), self.params['LB'], alpha=0.15, color='purple')
+                ax1.axvspan(self.data.min(), self.params['LB'], alpha=0.15, color='purple')
             if self.params.get('UB') is not None:
-                ax1.axvspan(self.params['UB'], x_points.max(), alpha=0.15, color='brown')
+                ax1.axvspan(self.params['UB'], self.data.max(), alpha=0.15, color='brown')
         
-        # Set x-axis limits
+        # Set limits and add grid
         data_range = self.params['DUB'] - self.params['DLB']
         padding = data_range * 0.1
         ax1.set_xlim(self.params['DLB'] - padding, self.params['DUB'] + padding)
         
-        # Add legends
-        ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
-        if plot == 'both':
-            ax_pdf.legend(loc='upper right', bbox_to_anchor=(1, 1))
-        
-        # Set title based on what's being plotted
-        if plot == 'gdf':
-            title = 'EGDF' + (' with Bounds' if bounds else '')
-        elif plot == 'pdf':
-            title = 'PDF' + (' with Bounds' if bounds else '')
-        else:
-            title = 'EGDF and PDF' + (' with Bounds' if bounds else '')
-        
-        plt.title(title)
-        ax1.grid(True, alpha=0.3)
-        fig.tight_layout()
-        plt.show()
-    
-    #18
-    def _get_ks_points(self, N):
-        """
-        Generate Kolmogorov-Smirnov points for the EGDF.
-
-        Parameters:
-        N (int): Number of points to generate.
-
-        Returns:
-            np.ndarray: The KS points.
-        """
-        if N <= 0:
-            raise ValueError("N must be a positive integer.")
-
-        # Generate n values from 1 to N
-        n = np.arange(1, N + 1)
-
-        # Apply the KS-points formula: (2n-1)/(2N)
-        self.ks_points = (2 * n - 1) / (2 * N)
-
-        if self.catch:
-            self.params['ks_points'] = self.ks_points
-
-        return self.ks_points
-    
-    #19
-    def _generate_smooth_egdf(self):
-        """Generate smooth EGDF with n_points for plotting."""
-        try:
-            # Generate smooth points in data domain
-            self.di_points_n = np.linspace(self.DLB, self.DUB, self.n_points)
-            
-            # Transform to z domain
-            dc = DataConversion()
-            if self.data_form == 'a':
-                self.z_points_n = dc._convert_az(self.di_points_n, self.DLB, self.DUB)
-            else:
-                self.z_points_n = dc._convert_mz(self.di_points_n, self.DLB, self.DUB)
-
-            # CRITICAL FIX: For smooth evaluation points, use the SAME transformation
-            # approach as the original data but WITHOUT applying original data weights
-            # to smooth points. The smooth points are just evaluation locations.
-            
-            # # Apply the same transformation logic as original data
-            # if not self.homogeneous:
-            #     # Apply gnostic weights to smooth evaluation points
-            #     gw = GnosticsWeights()
-            #     gweights_n = gw._get_gnostic_weights(self.z_points_n) 
-            #     sample_n = self.z_points_n * gweights_n
-            # else:
-            #     # For homogeneous case, no gnostic weights needed
-            #     sample_n = self.z_points_n
-
-            sample_n = self.z_points_n  
-            # Convert to infinite domain
-            self.zi_n = DataConversion._convert_fininf(sample_n, self.LB_opt, self.UB_opt)
-
-            # CORRECT APPROACH: Use original data zi for rows, smooth self.zi_n for columns
-            # This evaluates EGDF/PDF at smooth points based on original data
-            eps = np.finfo(float).eps
-            
-            # R matrix: original data points (rows) vs smooth evaluation points (columns)
-            R_n = self.zi.reshape(-1, 1) / (self.zi_n.reshape(1, -1) + eps)
-            
-            gc_n = GnosticsCharacteristics(R=R_n)
-            q_n, q1_n = gc_n._get_q_q1(S=self.S_opt)
-            
-            fi_n = gc_n._fi(q=q_n, q1=q1_n)
-            hi_n = gc_n._hi(q=q_n, q1=q1_n)
-            
-            # Use original data weights (for weighting the original data contributions)
-            weights_matrix = self.weights.reshape(-1, 1)
-            
-            # Calculate EGDF at smooth points
-            mean_fidelity = np.sum(weights_matrix * fi_n, axis=0) / np.sum(weights_matrix)
-            mean_irrelevance = np.sum(weights_matrix * hi_n, axis=0) / np.sum(weights_matrix)
-            
-            M_zi = np.sqrt(mean_fidelity**2 + mean_irrelevance**2)
-            M_zi = np.where(M_zi == 0, eps, M_zi)
-            
-            self.egdf_points = (1 - mean_irrelevance / M_zi) / 2
-            self.egdf_points = np.maximum.accumulate(self.egdf_points)
-            self.egdf_points = np.clip(self.egdf_points, 0, 1).flatten()
-            
-            # Calculate PDF at smooth points
-            F2 = np.sum(weights_matrix * fi_n**2, axis=0) / np.sum(weights_matrix)
-            FH = np.sum(weights_matrix * fi_n * hi_n, axis=0) / np.sum(weights_matrix)
-            
-            M_zi_cubed = M_zi**3
-            numerator = (mean_fidelity**2) * F2 + mean_fidelity * mean_irrelevance * FH
-            # self.pdf_points = (1 / (self.S_opt * self.zi_n)) * (numerator / M_zi_cubed) # NOTE divide by NO
-            self.pdf_points = (1 / (self.S_opt )) * (numerator / M_zi_cubed)
-            self.pdf_points = self.pdf_points.flatten()
-
-            # # pdf with gradient
-            # self.pdf_points = np.gradient(self.egdf_points, self.di_points_n)
-
-            if np.any(self.pdf_points < 0):
-                warnings.warn("EGDF density contains negative values, which may indicate non-homogeneous data sample!", RuntimeWarning)
-
-            if self.catch:
-                self.params.update({
-                    'di_points': self.di_points_n,
-                    'egdf_points': self.egdf_points,
-                    'pdf_points': self.pdf_points,
-                    'zi_points': self.zi_n
-                })
-        except Exception as e:
-            # If smooth generation fails, just skip it
-            print(f"Warning: Could not generate smooth n_points: {e}")
-            if self.catch:
-                self.params.update({
-                    'di_points': None,
-                    'egdf_points': None,
-                    'pdf_points': None,
-                    'zi_points': None
-                })
-
-
-    #20
-    def _fit(self):
-        """Fit the EGDF model to the data."""
-        SMOOTH = False # NOTE do not use as argument, it is used for internal processing
-        if self.verbose:
-            print("Fitting EGDF model to data...")
-        # Initial processing
-        self.data = np.sort(self.data)
-        self._estimate_data_bounds()
-        
-        # Store parameters
-        if self.catch:
-            self._store_initial_params()
-
-        # Step 1: Transform input data
-        self._transform_input(smooth=SMOOTH)
-        self._estimate_weights()
-        
-        # Step 2: Initial probable bounds estimation
-        self._initial_probable_bounds_estimate()
-        
-        # Step 3: Get WEDF/KS points for optimization
-        self.df_values = self._get_df(smooth=SMOOTH, wedf=self.wedf)
-
-        # Step 4: Determine optimization strategy based on provided parameters
-        self._optimize_parameters()
-        
-        # Step 5: Calculate final EGDF and PDF with optimized parameters
-        self._calculate_final_egdf_pdf()
-        
-        # Step 6: Generate smooth n_points for plotting
-        if len(self.data) < self.max_data_size:
-            self._generate_smooth_egdf()
-            if self.verbose:
-                print("Generated smooth EGDF and PDF for plotting. Total points:", len(self.di_points_n))
-        else:
-            self.di_points_n = None
-            self.egdf_points = None
-            self.pdf_points = None
-            if self.verbose:
-                print("Data size too large for smooth EGDF generation, skipping smooth points to avoid excessive memory usage.")
-
-        # Step 7: Transform bounds back to original domain
-        self._transform_bounds_back()
-        
-        # Step 8: Store final parameters
-        if self.catch:
-            self.params.update({
-                'LB': self.LB,
-                'UB': self.UB,
-                'S_opt': self.S_opt
-            })
-        if self.verbose:
-            print(f"Fitting completed. Calculated parameters: \nS: {self.S_opt}, \nLB: {self.LB}, \nUB: {self.UB}")
-        # Step 9: Check homogeneity if needed
-        # will add later if needed
-
-    # ...existing code...
-
-    def _get_egdf_first_derivative(self):
-        """Calculate first derivative of EGDF (which is the PDF) from stored fidelities and irrelevances."""
-        if self.fi is None or self.hi is None:
-            raise ValueError("Fidelities and irrelevances must be calculated before first derivative estimation.")
-        
-        weights = self.weights.reshape(-1, 1)
-        
-        # First order moments
-        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)  # mean_fidelity
-        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)  # mean_irrelevance
-        
-        # Second order moments (scaled by S as in MATLAB)
-        f2s = np.sum(weights * (self.fi**2 / self.S_opt), axis=0) / np.sum(weights)
-        fhs = np.sum(weights * (self.fi * self.hi / self.S_opt), axis=0) / np.sum(weights)
-        
-        # Calculate denominator w = (f1^2 + h1^2)^(3/2)
-        w = (f1**2 + h1**2)**(3/2)
-        eps = np.finfo(float).eps
-        w = np.where(w == 0, eps, w)
-        
-        # First derivative formula from MATLAB: y = (f1^2 * f2s + f1 * h1 * fhs) / w
-        numerator = f1**2 * f2s + f1 * h1 * fhs
-        first_derivative = numerator / w
-        # first_derivative = first_derivative / self.zi
-        
-        if np.any(first_derivative < 0):
-            warnings.warn("EGDF first derivative (PDF) contains negative values", RuntimeWarning)
-        
-        return first_derivative.flatten()
-
-    def _get_egdf_second_derivative(self):
-        """Calculate second derivative of EGDF from stored fidelities and irrelevances."""
-        if self.fi is None or self.hi is None:
-            raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
-        
-        weights = self.weights.reshape(-1, 1)
-        
-        # Moment calculations
-        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
-        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
-        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-        
-        # Calculate components
-        b = f1**2 * f2 + f1 * h1 * fh
-        d = f1**2 + h1**2
-        eps = np.finfo(float).eps
-        d = np.where(d == 0, eps, d)
-        
-        # Following
-        term1 = f1 * (h1 * (f3 - fh2) - f2 * fh)
-        term2 = 2 * f1**2 * f2h + h1 * fh**2
-        term3 = (6 * b * (f1 * fh - h1 * f2)) / d
-        
-        d2 = -1 / (d**(1.5)) * (2 * (term1 - term2) + term3)
-        second_derivative = d2 / (self.S_opt**2)
-        # second_derivative = second_derivative / self.zi**2 
-        return second_derivative.flatten()
-
-    def _get_egdf_third_derivative(self):
-        """Calculate third derivative of EGDF from stored fidelities and irrelevances."""
-        if self.fi is None or self.hi is None:
-            raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
-        
-        weights = self.weights.reshape(-1, 1)
-        
-        # All required moments
-        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
-        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
-        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-        f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
-        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-        h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-        f2h2 = np.sum(weights * self.fi**2 * self.hi**2, axis=0) / np.sum(weights)
-        f3h = np.sum(weights * self.fi**3 * self.hi, axis=0) / np.sum(weights)
-        fh3 = np.sum(weights * self.fi * self.hi**3, axis=0) / np.sum(weights)
-        
-        # Following
-        # Derivative calculations
-        dh1 = -f2
-        df1 = fh
-        df2 = 2 * f2h
-        dfh = -f3 + fh2
-        dfh2 = -2 * f3h + fh3
-        df3 = 3 * f3h
-        df2h = -f4 + 2 * f2h2
-        
-        # u4 and its derivative
-        u4 = h1 * f3 - h1 * fh2 - f2 * fh
-        du4 = dh1 * f3 + h1 * df3 - dh1 * fh2 - h1 * dfh2 - df2 * fh - f2 * dfh
-        
-        # u and its derivative
-        u = f1 * u4
-        du = df1 * u4 + f1 * du4
-        
-        # v components
-        v4a = (f1**2) * f2h
-        dv4a = 2 * f1 * df1 * f2h + (f1**2) * df2h
-        v4b = h1 * fh**2
-        dv4b = dh1 * (fh**2) + 2 * h1 * fh * dfh
-        
-        v = 2 * v4a + v4b
-        dv = 2 * dv4a + dv4b
-        
-        # x components
-        x4a = f1**2 * f2 + f1 * h1 * fh
-        dx4a = 2 * f1 * df1 * f2 + (f1**2) * df2 + df1 * h1 * fh + f1 * dh1 * fh + f1 * h1 * dfh
-        x4b = f1 * fh - h1 * f2
-        dx4b = df1 * fh + f1 * dfh - dh1 * f2 - h1 * df2
-        
-        x = 6 * x4a * x4b
-        dx = 6 * (dx4a * x4b + x4a * dx4b)
-        
-        # d components
-        d = f1**2 + h1**2
-        dd = 2 * (f1 * df1 + h1 * dh1)
-        eps = np.finfo(float).eps
-        d = np.where(d == 0, eps, d)
-        
-        # Final calculation
-        term1 = (du - dv) / (d**1.5) - (1.5 * (u - v)) / (d**2.5) * dd
-        term2 = dx / (d**2.5) - (2.5 * x) / (d**3.5) * dd
-        
-        d3p = -2 * term1 - term2
-        third_derivative = 2 * d3p / (self.S_opt**3)
-        # third_derivative = third_derivative / (self.zi**3)
-        return third_derivative.flatten()
-
-    def _get_egdf_fourth_derivative(self):
-        """Calculate fourth derivative of EGDF using numerical differentiation."""
-        if self.fi is None or self.hi is None:
-            raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
-        
-        # For fourth derivative, use numerical differentiation as it's complex
-        dz = 1e-7
-        
-        # Get third derivatives at slightly shifted points
-        zi_plus = self.zi + dz
-        zi_minus = self.zi - dz
-        
-        # Store original zi
-        original_zi = self.zi.copy()
-        
-        # Calculate third derivative at zi + dz
-        self.zi = zi_plus
-        self._calculate_fidelities_irrelevances()
-        third_plus = self._get_egdf_third_derivative()
-        
-        # Calculate third derivative at zi - dz  
-        self.zi = zi_minus
-        self._calculate_fidelities_irrelevances()
-        third_minus = self._get_egdf_third_derivative()
-        
-        # Restore original zi and recalculate fi, hi
-        self.zi = original_zi
-        self._calculate_fidelities_irrelevances()
-        
-        # Numerical derivative
-        fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
-        
-        return fourth_derivative.flatten()
-
-    def _calculate_fidelities_irrelevances(self):
-        """Helper method to recalculate fidelities and irrelevances for current zi."""
-        # Convert to infinite domain
-        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
-        zi_d = self.zi
-        
-        # Calculate R matrix
-        eps = np.finfo(float).eps
-        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
-
-        # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
-        q, q1 = gc._get_q_q1(S=self.S_opt)
-        
-        # Store fidelities and irrelevances
-        self.fi = gc._fi(q=q, q1=q1)
-        self.hi = gc._hi(q=q, q1=q1)
-
-    # ...existing code (rest remains the same)...
-    def _egdf_marginal_analysis(self):
-        """Estimate all derivatives of EGDF."""
-        # Calculate all EGDF derivatives
-        self.egdf_first_derivative = self._get_egdf_first_derivative()   # This is PDF
-        self.egdf_second_derivative = self._get_egdf_second_derivative()
-        self.egdf_third_derivative = self._get_egdf_third_derivative()
-        self.egdf_fourth_derivative = self._get_egdf_fourth_derivative()
-        
-        # Store in params if catch is enabled
-        if self.catch:
-            self.params.update({
-                'egdf_first_derivative': self.egdf_first_derivative,   # This is PDF
-                'egdf_second_derivative': self.egdf_second_derivative,
-                'egdf_third_derivative': self.egdf_third_derivative,
-                'egdf_fourth_derivative': self.egdf_fourth_derivative,
-            })
-
-    def _plot_derivatives(self, derivatives: list = [1, 2, 3], normalize: bool = False):
-        """
-        Plot derivatives of EGDF.
-        
-        Parameters:
-        -----------
-        derivatives : list, default [1, 2, 3]
-            Which derivatives to plot: [1, 2, 3, 4]
-            Note: 1st derivative is the PDF
-        normalize : bool, default False
-            Whether to normalize derivatives for better visualization
-        """
-        # Calculate derivatives
-        self._egdf_marginal_analysis()
-
-        import matplotlib.pyplot as plt
-        
-        if not self.catch:
-            print("Plot is not available with argument catch=False")
-            return
-        
-        # Validate derivatives parameter
-        if not all(d in [1, 2, 3, 4] for d in derivatives):
-            raise ValueError("derivatives must contain values from [1, 2, 3, 4]")
-        
-        fig, ax = plt.subplots(figsize=(12, 8))
-        
-        x_points = self.data
-        colors = ['blue', 'green', 'red', 'purple']
-        line_styles = ['-', '--', '-.', ':']
-        
-        # Map derivatives to data and labels
-        derivative_data = {
-            1: (self.egdf_first_derivative, 'EGDF 1st Derivative (PDF)'),
-            2: (self.egdf_second_derivative, 'EGDF 2nd Derivative'),
-            3: (self.egdf_third_derivative, 'EGDF 3rd Derivative'),
-            4: (self.egdf_fourth_derivative, 'EGDF 4th Derivative')
+        # Set title
+        titles = {
+            'gdf': 'EGDF' + (' with Bounds' if bounds else ''),
+            'pdf': 'PDF' + (' with Bounds' if bounds else ''),
+            'both': 'EGDF and PDF' + (' with Bounds' if bounds else '')
         }
         
-        # Plot requested derivatives
-        for i, deriv_order in enumerate(derivatives):
-            if deriv_order in derivative_data:
-                data, label = derivative_data[deriv_order]
-                
-                # Normalize if requested
-                if normalize and len(data) > 0:
-                    data_max = np.max(np.abs(data))
-                    if data_max > 0:
-                        data = data / data_max
-                        label += ' (normalized)'
-                
-                ax.plot(x_points, data, 
-                        label=label, 
-                        color=colors[i % len(colors)], 
-                        linestyle=line_styles[i % len(line_styles)],
-                        linewidth=2,
-                        alpha=0.8)
+        ax1.set_title(titles[plot])
+        ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
+        ax1.grid(True, alpha=0.3)
+
+
+
+    # =============================================================================
+    # CLEANUP AND MEMORY MANAGEMENT
+    # =============================================================================
+    
+    def _cleanup_computation_cache(self):
+        """Clean up temporary computation cache to free memory."""
+        self._computation_cache = {
+            'data_converter': None,
+            'characteristics_computer': None,
+            'weights_normalized': None,
+            'smooth_curves_generated': False
+        }
         
-        ax.set_xlabel('Data Points')
-        ax.set_ylabel('Derivative Values' + (' (normalized)' if normalize else ''))
-        ax.set_title(f'EGDF Derivatives: {derivatives}')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+        # Remove large temporary arrays if they exist
+        temp_attrs = ['fi', 'hi', 'df_values']
+        for attr in temp_attrs:
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+        # # delet di_points_n, z_points_n, egdf_points, pdf_points, zi_n if they exist
+        # if hasattr(self, 'egdf_points'):
+        #     del self.egdf_points
+        # if hasattr(self, 'pdf_points'):
+        #     del self.pdf_points
+        # if hasattr(self, 'di_points_n'):
+        #     del self.di_points_n
+        # if hasattr(self, 'z_points_n'):
+        #     del self.z_points_n
+        # if hasattr(self, 'zi_n'):
+        #     del self.zi_n
+        # if self.catch:
+        #     self.params.update({
+        #         'egdf_points': None,
+        #         'pdf_points': None,
+        #         'di_points_n': None,
+        #         'z_points_n': None,
+        #         'zi_n': None
+        #     })
+        # deleting long arrays from params like z_points, di_points
+        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n']
+        for param in long_array_params:
+            if param in self.params:
+                self.params[param] = None
+
+        if self.verbose:
+            print("Computation cache cleaned up.")
+
+
+    # =============================================================================
+    # MAIN FITTING PROCESS
+    # =============================================================================
+    
+    def _fit(self):
+        """Main fitting process with improved organization."""
+        if self.verbose:
+            print("Starting EGDF fitting process...")
         
-        # Add zero line for reference
-        ax.axhline(y=0, color='black', linestyle=':', alpha=0.5)
+        # Step 1: Data preprocessing
+        self.data = np.sort(self.data)
+        self._estimate_data_bounds()
+        self._transform_data_to_standard_domain()
+        self._estimate_weights()
         
-        fig.tight_layout()
-        plt.show()
+        # Step 2: Bounds estimation
+        self._estimate_initial_probable_bounds()
+        self._generate_evaluation_points()
+        
+        # Step 3: Get distribution function values for optimization
+        self.df_values = self._get_distribution_function_values(use_wedf=self.wedf, smooth=False)
+        
+        # Step 4: Parameter optimization
+        self._determine_optimization_strategy()
+        
+        # Step 5: Calculate final EGDF and PDF
+        self._calculate_final_results()
+        
+        # Step 6: Generate smooth curves for plotting and analysis
+        self._generate_smooth_curves()
+        
+        # Step 7: Transform bounds back to original domain
+        self._transform_bounds_to_original_domain()
+        
+        # Mark as fitted (Step 8 is now optional via marginal_analysis())
+        self._fitted = True
+        
+        if self.verbose:
+            print("EGDF fitting completed successfully.")
+        
+        # clean up computation cache
+        if self.flush:
+            self._cleanup_computation_cache()
