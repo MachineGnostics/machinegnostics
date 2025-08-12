@@ -43,7 +43,7 @@ class EGDF(BaseEGDF):
         n_points (int): Number of points to generate in the distribution function (default: 500).
         catch (bool): Whether to store intermediate calculated values (default: True).
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
-        wedf (bool): Whether to use Weighted Empirical Distribution Function (default: True) OR KS Points (False).
+        wedf (bool): Whether to use Weighted Empirical Distribution Function (default: True) OR KS (Kolmogorov-Smirnov) Points (False).
         opt_method (str): Optimization method for parameter estimation (default: 'L-BFGS-B').
         tolerance (float): Convergence tolerance for optimization (default: 1e-9).
         verbose (bool): Whether to print detailed progress information (default: False).
@@ -324,35 +324,12 @@ class EGDF(BaseEGDF):
             >>> print("Fitting completed")
             >>> print(f"Fitted parameters: {egdf.params}")
             
-            Fitting with error handling:
-            >>> try:
-            ...     egdf.fit()
-            ...     print("Fitting successful")
-            ...     print(f"Convergence achieved with tolerance: {egdf.tolerance}")
-            ... except RuntimeError as e:
-            ...     print(f"Fitting failed: {e}")
-            ... except ValueError as e:
-            ...     print(f"Invalid parameters: {e}")
-            
             Monitoring verbose output:
             >>> egdf = EGDF(data, verbose=True, tolerance=1e-6)
             >>> egdf.fit()  # Will print detailed optimization progress
             
             Accessing results after fitting:
-            >>> egdf.fit()
-            >>> if hasattr(egdf, 'params') and egdf.params:
-            ...     print("Fit successful!")
-            ...     for param, value in egdf.params.items():
-            ...         print(f"{param}: {value}")
-            ... else:
-            ...     print("Fit failed or incomplete")
-
-        Performance Considerations:
-            - Fitting time scales with data size and complexity
-            - Tighter tolerance values increase computation time
-            - Some optimization methods are faster but less robust
-            - Large datasets may require memory management (set catch=False)
-            - Bounds can significantly improve convergence speed
+            >>> egdf.params  # Contains global distribution parameters
 
         Quality Assessment:
             After fitting, check the following for quality assessment:
@@ -378,10 +355,6 @@ class EGDF(BaseEGDF):
             - Increase tolerance for difficult datasets
             - Use verbose=True to diagnose optimization issues
 
-        See Also:
-            __init__(): For parameter configuration
-            plot(): For visualizing fitted results
-            scipy.optimize: For optimization algorithm details
         """
         self._fit()
 
@@ -395,7 +368,7 @@ class EGDF(BaseEGDF):
         Visualize the fitted Estimating Global Distribution Function and related plots.
 
         This method generates comprehensive visualizations of the fitted distribution function,
-        including the main EGDF curve, empirical data comparison, and optional additional
+        including the main EGDF curve, data comparison, and optional additional
         distribution functions. The plotting functionality provides insights into the quality
         of the fit and the characteristics of the underlying distribution.
 
@@ -471,19 +444,7 @@ class EGDF(BaseEGDF):
             Discrete points for large datasets:
             >>> egdf.plot(plot_smooth=False, plot='gdf', figsize=(10, 6))
             
-            Publication-ready plots:
-            >>> import matplotlib.pyplot as plt
-            >>> egdf.plot(plot='both', bounds=True, figsize=(14, 8))
-            >>> plt.suptitle('Distribution Analysis Results', fontsize=16)
-            >>> plt.tight_layout()
-            >>> plt.savefig('egdf_results.pdf', dpi=300, bbox_inches='tight')
-            
-            Interactive analysis:
-            >>> egdf.plot(plot='gdf', extra_df=True)
-            >>> # Zoom, pan, and inspect interactively in the plot window
-
         Customization Tips:
-            - Use matplotlib rcParams to customize global plot appearance
             - Adjust figsize based on your display and output requirements
             - Set plot_smooth=False for very large datasets to improve performance
             - Use bounds=True to visualize the effect of constraints
@@ -518,11 +479,6 @@ class EGDF(BaseEGDF):
             - Try simpler plot types if 'all' fails
             - Reduce figsize if display issues occur
 
-        See Also:
-            fit(): Must be called before plotting
-            __init__(): For setting n_points and other parameters affecting plots
-            matplotlib.pyplot: For additional plot customization options
-            matplotlib.figure.Figure: For figure-level customization
         """
         self._plot(plot_smooth=plot_smooth, 
                    plot=plot, 
