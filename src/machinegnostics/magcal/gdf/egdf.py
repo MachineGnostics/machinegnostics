@@ -356,7 +356,7 @@ class EGDF(BaseEGDF):
             - Use verbose=True to diagnose optimization issues
 
         """
-        self._fit()
+        self._fit_egdf()
 
     def plot(self, 
              plot_smooth: bool = True, 

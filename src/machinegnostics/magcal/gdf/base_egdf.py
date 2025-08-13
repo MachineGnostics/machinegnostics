@@ -194,7 +194,7 @@ class BaseEGDF(BaseDistFunc):
             raise ValueError("DLB must be less than DUB.")
         
         if self.catch:
-            self.params.update({'DLB': self.DLB, 'DUB': self.DUB})
+            self.params.update({'DLB': float(self.DLB), 'DUB': float(self.DUB)})
 
     def _estimate_weights(self):
         """Process and normalize weights."""
@@ -295,14 +295,14 @@ class BaseEGDF(BaseDistFunc):
     # DISTRIBUTION FUNCTION COMPUTATION
     # =============================================================================
     
-    def _get_distribution_function_values(self, use_wedf=True, smooth=False):
+    def _get_distribution_function_values(self, use_wedf=True):
         """Get WEDF or KS points for optimization."""
         if use_wedf:
             wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
-            if smooth:
-                df_values = wedf_.fit(self.di_points_n)
-            else:
-                df_values = wedf_.fit(self.data)
+            # if smooth:
+            #     df_values = wedf_.fit(self.di_points_n)
+            # else:
+            df_values = wedf_.fit(self.data)
             
             if self.catch:
                 self.params['wedf'] = df_values.copy()
@@ -311,8 +311,8 @@ class BaseEGDF(BaseDistFunc):
                 print("WEDF values computed.")
             return df_values
         else:
-            n_points = self.n_points if smooth else len(self.data)
-            df_values = self._generate_ks_points(n_points)
+            # n_points = self.n_points if smooth else len(self.data)
+            df_values = self._generate_ks_points(len(self.data))
             
             if self.catch:
                 self.params['ksdf'] = df_values.copy()
@@ -657,7 +657,7 @@ class BaseEGDF(BaseDistFunc):
     def _calculate_final_results(self):
         """Calculate final EGDF and PDF with optimized parameters."""
         # Convert to infinite domain
-        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        # zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         self.zi = zi_d
         
@@ -928,7 +928,7 @@ class BaseEGDF(BaseDistFunc):
     # MAIN FITTING PROCESS
     # =============================================================================
     
-    def _fit(self):
+    def _fit_egdf(self):
         """Main fitting process with improved organization."""
         if self.verbose:
             print("Starting EGDF fitting process...")
@@ -944,7 +944,7 @@ class BaseEGDF(BaseDistFunc):
         self._generate_evaluation_points()
         
         # Step 3: Get distribution function values for optimization
-        self.df_values = self._get_distribution_function_values(use_wedf=self.wedf, smooth=False)
+        self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
         
         # Step 4: Parameter optimization
         self._determine_optimization_strategy()
@@ -965,5 +965,5 @@ class BaseEGDF(BaseDistFunc):
             print("EGDF fitting completed successfully.")
         
         # clean up computation cache
-        if self.flush:
+        if self.flush:  
             self._cleanup_computation_cache()
