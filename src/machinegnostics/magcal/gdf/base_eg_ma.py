@@ -7,7 +7,7 @@ Author: Nirmal Parmar
 
 import numpy as np
 from machinegnostics.magcal.gdf.egdf import EGDF
-from machinegnostics.magcal.gdf.der_egdf import DerivativesEGDF
+from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 class BaseMarginalAnalysisEGDF:
     """
@@ -499,85 +499,14 @@ class BaseMarginalAnalysisEGDF:
         
         return False
 
-
-    def _get_picks(self):
-        """
-        Estimate number of peaks (local maxima) in the PDF.
-        Uses first and second derivative analysis to identify peaks.
-        """
-        if not hasattr(self.init_egdf, 'pdf') or self.init_egdf.pdf is None:
-            if self.verbose:
-                print("Warning: PDF not available for peak detection")
-            return 0
-        
-        try:
-            # Get PDF and its derivatives
-            pdf = self.init_egdf.pdf  # PDF is the first derivative of EGDF
-            
-            # Get second derivative of EGDF (which is first derivative of PDF)
-            d2_egdf = self.init_egdf._get_egdf_second_derivative()
-            
-            # Find potential peaks where PDF (first derivative) changes sign (crosses zero)
-            # and second derivative is negative (concave down)
-            peaks = []
-            peak_count = 0
-            
-            # Method 1: Look for sign changes in PDF (first derivative of EGDF)
-            for i in range(1, len(pdf) - 1):
-                # Check if PDF crosses zero (from positive to negative)
-                if (pdf[i-1] > 0 and pdf[i] <= 0):
-                    # Check if second derivative is negative (indicating a maximum)
-                    if i < len(d2_egdf) and d2_egdf[i] < 0:
-                        # Additional check: ensure this is a significant peak
-                        if pdf[i-1] > np.max(pdf) * 0.01:  # Previous point must be at least 1% of max PDF value
-                            peaks.append(i-1)  # Record the peak position
-                            peak_count += 1
-            
-            # Method 2: If no peaks found, try gradient search method
-            if peak_count == 0:
-                # Use gradient method as fallback
-                pdf_gradient = np.gradient(pdf)
-                
-                for i in range(1, len(pdf_gradient) - 1):
-                    # Look for zero-crossing in gradient (positive to negative)
-                    if (pdf_gradient[i-1] > 0 and pdf_gradient[i] <= 0):
-                        # Check significance
-                        if pdf[i] > np.max(pdf) * 0.01:
-                            peaks.append(i)
-                            peak_count += 1
-            
-            # Remove duplicate peaks
-            peaks = list(set(peaks))
-            peak_count = len(peaks)
-            
-            # Store only the number of peaks
-            if self.catch:
-                self.params['num_peaks'] = peak_count
-            
-            if self.verbose:
-                print(f"Detected {peak_count} peaks in PDF")
-            
-            return peak_count
-            
-        except Exception as e:
-            if self.verbose:
-                print(f"Error in peak detection: {e}")
-            return 0
         
     def _is_homogeneous(self):
         """
         Check if the data is homogeneous.
         Returns True if homogeneous, False otherwise.
         """
-        p = self._get_picks()
-        if (self.init_egdf.pdf.any() < 0) or p > 1:
-            if self.verbose:
-                print(f"Data is not homogeneous: PDF has negative values or multiple peaks [{p}] detected.")
-                is_homogeneous = False
-        else:
-            if self.verbose:
-                print("Data is homogeneous: PDF has no negative values and only one peak detected.")
-                is_homogeneous = True
+        ih = DataHomogeneity(self.init_egdf, catch=self.catch, verbose=self.verbose)
+        is_homogeneous = ih.test_homogeneity()
 
         if self.catch:
             self.params['is_homogeneous'] = is_homogeneous
