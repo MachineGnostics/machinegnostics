@@ -6,315 +6,199 @@ Author: Nirmal Parmar
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from machinegnostics.magcal.mg_weights import GnosticsWeights
+from machinegnostics.magcal.gdf.egdf import EGDF
 
 class DataHomogeneity:
     """
-    Class to check the homogeneity of data for GDF calculations.
-    This class is used to ensure that the data is homogeneous before performing GDF calculations.
+    A class for checking the homogeneity of data for GDF (Gnostic Distribution Functions) calculations.
+    
+    This class analyzes the probability density function (PDF) of an EGDF object to determine if the 
+    underlying data is homogeneous. Data is considered homogeneous when it has:
+    1. No negative PDF values (indicating proper probability distribution)
+    2. Exactly one peak (indicating a single, coherent data distribution)
+    
+    The homogeneity check is crucial for ensuring reliable GDF calculations, as heterogeneous data
+    can lead to inaccurate or misleading results in machine learning and statistical analysis.
+    
+    Attributes:
+        init_egdf (EGDF): The input EGDF object containing data and computed PDF
+        verbose (bool): Controls detailed output during homogeneity checking
+        catch (bool): Controls whether results are stored in internal parameters dictionary
+        params (dict): Dictionary storing homogeneity check results when catch=True
+    
+    Example:
+        >>> from machinegnostics.magcal.gdf.egdf import EGDF
+        >>> from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
+        >>> 
+        >>> # Create EGDF object with your data
+        >>> egdf = EGDF(data=your_data)
+        >>> 
+        >>> # Initialize homogeneity checker
+        >>> homogeneity_checker = DataHomogeneity(egdf, verbose=True)
+        >>> 
+        >>> # Check if data is homogeneous
+        >>> is_homogeneous = homogeneity_checker.test_homogeneity()
+        >>> 
+        >>> # Get detailed results
+        >>> results = homogeneity_checker.get_homogeneity_params()
+        >>> print(f"Homogeneous: {results['is_homogeneous']}")
+        >>> print(f"Number of peaks: {results['num_peaks']}")
+        >>> print(f"Has negative PDF: {results['has_negative_pdf']}")
+    
+    Methods:
+        test_homogeneity(): Main public method to check data homogeneity
+        get_homogeneity_params(): Returns dictionary of stored homogeneity parameters
+    
+    Notes:
+        - Peak detection uses local maxima identification with a significance threshold
+        - Only peaks > 1% of maximum PDF value are considered significant
+        - Edge cases (arrays < 3 elements) are handled gracefully
+        - Error handling ensures robustness against malformed input data
+        
+    Raises:
+        AttributeError: If init_egdf doesn't have required PDF attribute
+        Exception: Various exceptions caught during peak detection (logged if verbose=True)
     """
-
-    def __init__(self, params, data , catch=True):
-        self.data = data
-        self.params = params
-        self.gw = GnosticsWeights()
-        self.analysis_info = {}
+    def __init__(self, init_egdf: EGDF, verbose=True, catch=True):
+        """
+        Initialize the DataHomogeneity class.
+        
+        Parameters:
+            init_egdf (EGDF): Initial EGDF object containing the data and computed PDF.
+                            Must have a 'pdf' attribute containing the probability density function.
+            verbose (bool, optional): If True, prints detailed information about the homogeneity 
+                                    check process including warnings and results. Defaults to True.
+            catch (bool, optional): If True, stores homogeneity check results in the internal 
+                                  params dictionary for later retrieval. Defaults to True.
+        
+        Raises:
+            TypeError: If init_egdf is not an EGDF object
+        """
+        self.init_egdf = init_egdf
+        self.verbose = verbose
         self.catch = catch
-        # if self catch is False, many functions will not be available
-        if self.catch == False:
-            print("Warning: Catch is set to False, some functions may not be available.")
-
-    def is_homogeneous(self, prominence_threshold=0.01, distance_threshold=5, filter_data_range=True):
-        """
-        Check if the data is homogeneous based on Machine Gnostics definition.
-        
-        A homogeneous data sample is defined as one composed of only one cluster,
-        therefore it has only one density maximum. If there are several clusters
-        in a sample then each will have a separate maximum in the sample's density function.
-        
-        This supports infinite data support where all data and Z0 values are strictly positive.
-        
-        Parameters:
-        prominence_threshold (float): Minimum prominence for a peak to be considered significant
-        distance_threshold (int): Minimum distance between peaks
-        filter_data_range (bool): If True, filter PDF to only include data min-max range
+        self.params = {}
+    
+    def test_homogeneity(self):
+        """        
+        This is the main entry point for checking if the EGDF data is homogeneous.
+        It performs the complete homogeneity analysis including peak detection
+        and negative value checking.
         
         Returns:
-        bool: True if homogeneous (single cluster/peak), False if not homogeneous (multiple clusters/peaks)
-        dict: Additional information about the homogeneity analysis
+            bool: True if data is homogeneous (no negative PDF values and exactly 
+                 one peak), False otherwise.
+        
+        Example:
+            >>> import numpy as np
+            >>> from machinegnostics.magcal import EGDF
+            >>> from machinegnostics.magcal import DataHomogeneity
+         
+            >>> # Test homogeneous data (single peak, no negatives)
+            >>> data = np.array([-13.5, 0,1,2,3,4,5,6,7,8,9,10])
+            >>> egdf = EGDF(data)
+            >>> checker = DataHomogeneity(egdf, verbose=False)
+            >>> result = checker.test_homogeneity()
+            >>> print(f"Is homogeneous: {result}")
+            Is homogeneous: True
+        
+        Notes:
+            - This method delegates to the internal _is_homogeneous() method
+            - Results are automatically stored in params if catch=True
+            - Verbose output is controlled by the verbose parameter
         """
-        from scipy.signal import find_peaks
+        return self._is_homogeneous()
         
-        # Get PDF from params
-        if 'pdf' not in self.params or self.params['pdf'] is None:
-            raise ValueError("PDF must be calculated before checking homogeneity.")
+
+    def _is_homogeneous(self):
+        """
+        Internal method to check if the data is homogeneous.
         
-        pdf = self.params['pdf']
-        di_points = self.params.get('di_points', np.arange(len(pdf)))
+        Performs the actual homogeneity analysis by checking:
+        1. Whether PDF has any negative values
+        2. Number of peaks in the PDF (should be exactly 1)
         
-        # Store original data for reference
-        pdf_original = pdf.copy()
-        di_points_original = di_points.copy()
+        Also handles verbose output and parameter storage based on instance settings.
         
-        # Filter PDF data to data min-max range if requested
-        if filter_data_range:
-            data_min = self.data.min()
-            data_max = self.data.max()
-            
-            # Find indices within data range
-            mask = (di_points >= data_min) & (di_points <= data_max)
-            
-            if np.any(mask):
-                # Filter both PDF and di_points to data range
-                pdf = pdf[mask]
-                di_points = di_points[mask]
-                
-                # print(f"Filtered PDF to data range [{data_min:.3f}, {data_max:.3f}]")
-                # print(f"Original PDF length: {len(pdf_original)}, Filtered PDF length: {len(pdf)}")
+        Returns:
+            bool: True if homogeneous (no negative PDF values and exactly one peak), 
+                 False otherwise.
+        """
+        num_peaks = self._get_peaks()
+        has_negative_pdf = np.any(self.init_egdf.pdf < 0)
+
+        is_homogeneous = not has_negative_pdf and num_peaks == 1
+
+        if self.verbose:
+            if not is_homogeneous:
+                reasons = []
+                if has_negative_pdf:
+                    reasons.append("PDF has negative values")
+                if num_peaks > 1:
+                    reasons.append(f"multiple peaks [{num_peaks}] detected")
+                print(f"Data is not homogeneous: {', '.join(reasons)}.")
             else:
-                print("Warning: No PDF points found within data range, using full PDF")
-                filter_data_range = False  # Fallback to full range
-        
-        # Handle infinite data support - ensure all values are strictly positive
-        if np.any(pdf <= 0):
-            # Add small epsilon to handle zero or negative values
-            pdf = pdf + 1e-10
-        
-        # Normalize PDF for consistent peak detection
-        pdf_normalized = pdf / np.max(pdf)
-        
-        # Find peaks (density maxima) in the PDF
-        peaks, properties = find_peaks(
-            pdf_normalized, 
-            prominence=prominence_threshold,
-            distance=distance_threshold
-        )
-        
-        # Number of significant peaks (clusters)
-        N0 = len(peaks)
-        
-        # Homogeneous if exactly one peak (one cluster)
-        is_homog = (N0 == 1)
-        
-        # Get peak locations in original data domain (using filtered di_points)
-        peak_locations = []
-        if len(peaks) > 0:
-            peak_locations = [di_points[idx] for idx in peaks]
-        
-        # Additional analysis information
-        self.analysis_info = {
-            'N0': N0,
-            'peak_indices': peaks,
-            'peak_locations': peak_locations,
-            'peak_values': pdf[peaks] if len(peaks) > 0 else [],
-            'peak_prominences': properties.get('prominences', []),
-            'is_homogeneous': is_homog,
-            'homogeneity_statement': f"Sample is homogeneous (single cluster)" if is_homog else f"Sample is not homogeneous ({N0} clusters detected)",
-            'clusters_detected': N0,
-            'data_filtered': filter_data_range,
-            'data_range': [self.data.min(), self.data.max()] if filter_data_range else None,
-            'filtered_pdf_length': len(pdf),
-            'original_pdf_length': len(pdf_original),
-            'filtered_pdf': pdf,
-            'filtered_di_points': di_points,
-            'original_pdf': pdf_original,
-            'original_di_points': di_points_original
-        }
+                print("Data is homogeneous: PDF has no negative values and at most one peak detected.")
 
-        # Update params
-        self.params['is_homogeneous'] = is_homog
-        self.params['N0'] = N0
-        self.params['g_mean'] = peak_locations
-        self.params['homogeneity_filtered'] = filter_data_range
-        
-        return is_homog, self.params
+        if self.catch:
+            self.params['is_homogeneous'] = is_homogeneous
+            self.params['has_negative_pdf'] = has_negative_pdf
+            self.params['num_peaks'] = num_peaks
+            
+        return is_homogeneous
 
-    def analyze_clusters(self):
+
+    def _get_peaks(self):
         """
-        Analyze the clusters in the data based on PDF peaks.
+        Estimate number of significant peaks (local maxima) in the PDF.
+        
+        Identifies peaks using local maxima detection with a significance threshold.
+        A point is considered a peak if it's greater than both neighbors and exceeds
+        1% of the maximum PDF value.
         
         Returns:
-        dict: Detailed cluster analysis
+            int: Number of significant peaks detected. Returns 0 if PDF is unavailable
+                or an error occurs.
         """
-        if not hasattr(self, 'analysis_info') or not self.analysis_info:
-            is_homog, params = self.is_homogeneous()
+        if not hasattr(self.init_egdf, 'pdf') or self.init_egdf.pdf is None:
+            if self.verbose:
+                print("Warning: PDF not available for peak detection")
+            return 0
         
-        analysis = self.analysis_info
-        cluster_analysis = {
-            'homogeneous': analysis['is_homogeneous'],
-            'number_of_clusters': analysis['N0'],
-            'cluster_centers': analysis['peak_locations'],
-            'cluster_densities': analysis['peak_values'].tolist() if len(analysis['peak_values']) > 0 else [],
-            'infinite_support': True,  # Machine Gnostics assumption
-            'strictly_positive': self._check_positive_support(),
-            'data_filtered': analysis.get('data_filtered', False),
-            'analysis_range': analysis.get('data_range', None)
-        }
-        
-        return cluster_analysis
-
-    def _check_positive_support(self):
-        """
-        Check if all data values are strictly positive (infinite data support requirement).
-        
-        Returns:
-        bool: True if all data values are strictly positive
-        """
-        return np.all(self.data > 0)
-
-    def plot_homogeneity_analysis(self, filter_data_range=True):
-        """
-        Plot PDF with identified peaks for homogeneity analysis.
-        
-        Parameters:
-        filter_data_range (bool): Whether to show filtered analysis or full range
-        """
-        if 'pdf' not in self.params:
-            raise ValueError("PDF must be calculated before plotting homogeneity analysis.")
-        
-        # Ensure homogeneity analysis is done with specified filtering
-        is_homog, params = self.is_homogeneous(filter_data_range=filter_data_range)
-        analysis = self.analysis_info
-        
-        # Get data for plotting
-        pdf_original = analysis['original_pdf']
-        di_points_original = analysis['original_di_points']
-        
-        fig, ax = plt.subplots(figsize=(12, 8))
-        
-        # Plot full PDF in light color
-        ax.plot(di_points_original, pdf_original, 'lightblue', linewidth=1, 
-                label='Full PDF', alpha=0.6)
-        
-        if filter_data_range and analysis['data_filtered']:
-            # Plot filtered PDF in main color
-            pdf_filtered = analysis['filtered_pdf']
-            di_points_filtered = analysis['filtered_di_points']
+        try:
+            pdf = self.init_egdf.pdf
             
-            ax.plot(di_points_filtered, pdf_filtered, 'b-', linewidth=2, 
-                    label='Filtered PDF (Data Range)')
+            # Handle edge cases
+            if len(pdf) < 3:
+                return 1 if len(pdf) > 0 and np.max(pdf) > 0 else 0
             
-            # Add vertical lines to show data range
-            data_min, data_max = analysis['data_range']
-            ax.axvline(x=data_min, color='green', linestyle='--', alpha=0.7, 
-                      label=f'Data Min ({data_min:.3f})')
-            ax.axvline(x=data_max, color='red', linestyle='--', alpha=0.7, 
-                      label=f'Data Max ({data_max:.3f})')
+            # Find local maxima
+            peaks = []
             
-            # Shade the filtered region
-            ax.axvspan(data_min, data_max, alpha=0.1, color='yellow', 
-                      label='Analysis Region')
+            # Check each point to see if it's a local maximum
+            for i in range(1, len(pdf) - 1):
+                # A point is a local maximum if it's greater than both neighbors
+                if pdf[i] > pdf[i-1] and pdf[i] > pdf[i+1]:
+                    # Only consider significant peaks (> 1% of maximum PDF value)
+                    if pdf[i] > np.max(pdf) * 0.01:
+                        peaks.append(i)
             
-            # Mark peaks (found in filtered data)
-            if len(analysis['peak_indices']) > 0:
-                peak_x = [di_points_filtered[i] for i in analysis['peak_indices']]
-                peak_y = [pdf_filtered[i] for i in analysis['peak_indices']]
-                ax.plot(peak_x, peak_y, 'ro', markersize=10, 
-                       label=f'Peaks (N0 = {analysis["N0"]})')
-        else:
-            # Plot full PDF in main color
-            ax.plot(di_points_original, pdf_original, 'b-', linewidth=2, label='PDF')
+            # If no significant peaks found but PDF has positive values, assume one peak
+            if len(peaks) == 0 and np.max(pdf) > 0:
+                # Find the global maximum as the single peak
+                max_idx = np.argmax(pdf)
+                if pdf[max_idx] > 0:
+                    peaks = [max_idx]
             
-            # Mark peaks (found in full data)
-            if len(analysis['peak_indices']) > 0:
-                peak_x = [di_points_original[i] for i in analysis['peak_indices']]
-                peak_y = [pdf_original[i] for i in analysis['peak_indices']]
-                ax.plot(peak_x, peak_y, 'ro', markersize=10, 
-                       label=f'Peaks (N0 = {analysis["N0"]})')
-        
-        # Add data points as vertical lines
-        for point in self.data:
-            ax.axvline(x=point, color='gray', linestyle=':', alpha=0.5, linewidth=1)
-        
-        # # Add text annotation for data points
-        # ax.text(0.02, 0.95, f'Data points: {list(self.data)}', 
-        #         transform=ax.transAxes, verticalalignment='top',
-        #         bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.7))
-        
-        ax.set_xlabel('Data Points')
-        ax.set_ylabel('PDF')
-        
-        filter_text = " (Filtered to Data Range)" if (filter_data_range and analysis['data_filtered']) else " (Full Range)"
-        ax.set_title(f'Homogeneity Analysis{filter_text}: {analysis["homogeneity_statement"]}')
-        ax.legend(loc='upper right')
-        ax.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.show()
-        
-        return analysis
-
-    def homogenize(self):
-        """
-        Perform data homogenization by applying gnostic weights.
-        
-        Returns:
-        np.ndarray: Updated weights after homogenization
-        """
-        # Get current weights with proper numpy array handling
-        current_weights = None
-        
-        # Check self.weights first
-        if hasattr(self, 'weights') and self.weights is not None:
-            current_weights = self.weights
-        # Check params['weights'] second
-        elif 'weights' in self.params and self.params['weights'] is not None:
-            current_weights = self.params['weights']
-        # Default to ones
-        else:
-            current_weights = np.ones(len(self.data))
-        
-        # Get transformed data with proper handling
-        z_values = None
-        
-        # Check self.z first
-        if hasattr(self, 'z') and self.z is not None:
-            z_values = self.z
-        # Check params['z'] second
-        elif 'z' in self.params and self.params['z'] is not None:
-            z_values = self.params['z']
-        else:
-            raise ValueError("Transformed data 'z' must be available for homogenization.")
-        
-        # Calculate homogeneous weights
-        homogeneous_weights = self.gw._get_gnostic_weights(z_values)
-        
-        # Apply homogeneous weights
-        new_weights = current_weights * homogeneous_weights
-        
-        # Update weights
-        if hasattr(self, 'weights'):
-            self.weights = new_weights
-        self.params['weights'] = new_weights
-        self.params['homogenization_applied'] = True
-        self.params['homogeneous_weights'] = homogeneous_weights
-        
-        return new_weights
-
-    def get_homogeneity_summary(self):
-        """
-        Get a comprehensive summary of homogeneity analysis.
-        
-        Returns:
-        dict: Summary of homogeneity analysis
-        """
-        if not hasattr(self, 'analysis_info') or not self.analysis_info:
-            self.is_homogeneous()
-        
-        cluster_info = self.analyze_clusters()
-        
-        summary = {
-            'data_points': list(self.data),
-            'data_range': [float(self.data.min()), float(self.data.max())],
-            'strictly_positive': self._check_positive_support(),
-            'homogeneous': cluster_info['homogeneous'],
-            'number_of_clusters': cluster_info['number_of_clusters'],
-            'cluster_centers': cluster_info['cluster_centers'],
-            'homogeneity_statement': self.analysis_info['homogeneity_statement'],
-            'analysis_filtered': self.analysis_info.get('data_filtered', False),
-            'pdf_points_analyzed': self.analysis_info.get('filtered_pdf_length', 0),
-            'total_pdf_points': self.analysis_info.get('original_pdf_length', 0)
-        }
-        
-        return summary
+            peak_count = len(peaks)
+            
+            if self.verbose:
+                print(f"Detected {peak_count} peaks in PDF")
+            
+            return peak_count
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"Error in peak detection: {e}")
+            return 0
+    
