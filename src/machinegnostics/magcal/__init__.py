@@ -9,6 +9,9 @@ from machinegnostics.magcal.gcor import __gcorrelation
 from machinegnostics.magcal.layer_param_base import ParamBase
 from machinegnostics.magcal.layer_history_base import HistoryBase
 from machinegnostics.magcal.layer_io_process_base import DataProcessLayerBase
+# gdf
+from machinegnostics.magcal.gdf.egdf import EGDF
+from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 
 # g correlation function
