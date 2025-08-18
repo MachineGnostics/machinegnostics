@@ -479,7 +479,7 @@ class EGDF(BaseEGDF):
             - Try simpler plot types if 'all' fails
             - Reduce figsize if display issues occur
 
-        """
+        """           
         self._plot(plot_smooth=plot_smooth, 
                    plot=plot, 
                    bounds=bounds, 
