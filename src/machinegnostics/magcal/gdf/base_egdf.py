@@ -625,8 +625,8 @@ class BaseEGDF(BaseDistFunc):
         first_derivative = numerator / w
         # first_derivative = first_derivative / self.zi
         
-        if np.any(first_derivative < 0):
-            warnings.warn("EGDF first derivative (PDF) contains negative values, indicating potential non-homogeneous data", RuntimeWarning)
+        # if np.any(first_derivative < 0):
+        #     warnings.warn("EGDF first derivative (PDF) contains negative values, indicating potential non-homogeneous data", RuntimeWarning)
         return first_derivative.flatten()
 
 
@@ -635,52 +635,52 @@ class BaseEGDF(BaseDistFunc):
     # HOMOGENEITY TESTING
     # =============================================================================
     
-    def _test_data_homogeneity(self):
-        """
-        Test if the given data sample is homogeneous.
+    # def _test_data_homogeneity(self):
+    #     """
+    #     Test if the given data sample is homogeneous.
         
-        Conditions for homogeneous data:
-        1. PDF has single peak (one global maximum)
-        2. PDF values are never negative
-        """
-        # Use PDF from smooth points if available, otherwise from data points
-        if hasattr(self, 'pdf_points') and self.pdf_points is not None:
-            pdf_to_test = self.pdf_points
-        elif hasattr(self, 'pdf') and self.pdf is not None:
-            pdf_to_test = self.pdf
-        else:
-            # Calculate PDF if not available
-            if hasattr(self, 'fi') and hasattr(self, 'hi'):
-                pdf_to_test = self._calculate_pdf_from_moments(self.fi, self.hi)
-            else:
-                if self.verbose:
-                    print("Warning: Cannot test homogeneity - PDF not available")
-                return {'is_homogeneous': None, 'error': 'PDF not available'}
+    #     Conditions for homogeneous data:
+    #     1. PDF has single peak (one global maximum)
+    #     2. PDF values are never negative
+    #     """
+    #     # Use PDF from smooth points if available, otherwise from data points
+    #     if hasattr(self, 'pdf_points') and self.pdf_points is not None:
+    #         pdf_to_test = self.pdf_points
+    #     elif hasattr(self, 'pdf') and self.pdf is not None:
+    #         pdf_to_test = self.pdf
+    #     else:
+    #         # Calculate PDF if not available
+    #         if hasattr(self, 'fi') and hasattr(self, 'hi'):
+    #             pdf_to_test = self._calculate_pdf_from_moments(self.fi, self.hi)
+    #         else:
+    #             if self.verbose:
+    #                 print("Warning: Cannot test homogeneity - PDF not available")
+    #             return {'is_homogeneous': None, 'error': 'PDF not available'}
         
-        # Check for negative PDF values
-        has_negative_pdf = np.any(pdf_to_test < 0)
+    #     # Check for negative PDF values
+    #     has_negative_pdf = np.any(pdf_to_test < 0)
         
-        # Find peaks in PDF
-        pdf_peaks = []
-        for i in range(1, len(pdf_to_test) - 1):
-            if pdf_to_test[i] > pdf_to_test[i-1] and pdf_to_test[i] > pdf_to_test[i+1]:
-                pdf_peaks.append(i)
+    #     # Find peaks in PDF
+    #     pdf_peaks = []
+    #     for i in range(1, len(pdf_to_test) - 1):
+    #         if pdf_to_test[i] > pdf_to_test[i-1] and pdf_to_test[i] > pdf_to_test[i+1]:
+    #             pdf_peaks.append(i)
         
-        # Check for single global maximum
-        has_single_peak = len(pdf_peaks) <= 1
+    #     # Check for single global maximum
+    #     has_single_peak = len(pdf_peaks) <= 1
         
-        # Overall homogeneity assessment
-        is_homogeneous = not has_negative_pdf and has_single_peak
+    #     # Overall homogeneity assessment
+    #     is_homogeneous = not has_negative_pdf and has_single_peak
         
-        homogeneity_results = {
-            'is_homogeneous': is_homogeneous,
-            'has_negative_pdf': has_negative_pdf,
-            'number_of_peaks': len(pdf_peaks),
-            'peak_locations': pdf_peaks,
-            'has_single_peak': has_single_peak
-        }
+    #     homogeneity_results = {
+    #         'is_homogeneous': is_homogeneous,
+    #         'has_negative_pdf': has_negative_pdf,
+    #         'number_of_peaks': len(pdf_peaks),
+    #         'peak_locations': pdf_peaks,
+    #         'has_single_peak': has_single_peak
+    #     }
         
-        return homogeneity_results
+    #     return homogeneity_results
 
 
     def _calculate_final_results(self):
