@@ -17,10 +17,11 @@ class BaseMarginalAnalysisEGDF:
 
     def __init__(self,
                 data: np.ndarray,
-                bound_tolerance: float = 0.1,
+                sample_bound_tolerance: float = 0.1,
                 max_iterations: int = 10000,
                 early_stopping_steps: int = 10,
                 estimating_rate: float = 0.1,
+                cluster_threshold: float = 0.05,
                 get_clusters: bool = True,
                 DLB: float = None,
                 DUB: float = None,
@@ -40,11 +41,12 @@ class BaseMarginalAnalysisEGDF:
                 flush: bool = False):
 
         self.data = data
-        self.bound_tolerance = bound_tolerance  # derivative sample bound tolerance
+        self.sample_bound_tolerance = sample_bound_tolerance  # derivative sample bound tolerance
         self.max_iterations = max_iterations  # maximum iterations for optimization
         self.early_stopping_steps = early_stopping_steps
         self.estimating_rate = estimating_rate
         self.get_clusters = get_clusters
+        self.cluster_threshold = cluster_threshold  # threshold for PDF-based clustering
         self.DLB = DLB  # lower bound for data
         self.DUB = DUB  # upper bound for data
         self.LB = LB  # lower bound for EGDF
@@ -66,7 +68,7 @@ class BaseMarginalAnalysisEGDF:
         # vars for marginal analysis
 
         # derivative sample bound tolerance
-        self._TOLERANCE = bound_tolerance
+        self._TOLERANCE = sample_bound_tolerance
         self._MAX_ITERATIONS = max_iterations
         self._EARLY_STOPPING_STEPS = early_stopping_steps
         self._ESTIMATING_RATE = estimating_rate
@@ -80,11 +82,11 @@ class BaseMarginalAnalysisEGDF:
         """Validate input parameters for EGDF."""
 
         # bound tolerance
-        if not isinstance(self.bound_tolerance, (int, float)):
-            raise ValueError(f"Bound tolerance must be a number. Current type: {type(self.bound_tolerance)}.")
+        if not isinstance(self.sample_bound_tolerance, (int, float)):
+            raise ValueError(f"Bound tolerance must be a number. Current type: {type(self.sample_bound_tolerance)}.")
         
-        if self.bound_tolerance <= 0:
-            raise ValueError(f"Bound tolerance must be greater than 0. Current value: {self.bound_tolerance}.")
+        if self.sample_bound_tolerance <= 0:
+            raise ValueError(f"Bound tolerance must be greater than 0. Current value: {self.sample_bound_tolerance}.")
         
         # max iterations
         if not isinstance(self.max_iterations, int):
@@ -512,37 +514,207 @@ class BaseMarginalAnalysisEGDF:
             self.params['is_homogeneous'] = is_homogeneous
         return is_homogeneous
     
-
+    
     def _get_data_sample_clusters(self):
-        '''
-        Given LSB and USB estimate get clusters
-
-        if data is non-homogeneous, then use the LSB and USB to estimate clusters.
-
-        lower cluster = LB < data < LSB
-        upper cluster = USB < data < UB
-        main cluster = LSB < data < USB
-        '''
-        # if non-homogeneous, then use the LSB and USB to estimate clusters
-        if not self.h:
-            # lower cluster
-            lower_cluster = self.init_egdf.data[(self.init_egdf.data > self.init_egdf.LB) & (self.init_egdf.data < self.LSB)]
-            # upper cluster
-            upper_cluster = self.init_egdf.data[(self.init_egdf.data > self.USB) & (self.init_egdf.data < self.init_egdf.UB)]
-            # main cluster
-            main_cluster = self.init_egdf.data[(self.init_egdf.data > self.LSB) & (self.init_egdf.data < self.USB)]
-
-            print(f"Lower cluster: {lower_cluster}")
-            print(f"Upper cluster: {upper_cluster}")
-            print(f"Main cluster: {main_cluster}")
-
+        """
+        Identify data clusters based on PDF characteristics with focus on global maxima.
+        Simplified version that tries pdf_points first, then falls back to pdf.
+        Includes EGDF convergence validation logic.
+        
+        Returns:
+        --------
+        dict: Dictionary containing the three clusters and critical points
+        """
+        # Try to get PDF data - prefer smooth pdf_points, fallback to discrete pdf
+        pdf_data = None
+        data_points = None
+        
+        if hasattr(self.init_egdf, 'pdf_points') and self.init_egdf.pdf_points is not None:
+            # Use smooth PDF curve
+            pdf_data = self.init_egdf.pdf_points
+            data_points = self.init_egdf.di_points_n
             if self.verbose:
-                print("Data sample grouped into clusters.")
+                print("Using smooth PDF points for clustering")
+        elif hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
+            # Use discrete PDF
+            pdf_data = self.init_egdf.pdf
+            data_points = self.init_egdf.data
+            if self.verbose:
+                print("Using discrete PDF for clustering")
+        else:
+            if self.verbose:
+                print("Warning: Neither PDF points nor PDF data available for clustering")
+            return {}
+        
+        # Get EGDF data - prefer smooth egdf_points, fallback to discrete egdf
+        egdf_data = None
+        egdf_data_points = None
+        
+        if hasattr(self.init_egdf, 'egdf_points') and self.init_egdf.egdf_points is not None:
+            # Use smooth EGDF curve
+            egdf_data = self.init_egdf.egdf_points
+            egdf_data_points = self.init_egdf.di_points_n
+            if self.verbose:
+                print("Using smooth EGDF points for validation")
+        elif hasattr(self.init_egdf, 'egdf') and self.init_egdf.egdf is not None:
+            # Use discrete EGDF
+            egdf_data = self.init_egdf.params.get('egdf', self.init_egdf.egdf)
+            egdf_data_points = self.init_egdf.data
+            if self.verbose:
+                print("Using discrete EGDF for validation")
+        
+        # Get sorted data and corresponding PDF values
+        sorted_indices = np.argsort(data_points)
+        sorted_data = data_points[sorted_indices]
+        sorted_pdf = pdf_data[sorted_indices]
+        
+        # Sort EGDF data if available
+        sorted_egdf = None
+        if egdf_data is not None:
+            if np.array_equal(data_points, egdf_data_points):
+                # Same data points, use same sorting
+                sorted_egdf = egdf_data[sorted_indices]
+            else:
+                # Different data points, need to interpolate or find closest matches
+                egdf_sorted_indices = np.argsort(egdf_data_points)
+                sorted_egdf_data_points = egdf_data_points[egdf_sorted_indices]
+                sorted_egdf_values = egdf_data[egdf_sorted_indices]
+                # Interpolate EGDF values at PDF data points
+                sorted_egdf = np.interp(sorted_data, sorted_egdf_data_points, sorted_egdf_values)
+        
+        # Step 1: Find PDF global maxima
+        global_max_idx = np.argmax(sorted_pdf)
+        global_max_value = sorted_pdf[global_max_idx]
+        global_max_point = sorted_data[global_max_idx]
+        
+        if self.verbose:
+            print(f"Global PDF maximum: {global_max_value:.6f} at data point {global_max_point:.3f}")
+        
+        # Step 2: Calculate thresholds (simplified)
+        noise_threshold = global_max_value * 0.05  # 5% of max for noise filtering
+        slope_threshold = global_max_value * self.cluster_threshold  # User configurable
+        
+        # Calculate gradient for slope detection
+        pdf_gradient = np.gradient(sorted_pdf)
+        gradient_std = np.std(pdf_gradient)
+        significant_gradient = gradient_std * 0.3  # 30% of gradient std
+        
+        if self.verbose:
+            print(f"Thresholds - Noise: {noise_threshold:.6f}, Slope: {slope_threshold:.6f}, Gradient: {significant_gradient:.6f}")
+        
+        # Step 3: Find onset start point (where upward slope begins)
+        onset_start_idx = 0
+        for i in range(global_max_idx, 0, -1):
+            if (sorted_pdf[i] < slope_threshold and 
+                pdf_gradient[i] < significant_gradient):
+                onset_start_idx = i
+                break
+        
+        # Step 4: Find stop point (where downward slope ends)
+        stop_end_idx = len(sorted_data) - 1
+        for i in range(global_max_idx, len(sorted_pdf) - 1):
+            if (sorted_pdf[i] < slope_threshold and 
+                abs(pdf_gradient[i]) < significant_gradient):
+                stop_end_idx = i
+                break
+        
+        # Step 5: EGDF Convergence Validation Logic
+        if sorted_egdf is not None:
+            egdf_convergence_tolerance = 0.1  # 10% tolerance for EGDF convergence check
+            
+            # Check onset point: EGDF should be close to 0
+            onset_egdf_value = sorted_egdf[onset_start_idx]
+            onset_convergence_valid = onset_egdf_value <= egdf_convergence_tolerance
+            
+            # Check stop point: EGDF should be close to 1
+            stop_egdf_value = sorted_egdf[stop_end_idx]
+            stop_convergence_valid = stop_egdf_value >= (1 - egdf_convergence_tolerance)
+            
+            # if self.verbose:
+            #     print(f"EGDF Convergence Validation:")
+            #     print(f"  Onset point EGDF: {onset_egdf_value:.6f} (should be ≈ 0) - {'✓' if onset_convergence_valid else '✗'}")
+            #     print(f"  Stop point EGDF: {stop_egdf_value:.6f} (should be ≈ 1) - {'✓' if stop_convergence_valid else '✗'}")
+            
+            # Refine boundaries if convergence is not valid
+            if not onset_convergence_valid:
+                # Search for better onset point closer to EGDF ≈ 0
+                for i in range(onset_start_idx, global_max_idx):
+                    if sorted_egdf[i] <= egdf_convergence_tolerance:
+                        onset_start_idx = i
+                        if self.verbose:
+                            print(f"  Refined onset point to index {i} with EGDF: {sorted_egdf[i]:.6f}")
+                        break
+            
+            if not stop_convergence_valid:
+                # Search for better stop point closer to EGDF ≈ 1
+                for i in range(stop_end_idx, 0, -1):
+                    if sorted_egdf[i] >= (1 - egdf_convergence_tolerance):
+                        stop_end_idx = i
+                        if self.verbose:
+                            print(f"  Refined stop point to index {i} with EGDF: {sorted_egdf[i]:.6f}")
+                        break
+        else:
+            if self.verbose:
+                print("EGDF data not available for convergence validation")
+        
+        # Step 6: Define cluster boundaries
+        onset_point = sorted_data[onset_start_idx]
+        stop_point = sorted_data[stop_end_idx]
+        
+        # Create clusters based on identified boundaries using original data
+        lower_cluster_mask = self.init_egdf.data < onset_point
+        main_cluster_mask = (self.init_egdf.data >= onset_point) & (self.init_egdf.data <= stop_point)
+        upper_cluster_mask = self.init_egdf.data > stop_point
+        
+        # Extract actual data points for each cluster
+        lower_cluster = self.init_egdf.data[lower_cluster_mask]
+        main_cluster = self.init_egdf.data[main_cluster_mask]
+        upper_cluster = self.init_egdf.data[upper_cluster_mask]
+        
+        # Calculate cluster statistics using original discrete PDF
+        if hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
+            lower_pdf_avg = np.mean(self.init_egdf.pdf[lower_cluster_mask]) if len(lower_cluster) > 0 else 0
+            main_pdf_avg = np.mean(self.init_egdf.pdf[main_cluster_mask]) if len(main_cluster) > 0 else 0
+            upper_pdf_avg = np.mean(self.init_egdf.pdf[upper_cluster_mask]) if len(upper_cluster) > 0 else 0
+        else:
+            lower_pdf_avg = main_pdf_avg = upper_pdf_avg = 0
+        
+        # Calculate EGDF values at boundary points for validation
+        onset_egdf_final = None
+        stop_egdf_final = None
+        if sorted_egdf is not None:
+            onset_egdf_final = sorted_egdf[onset_start_idx]
+            stop_egdf_final = sorted_egdf[stop_end_idx]
+        
+        # clusters = {
+        #     'lower_cluster': lower_cluster,
+        #     'main_cluster': main_cluster,
+        #     'upper_cluster': upper_cluster,
+        #     'global_max_point': global_max_point,
+        #     'global_max_value': global_max_value,
+        #     'onset_start_point': onset_point,
+        #     'stop_end_point': stop_point,
+        #     'slope_threshold': slope_threshold,
+        #     'noise_threshold': noise_threshold,
+        #     'lower_pdf_avg': lower_pdf_avg,
+        #     'main_pdf_avg': main_pdf_avg,
+        #     'upper_pdf_avg': upper_pdf_avg,
+        #     'onset_egdf_value': onset_egdf_final,
+        #     'stop_egdf_value': stop_egdf_final
+        # }
+        
+        if self.verbose:
+            print(f"Data sample clustering completed.")
+        
+        if self.catch:
+            self.params.update({
+                'lower_cluster': lower_cluster,
+                'main_cluster': main_cluster, 
+                'upper_cluster': upper_cluster,
+                'CLB': onset_point,
+                'CUB': stop_point,
+            })
 
-            if self.catch:
-                self.params['lower_cluster'] = lower_cluster
-                self.params['upper_cluster'] = upper_cluster
-                self.params['main_cluster'] = main_cluster
 
     def _estimate_sample_bound_newton(self, bound_type='lower'):
         """
@@ -585,6 +757,16 @@ class BaseMarginalAnalysisEGDF:
         return x
 
     def _get_z0(self):
+        # get median of the data
+
+        # extend data sample by adding data median
+
+        # estimate z0_EGDF with init_egdf LB, UB, and S_opt
+
+        # find z0 where PDF is at global maximum and EGDF is at 0.5
+        # sum of hi should be close to 0
+
+        # store this point as Z0
         pass
 
     def plot(self, plot_type: str = 'marginal', plot_smooth: bool = True, bounds: bool = True, derivatives: bool = False, figsize: tuple = (12, 8)):
@@ -717,9 +899,20 @@ class BaseMarginalAnalysisEGDF:
         if hasattr(self, 'USB') and self.USB is not None:
             marginal_info.append((self.USB, 'darkblue', ':', 'USB'))
         
+        # Add CLB and CUB (Cluster Lower Bound and Cluster Upper Bound)
+        # These are the PDF-based clustering boundaries
+        if hasattr(self, 'params') and 'CLB' in self.params:
+            marginal_info.append((self.params['CLB'], 'grey', '--', 'CLB'))
+        if hasattr(self, 'params') and 'CUB' in self.params:
+            marginal_info.append((self.params['CUB'], 'grey', '--', 'CUB'))
+        
         for point, color, style, name in marginal_info:
-            ax.axvline(x=point, color=color, linestyle=style, linewidth=2, 
-                      alpha=0.8, label=f"{name}={point:.3f}")
+            # Make CLB and CUB lines very thin as requested
+            linewidth = 1 if name in ['CLB', 'CUB'] else 2
+            alpha = 0.6 if name in ['CLB', 'CUB'] else 0.8
+            
+            ax.axvline(x=point, color=color, linestyle=style, linewidth=linewidth, 
+                    alpha=alpha, label=f"{name}={point:.3f}")
     
     def _add_bounds(self, ax):
         """Add bound lines to plot."""
