@@ -27,8 +27,8 @@ class DataHomogeneity:
         params (dict): Dictionary storing homogeneity check results when catch=True
     
     Example:
-        >>> from machinegnostics.magcal.gdf.egdf import EGDF
-        >>> from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
+        >>> from machinegnostics.magcal import EGDF
+        >>> from machinegnostics.magcal DataHomogeneity
         >>> 
         >>> # Create EGDF object with your data
         >>> egdf = EGDF(data=your_data)
