@@ -60,7 +60,7 @@ class EGDF(BaseEGDF):
     Examples:
         Basic usage with default parameters:
         >>> import numpy as np
-        >>> from machinegnostics.magcal.gdf import EGDF
+        >>> from machinegnostics.magcal import EGDF
         >>> 
         >>> # Stack Loss example data
         >>> data = [7, 8, 8, 8, 9, 11, 12, 13, 14, 14, 15, 15, 15, 18, 18, 19, 20, 28, 37, 37, 42]
