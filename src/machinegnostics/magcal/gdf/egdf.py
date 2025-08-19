@@ -219,8 +219,7 @@ class EGDF(BaseEGDF):
                                     Default is False. When True, provides diagnostic output about
                                     the optimization process.
             max_data_size (int, optional): Maximum size of data for which smooth EGDF generation is allowed.
-                                         Default is 1000. If data exceeds this size, smooth generation
-                                         may be skipped to avoid excessive memory usage.
+                                    Maximum data size for processing. Safety limit to prevent excessive memory usage.
             flush (bool, optional): Whether to flush intermediate calculations during processing.
                                   Default is True. May affect memory usage and computation speed.
 
