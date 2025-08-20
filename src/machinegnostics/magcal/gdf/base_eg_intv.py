@@ -15,6 +15,7 @@ import numpy as np
 import warnings
 from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.base_eg_ma import BaseMarginalAnalysisEGDF
+from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
     """
@@ -35,7 +36,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 sample_bound_tolerance: float = 0.1,
                 max_iterations: int = 10000,
                 early_stopping_steps: int = 10,
-                estimating_rate: float = 1,
+                estimating_rate: float = 0.1, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
                 get_clusters: bool = True,
                 DLB: float = None,
@@ -45,7 +46,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 S = 'auto',
                 tolerance: float = 1e-6,
                 data_form: str = 'a',
-                n_points: int = 1000,
+                n_points: int = 1000, # NOTE for intv specific
                 homogeneous: bool = True,
                 catch: bool = True,
                 weights: np.ndarray = None,
@@ -53,7 +54,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 opt_method: str = 'L-BFGS-B',
                 verbose: bool = False,
                 max_data_size: int = 1000,
-                flush: bool = True):
+                flush: bool = True): # NOTE for intv specific
         super().__init__(data=data, 
                          sample_bound_tolerance=sample_bound_tolerance, 
                          max_iterations=max_iterations, 
@@ -93,9 +94,6 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         if not isinstance(self.estimate_cluster_bounds, bool):
             raise ValueError("estimate_cluster_bounds must be a boolean.")
 
-    def _plot_egdf(self):
-        pass
-
     def _create_extended_egdf_intv(self, datum):
         """Create EGDF with extended data including the given datum."""
         data_extended = np.append(self.init_egdf.data, datum)
@@ -127,6 +125,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         This method calculates critical interval boundaries based on the Z0 interval
         and the central point Z0. It identifies tolerance bounds and typical value ranges.
+        Enhanced with convergence detection for plateau behavior.
         """
         try:
             # Input validation
@@ -160,16 +159,22 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             z0l_datum = self.z0
             z0u_datum = self.z0
             
-            # Early stopping parameters
-            early_stop_tolerance = 0.01
+            # Early stopping parameters NOTE
+            early_stop_tolerance = 1e-6  # Tolerance for early stopping
             consecutive_increases = 0
             consecutive_decreases = 0
             max_consecutive = 5
             
+            # Convergence/Plateau detection parameters NOTE
+            convergence_tolerance = 1e-6  # Tolerance for Z0 change detection
+            plateau_window = 5  # Number of consecutive points to check for plateau
+            min_plateau_points = 3  # Minimum points required before checking for plateau
+            
             # Search towards lower bound
             if self.z0 > self.LB:
                 lower_range = np.linspace(self.z0, self.LB, points_per_side)
-                
+                z0_history_lower = []  # Track recent Z0 values for plateau detection
+    
                 for i, datum in enumerate(lower_range[1:], 1):  # Skip first point (z0)
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
@@ -180,6 +185,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         
                         self.z0_interval.append(z0_datum)
                         self.datum_range.append(datum)
+                        z0_history_lower.append(z0_datum)
                         
                         # Check if we found a new minimum
                         if z0_datum < current_z0_min:
@@ -189,7 +195,37 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         else:
                             consecutive_increases += 1
                         
-                        # Early stopping if Z0 starts increasing significantly
+                        # Convergence/Plateau detection
+                        if len(z0_history_lower) >= min_plateau_points:
+                            # Check if we have enough points to evaluate plateau
+                            recent_window = min(plateau_window, len(z0_history_lower))
+                            recent_z0_values = z0_history_lower[-recent_window:]
+                            
+                            # Calculate variance and range of recent Z0 values
+                            z0_variance = np.var(recent_z0_values)
+                            z0_range = np.max(recent_z0_values) - np.min(recent_z0_values)
+                            
+                            # Check for plateau (low variance and small range)
+                            if (z0_variance < convergence_tolerance and 
+                                z0_range < convergence_tolerance):
+                                if self.verbose:
+                                    print(f"Convergence detected at lower bound: Z0 plateau reached")
+                                    print(f"  Variance: {z0_variance:.8f}, Range: {z0_range:.8f}")
+                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
+                                break
+                            
+                            # Alternative plateau detection: check if all recent values are within tolerance
+                            mean_recent_z0 = np.mean(recent_z0_values)
+                            max_deviation = np.max(np.abs(recent_z0_values - mean_recent_z0))
+                            
+                            if max_deviation < convergence_tolerance:
+                                if self.verbose:
+                                    print(f"Convergence detected at lower bound: Z0 stabilized")
+                                    print(f"  Max deviation from mean: {max_deviation:.8f}")
+                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
+                                break
+                        
+                        # Original early stopping logic (kept as backup)
                         if (z0_datum > current_z0_min + early_stop_tolerance and 
                             consecutive_increases >= max_consecutive):
                             if self.verbose:
@@ -203,7 +239,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             # Search towards upper bound
             if self.z0 < self.UB:
                 upper_range = np.linspace(self.z0, self.UB, points_per_side)
-                
+                z0_history_upper = []  # Track recent Z0 values for plateau detection
+    
                 for i, datum in enumerate(upper_range[1:], 1):  # Skip first point (z0)
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
@@ -214,6 +251,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         
                         self.z0_interval.append(z0_datum)
                         self.datum_range.append(datum)
+                        z0_history_upper.append(z0_datum)
                         
                         # Check if we found a new maximum
                         if z0_datum > current_z0_max:
@@ -223,7 +261,37 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         else:
                             consecutive_decreases += 1
                         
-                        # Early stopping if Z0 starts decreasing significantly
+                        # Convergence/Plateau detection
+                        if len(z0_history_upper) >= min_plateau_points:
+                            # Check if we have enough points to evaluate plateau
+                            recent_window = min(plateau_window, len(z0_history_upper))
+                            recent_z0_values = z0_history_upper[-recent_window:]
+                            
+                            # Calculate variance and range of recent Z0 values
+                            z0_variance = np.var(recent_z0_values)
+                            z0_range = np.max(recent_z0_values) - np.min(recent_z0_values)
+                            
+                            # Check for plateau (low variance and small range)
+                            if (z0_variance < convergence_tolerance and 
+                                z0_range < convergence_tolerance):
+                                if self.verbose:
+                                    print(f"Convergence detected at upper bound: Z0 plateau reached")
+                                    print(f"  Variance: {z0_variance:.8f}, Range: {z0_range:.8f}")
+                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
+                                break
+                            
+                            # Alternative plateau detection: check if all recent values are within tolerance
+                            mean_recent_z0 = np.mean(recent_z0_values)
+                            max_deviation = np.max(np.abs(recent_z0_values - mean_recent_z0))
+                            
+                            if max_deviation < convergence_tolerance:
+                                if self.verbose:
+                                    print(f"Convergence detected at upper bound: Z0 stabilized")
+                                    print(f"  Max deviation from mean: {max_deviation:.8f}")
+                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
+                                break
+                        
+                        # Original early stopping logic (kept as backup)
                         if (z0_datum < current_z0_max - early_stop_tolerance and 
                             consecutive_decreases >= max_consecutive):
                             if self.verbose:
@@ -283,9 +351,9 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                     'Z0': float(self.z0),
                     'Z0U': self.z0u,
                     'ZU': self.zu,
-                    'n_interval_points': len(self.z0_interval),
-                    'datum_range_span': float(self.zu - self.zl),
-                    'z0_range_span': float(self.z0u - self.z0l)
+                    # 'n_interval_points': len(self.z0_interval),
+                    # 'convergence_tolerance': convergence_tolerance,
+                    # 'plateau_window': plateau_window
                 })
             
             # Verbose output
@@ -296,7 +364,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 print(f"Z0:  {self.z0:.6f} (original central point)")
                 print(f"Z0U: {self.z0u:.6f} (maximum Z0 value)")
                 print(f"ZU:  {self.zu:.6f} (datum producing maximum Z0)")
-                print(f"Computed from {len(self.z0_interval)} data points")
+                # print(f"Total points analyzed: {len(self.z0_interval)}")
                 print("Interval values computed successfully.")
         
         except Exception as e:
@@ -304,8 +372,9 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if self.verbose:
                 print(error_msg)
             raise RuntimeError(error_msg) from e
+
     
-    def _plot_egdf_intv(self, plot_style='smooth', show_data_points=True, show_grid=True, figsize=(12, 8)):
+    def _plot_egdf_intv(self, plot_style='scatter', show_data_points=True, show_grid=True, figsize=(12, 8)):
         """
         Plot interval analysis results showing data range vs Z0 intervals.
         
@@ -421,7 +490,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if show_data_points and plot_style != 'scatter':
                 try:
                     ax.scatter(sorted_datum, sorted_z0_interval, marker='x', s=40, 
-                              color='lightblue', alpha=0.8, linewidth=1.5, zorder=4, 
+                              color='gray', alpha=0.8, linewidth=1.5, zorder=4, 
                               label='Data Points')
                 except Exception as e:
                     warnings.warn(f"Error plotting data points: {e}")
@@ -504,11 +573,11 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             
             # Set labels and title
             try:
-                ax.set_xlabel('Datum Value', fontsize=12, fontweight='bold')
-                ax.set_ylabel('Z0 Value', fontsize=12, fontweight='bold')
+                ax.set_xlabel('Datum Value', fontsize=10, fontweight='bold')
+                ax.set_ylabel('Z0 Value', fontsize=10, fontweight='bold')
                 ax.set_title('EGDF Interval Analysis\n' + 
                             f'Points analyzed: {len(self.z0_interval)} | Style: {plot_style}', 
-                            fontsize=14, fontweight='bold')
+                            fontsize=10)
                 
                 # Add grid if requested
                 if show_grid:
@@ -548,6 +617,27 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 print(error_msg)
             warnings.warn(error_msg)
             return None, None
+
+    def _get_intv(self, decimals: int=2) -> dict:
+        """
+        Get the interval values ZL, Z0L, Z0, Z0U, and ZU after fitting.
+        
+        Returns:
+        --------
+        dict
+            Dictionary containing the interval values.
+        """
+        if not hasattr(self, 'z0l') or not hasattr(self, 'z0u'):
+            raise ValueError("Interval values have not been computed yet. First fit the model for interval analysis.")
+
+        return {
+            'ZL': float(np.round(self.zl, decimals)),
+            'Z0L': float(np.round(self.z0l, decimals)),
+            'Z0': float(np.round(self.z0, decimals)),
+            'Z0U': float(np.round(self.z0u, decimals)),
+            'ZU': float(np.round(self.zu, decimals))
+        }
+    
     def _fit_egdf_intv(self):
         # try:
         if self.verbose:
