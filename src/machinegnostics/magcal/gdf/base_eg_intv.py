@@ -38,7 +38,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 early_stopping_steps: int = 10,
                 estimating_rate: float = 0.1, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
-                get_clusters: bool = True,
+                get_clusters: bool = False, # NOTE for intv specific
                 DLB: float = None,
                 DUB: float = None,
                 LB: float = None,
@@ -96,8 +96,17 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
     def _create_extended_egdf_intv(self, datum):
         """Create EGDF with extended data including the given datum."""
-        data_extended = np.append(self.init_egdf.data, datum)
-        
+        if self.get_clusters:
+            data = self.init_egdf.params['main_cluster']
+            # is main cluster empty? then fall back to init data
+            if data is None or len(data) == 0:
+                warnings.warn("Main cluster is empty, using initial EGDF data instead.")
+                data = self.init_egdf.data
+        else:
+            data = self.init_egdf.data
+
+        data_extended = np.append(data, datum)
+
         egdf_extended = EGDF(
             data=data_extended,
             tolerance=self.tolerance,
@@ -638,6 +647,329 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             'ZU': float(np.round(self.zu, decimals))
         }
     
+    def _plot_egdf(self, plot_type: str = 'marginal', plot_smooth: bool = True, bounds: bool = True, 
+                   derivatives: bool = False, intervals: bool = True, show_all_bounds: bool = False, 
+                   figsize: tuple = (12, 8)):
+        """
+        Enhanced plotting for marginal analysis with LSB, USB, clustering visualization, and interval analysis.
+        
+        Parameters:
+        -----------
+        plot_type : str, default='marginal'
+            Type of plot: 'marginal', 'egdf', 'pdf', 'both', 'clusters'
+        plot_smooth : bool, default=True
+            Whether to plot smooth curves
+        bounds : bool, default=True
+            Whether to show bounds (LB, UB, DLB, DUB, LSB, USB, CLB, CUB)
+        derivatives : bool, default=False
+            Whether to show derivative analysis plot
+        intervals : bool, default=True
+            Whether to show interval analysis points (ZL, Z0L, Z0, Z0U, ZU)
+        show_all_bounds : bool, default=False
+            Whether to show all available bounds (CLB, CUB, LSB, USB, etc.)
+        figsize : tuple, default=(12, 8)
+            Figure size
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        if not self.catch:
+            print("Plot is not available with argument catch=False")
+            return
+        
+        if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
+            raise RuntimeError("Must fit marginal analysis before plotting.")
+        
+        # Validate plot_type
+        valid_types = ['marginal', 'egdf', 'pdf', 'both']
+        if plot_type not in valid_types:
+            raise ValueError(f"plot_type must be one of {valid_types}")
+        
+        if derivatives:
+            self._plot_derivatives(figsize=figsize)
+            return
+        
+        # Adjust figure size to accommodate external summary
+        if intervals:
+            figsize = (figsize[0] + 3, figsize[1])  # Add space for summary
+        
+        # Create single plot with dual y-axes
+        fig, ax1 = plt.subplots(figsize=figsize)
+        
+        # Get data
+        x_points = self.init_egdf.data
+        egdf_vals = self.init_egdf.params.get('egdf')
+        pdf_vals = self.init_egdf.params.get('pdf')
+        wedf_vals = self.init_egdf.params.get('wedf')
+        
+        # Plot EGDF on primary y-axis
+        if plot_type in ['marginal', 'egdf', 'both']:
+            if plot_smooth and hasattr(self.init_egdf, 'egdf_points') and self.init_egdf.egdf_points is not None:
+                ax1.plot(x_points, egdf_vals, 'o', color='blue', label='EGDF', markersize=4)
+                ax1.plot(self.init_egdf.di_points_n, self.init_egdf.egdf_points, 
+                        color='blue', linestyle='-', linewidth=2, alpha=0.8)
+            else:
+                ax1.plot(x_points, egdf_vals, 'o-', color='blue', label='EGDF', 
+                        markersize=4, linewidth=2, alpha=0.8)
+        
+        # Plot WEDF if available
+        if wedf_vals is not None and plot_type in ['marginal', 'egdf', 'both']:
+            ax1.plot(x_points, wedf_vals, 's', color='lightblue', 
+                    label='WEDF', markersize=3, alpha=0.8)
+        
+        ax1.set_xlabel('Data Points', fontsize=12, fontweight='bold')
+        ax1.set_ylabel('EGDF', color='blue', fontsize=12, fontweight='bold')
+        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_ylim(0, 1)
+        
+        # Create secondary y-axis for PDF
+        ax2 = ax1.twinx()
+        
+        if plot_type in ['marginal', 'pdf', 'both']:
+            if plot_smooth and hasattr(self.init_egdf, 'pdf_points') and self.init_egdf.pdf_points is not None:
+                ax2.plot(x_points, pdf_vals, 'o', color='red', label='PDF', markersize=4)
+                ax2.plot(self.init_egdf.di_points_n, self.init_egdf.pdf_points, 
+                        color='red', linestyle='-', linewidth=2, alpha=0.8)
+                max_pdf = np.max(self.init_egdf.pdf_points)
+            else:
+                ax2.plot(x_points, pdf_vals, 'o-', color='red', label='PDF', 
+                        markersize=4, linewidth=2, alpha=0.8)
+                max_pdf = np.max(pdf_vals) if pdf_vals is not None else 1
+        
+        ax2.set_ylabel('PDF', color='red', fontsize=12, fontweight='bold')
+        ax2.tick_params(axis='y', labelcolor='red')
+        if 'max_pdf' in locals():
+            ax2.set_ylim(0, max_pdf * 1.1)
+        
+        # Add bounds only if bounds=True
+        if bounds:
+            self._add_bounds(ax1, show_all_bounds=show_all_bounds)
+        
+        # Add marginal points (Z0 always, others only if bounds=True)
+        self._add_marginal_points(ax1, bounds=bounds)
+        
+        # Add interval analysis points if intervals=True and they exist
+        if intervals:
+            summary_text = self._add_interval_points_external(ax1, ax2, fig)
+        
+        # Set xlim to DLB-DUB range
+        if hasattr(self.init_egdf, 'DLB') and hasattr(self.init_egdf, 'DUB'):
+            # 5% data pad on either side
+            pad = (self.init_egdf.DUB - self.init_egdf.DLB) * 0.05
+            ax1.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
+            ax2.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
+    
+        # Add shaded regions for bounds only if bounds=True
+        if bounds and hasattr(self.init_egdf, 'LB') and hasattr(self.init_egdf, 'UB'):
+            if self.init_egdf.LB is not None:
+                ax1.axvspan(self.init_egdf.DLB, self.init_egdf.LB, alpha=0.15, color='purple')
+            if self.init_egdf.UB is not None:
+                ax1.axvspan(self.init_egdf.UB, self.init_egdf.DUB, alpha=0.15, color='brown')
+        
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        
+        # Position legend
+        total_items = len(labels1) + len(labels2)
+        if total_items > 8:
+            ax1.legend(lines1 + lines2, labels1 + labels2, 
+                      bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+        else:
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=10)
+        
+        # Set title
+        plt.title('Interval Analysis', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def _add_bounds(self, ax, show_all_bounds=False):
+        """
+        Add bounds to the plot with option to show all available bounds.
+        
+        Parameters:
+        -----------
+        ax : matplotlib.axes.Axes
+            Axis to add bounds to
+        show_all_bounds : bool, default=False
+            Whether to show all available bounds
+        """
+        # Standard bounds (always shown if bounds=True)
+        bounds_config = [
+            ('DLB', 'darkgreen', '-'),
+            ('DUB', 'darkgreen', '-'),
+            ('LB', 'red', '--'),
+            ('UB', 'red', '--')
+        ]
+        
+        # Additional bounds (shown only if show_all_bounds=True)
+        if show_all_bounds:
+            additional_bounds = [
+                ('LSB', 'purple', ':'),
+                ('USB', 'purple', ':'),
+                ('CLB', 'orange', '-.'),
+                ('CUB', 'orange', '-.')
+            ]
+            bounds_config.extend(additional_bounds)
+        
+        for bound_name, color, linestyle in bounds_config:
+            if hasattr(self.init_egdf, bound_name):
+                bound_value = getattr(self.init_egdf, bound_name)
+                if bound_value is not None:
+                    ax.axvline(x=bound_value, color=color, linestyle=linestyle, 
+                              linewidth=1, alpha=0.7, label=f'{bound_name}={bound_value:.3f}')
+    
+    def _add_interval_points_external(self, ax1, ax2, fig):
+        """
+        Add interval analysis points with external summary on the right side.
+        
+        Parameters:
+        -----------
+        ax1 : matplotlib.axes.Axes
+            Primary axis (for EGDF)
+        ax2 : matplotlib.axes.Axes
+            Secondary axis (for PDF)
+        fig : matplotlib.figure.Figure
+            Figure object
+        """
+        # Check if interval analysis has been performed
+        interval_attrs = ['zl', 'z0l', 'z0', 'z0u', 'zu']
+        available_intervals = [attr for attr in interval_attrs if hasattr(self, attr)]
+        
+        if not available_intervals:
+            if self.verbose:
+                print("No interval analysis points available. Run interval analysis first.")
+            return ""
+        
+        # Define interval point configurations with linewidth=1
+        interval_configs = [
+            ('zl', 'ZL', 'red', '--', 'o', 10),        # ZL: red dashed line, circle marker
+            ('z0l', 'Z0L', 'purple', ':', 's', 8),     # Z0L: purple dotted line, square marker  
+            ('z0', 'Z0', 'green', '-', '^', 12),       # Z0: green solid line, triangle marker
+            ('z0u', 'Z0U', 'brown', ':', 's', 8),      # Z0U: brown dotted line, square marker
+            ('zu', 'ZU', 'orange', '--', 'o', 10)      # ZU: orange dashed line, circle marker
+        ]
+        
+        # Get axis limits for positioning dots
+        y1_min, y1_max = ax1.get_ylim()
+        y2_min, y2_max = ax2.get_ylim()
+        
+        # Position for dots on x-axis (slightly below the plot area)
+        dot_y_position_ax1 = y1_min - (y1_max - y1_min) * 0.08
+        dot_y_position_ax2 = y2_min - (y2_max - y2_min) * 0.08
+        
+        # Store values for summary
+        interval_summary = []
+        
+        for attr_name, label, color, linestyle, marker, size in interval_configs:
+            if hasattr(self, attr_name):
+                value = getattr(self, attr_name)
+                
+                # Add vertical line with linewidth=1
+                line = ax1.axvline(x=value, color=color, linestyle=linestyle, 
+                                  linewidth=1, alpha=0.8, zorder=3)
+                
+                # Add highlight dot on x-axis (primary axis)
+                dot1 = ax1.scatter([value], [dot_y_position_ax1], 
+                                  marker=marker, s=size**2, color=color, 
+                                  edgecolor='black', linewidth=1.5, 
+                                  zorder=5, clip_on=False)
+                
+                # Add corresponding dot on secondary axis
+                dot2 = ax2.scatter([value], [dot_y_position_ax2], 
+                                  marker=marker, s=size**2, color=color, 
+                                  edgecolor='black', linewidth=1.5, 
+                                  zorder=5, clip_on=False, alpha=0.7)
+                
+                # Store for summary
+                interval_summary.append((label, value, color))
+        
+        # Add filled spans if all points are available
+        if len(available_intervals) == 5:
+            # Add filled span for typical data interval (ZL to ZU) - blue
+            ax1.axvspan(self.zl, self.zu, alpha=0.15, color='blue', 
+                       label='Interval of Typical Data', zorder=1)
+            
+            # Add filled span for tolerance interval (Z0L to Z0U) - light green
+            # Only add if there's actually a measurable tolerance interval
+            tolerance_interval = self.z0u - self.z0l
+            if tolerance_interval > 1e-10:  # Only show if tolerance interval is meaningful
+                ax1.axvspan(self.z0l, self.z0u, alpha=0.2, color='lightgreen', 
+                           label='Tolerance Interval', zorder=2)
+            
+            # Mark Z0L and Z0U values on the EGDF curve if possible
+            if hasattr(self, 'z0_interval') and hasattr(self, 'datum_range'):
+                try:
+                    # Interpolate EGDF values at ZL and ZU
+                    if hasattr(self.init_egdf, 'egdf_points'):
+                        zl_egdf = np.interp(self.zl, self.init_egdf.di_points_n, self.init_egdf.egdf_points)
+                        zu_egdf = np.interp(self.zu, self.init_egdf.di_points_n, self.init_egdf.egdf_points)
+                    else:
+                        zl_egdf = np.interp(self.zl, self.init_egdf.data, self.init_egdf.params.get('egdf', []))
+                        zu_egdf = np.interp(self.zu, self.init_egdf.data, self.init_egdf.params.get('egdf', []))
+                    
+                    # Mark these points on the EGDF curve
+                    ax1.scatter([self.zl, self.zu], [zl_egdf, zu_egdf], 
+                               marker='*', s=150, color=['red', 'orange'], 
+                               edgecolor='black', linewidth=2, zorder=6,
+                               label='Interval Points on EGDF')
+                    
+                except Exception as e:
+                    if self.verbose:
+                        print(f"Could not mark interval points on EGDF curve: {e}")
+        
+        # Create external summary text
+        if len(available_intervals) == 5:
+            tolerance_interval = self.z0u - self.z0l
+            typical_data_interval = self.zu - self.zl
+            
+            summary_lines = [
+                "Interval Analysis Summary:",
+                "─" * 25,
+                f"ZL  = {self.zl:.4f}",
+                f"Z0L = {self.z0l:.4f}",
+                f"Z0  = {self.z0:.4f}",
+                f"Z0U = {self.z0u:.4f}",
+                f"ZU  = {self.zu:.4f}",
+                "",
+                "Interval Ranges:",
+                "─" * 16,
+                f"Tolerance Interval: {tolerance_interval:.6f}",
+                f"Interval of Typical Data: {typical_data_interval:.4f}",
+                "",
+                "Definitions:",
+                "─" * 12,
+                "• Tolerance Interval: Z0U - Z0L",
+                "• Interval of Typical Data: ZU - ZL",
+            ]
+        else:
+            summary_lines = [
+                "Interval Analysis (Partial):",
+                "─" * 28
+            ]
+            for label, value, color in interval_summary:
+                summary_lines.append(f"{label} = {value:.4f}")
+        
+        summary_text = "\n".join(summary_lines)
+        
+        # Add external text box to the right of the plot
+        fig.text(0.85, 0.02, summary_text, 
+                 fontsize=10, verticalalignment='bottom', horizontalalignment='left',
+                 bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgray', 
+                          alpha=0.9, edgecolor='gray', linewidth=1),
+                 transform=fig.transFigure)
+        
+        # Extend axis limits slightly to accommodate the dots
+        ax1.set_ylim(dot_y_position_ax1 - (y1_max - y1_min) * 0.05, y1_max * 1.05)
+        ax2.set_ylim(dot_y_position_ax2 - (y2_max - y2_min) * 0.05, y2_max * 1.05)
+        
+        if self.verbose and available_intervals:
+            print(f"Added {len(available_intervals)} interval analysis points to plot: {available_intervals}")
+        
+        return summary_text
+    
     def _fit_egdf_intv(self):
         # try:
         if self.verbose:
@@ -646,16 +978,41 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         # get initial EGDF
         self._get_initial_egdf()
 
+        # homogeneous check
+        self.h = self._is_homogeneous()
+        if self.h:
+            if self.verbose:
+                print("Data is homogeneous. Using homogeneous data for interval analysis.")
+        else:
+            if self.verbose:
+                print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+        
+        # h check
+        if self.h == False and self.estimate_cluster_bounds == False:
+            warnings.warn("Data is heterogeneous but estimate_cluster_bounds is False. "
+                          "Consider setting estimate_cluster_bounds=True to find main cluster bounds.")
+
+        # optional data sampling bounds
+        if self.estimate_sample_bounds:
+            self._get_data_sample_bounds()
+
+        # cluster bounds
+        if self.estimate_cluster_bounds:
+            self._get_data_sample_clusters()
+
         # get Z0 of the base sample
         self.z0 = self._get_z0(self.init_egdf)
 
+        if self.verbose:
+            print("Initiating EGDF Interval Analysis...")
         # compute interval values
         self._compute_intv()
 
         if self.verbose:
             print("EGDF Interval Analysis fitted successfully.")
 
-        # optional bounds
+
+
         
         # except Exception as e:
         #     if self.verbose:

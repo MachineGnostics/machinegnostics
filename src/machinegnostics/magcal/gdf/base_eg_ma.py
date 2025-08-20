@@ -673,25 +673,27 @@ class BaseMarginalAnalysisEGDF:
         main_cluster_mask = (self.init_egdf.data >= onset_point) & (self.init_egdf.data <= stop_point)
         upper_cluster_mask = self.init_egdf.data > stop_point
         
-        # Extract actual data points for each cluster
-        lower_cluster = self.init_egdf.data[lower_cluster_mask]
-        main_cluster = self.init_egdf.data[main_cluster_mask]
-        upper_cluster = self.init_egdf.data[upper_cluster_mask]
-        
-        # Calculate cluster statistics using original discrete PDF
-        if hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
-            lower_pdf_avg = np.mean(self.init_egdf.pdf[lower_cluster_mask]) if len(lower_cluster) > 0 else 0
-            main_pdf_avg = np.mean(self.init_egdf.pdf[main_cluster_mask]) if len(main_cluster) > 0 else 0
-            upper_pdf_avg = np.mean(self.init_egdf.pdf[upper_cluster_mask]) if len(upper_cluster) > 0 else 0
-        else:
-            lower_pdf_avg = main_pdf_avg = upper_pdf_avg = 0
-        
-        # Calculate EGDF values at boundary points for validation
-        onset_egdf_final = None
-        stop_egdf_final = None
-        if sorted_egdf is not None:
-            onset_egdf_final = sorted_egdf[onset_start_idx]
-            stop_egdf_final = sorted_egdf[stop_end_idx]
+        # perfrom clustering based on masks
+        if self.get_clusters:
+            # Extract actual data points for each cluster
+            lower_cluster = self.init_egdf.data[lower_cluster_mask]
+            main_cluster = self.init_egdf.data[main_cluster_mask]
+            upper_cluster = self.init_egdf.data[upper_cluster_mask]
+            
+            # Calculate cluster statistics using original discrete PDF
+            if hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
+                lower_pdf_avg = np.mean(self.init_egdf.pdf[lower_cluster_mask]) if len(lower_cluster) > 0 else 0
+                main_pdf_avg = np.mean(self.init_egdf.pdf[main_cluster_mask]) if len(main_cluster) > 0 else 0
+                upper_pdf_avg = np.mean(self.init_egdf.pdf[upper_cluster_mask]) if len(upper_cluster) > 0 else 0
+            else:
+                lower_pdf_avg = main_pdf_avg = upper_pdf_avg = 0
+            
+            # Calculate EGDF values at boundary points for validation
+            onset_egdf_final = None
+            stop_egdf_final = None
+            if sorted_egdf is not None:
+                onset_egdf_final = sorted_egdf[onset_start_idx]
+                stop_egdf_final = sorted_egdf[stop_end_idx]
         
         # clusters = {
         #     'lower_cluster': lower_cluster,
@@ -710,14 +712,21 @@ class BaseMarginalAnalysisEGDF:
         #     'stop_egdf_value': stop_egdf_final
         # }
         
-        if self.verbose:
-            print(f"Data sample clustering completed.")
+            if self.verbose:
+                print(f"Data sample clustering completed.")
+            
+            self.CLB = onset_point
+            self.CUB = stop_point
         
+            if self.catch:
+                self.params.update({
+                    'lower_cluster': lower_cluster,
+                    'main_cluster': main_cluster, 
+                    'upper_cluster': upper_cluster,
+                })
+        # bound update        
         if self.catch:
             self.params.update({
-                'lower_cluster': lower_cluster,
-                'main_cluster': main_cluster, 
-                'upper_cluster': upper_cluster,
                 'CLB': onset_point,
                 'CUB': stop_point,
             })
@@ -909,10 +918,10 @@ class BaseMarginalAnalysisEGDF:
                 marginal_info.append((self.USB, 'darkblue', ':', 'USB'))
             
             # Add CLB and CUB (Cluster Lower Bound and Cluster Upper Bound)
-            if hasattr(self, 'params') and 'CLB' in self.params:
-                marginal_info.append((self.params['CLB'], 'orange', '--', 'CLB'))
-            if hasattr(self, 'params') and 'CUB' in self.params:
-                marginal_info.append((self.params['CUB'], 'orange', '--', 'CUB'))
+            if hasattr(self, 'CLB') and self.CLB is not None:
+                marginal_info.append((self.CLB, 'orange', '--', 'CLB'))
+            if hasattr(self, 'CUB') and self.CUB is not None:
+                marginal_info.append((self.CUB, 'orange', '--', 'CUB'))
     
         for point, color, style, name in marginal_info:
             # Make CLB, CUB, and Z0 lines very thin as requested
@@ -1135,10 +1144,13 @@ class BaseMarginalAnalysisEGDF:
             if self.get_clusters and self.h:
                 if self.verbose:
                     print("Data is homogeneous, no need to perform clustering.")
+                    # only estimate bounds
+                    self._get_data_sample_clusters()
             else:
                 if self.verbose:
                     print("Data is heterogeneous, performing clustering...")
-                self._get_data_sample_clusters()
+                    # Perform clustering
+                    self._get_data_sample_clusters()
 
             if self.verbose:
                 print(f"Marginal Analysis completed. Z0: {self.z0:.6f}, Homogeneous: {self.h}")
