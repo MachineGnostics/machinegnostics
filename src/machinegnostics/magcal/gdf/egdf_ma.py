@@ -32,15 +32,9 @@ class MarginalAnalysisEGDF(BaseMarginalAnalysisEGDF):
     
     4. **CLB and CUB (Cluster Lower/Upper Bounds)**: Boundaries identifying the main data clusters.
        Used for detecting significant data groupings and distribution modes.
-    
-    **Interval Analysis - Critical Points:**
-    
+
     5. **Z0**: Central point where PDF reaches global maximum and EGDF ≈ 0.5. This represents the
        distribution's central tendency and inflection point.
-    
-    6. **Z0L and Z0U**: Lower and upper bounds of the tolerance interval around Z0.
-    
-    7. **ZL and ZU**: Bounds defining the interval of typical data values.
     
     ### Use Cases:
     
@@ -255,8 +249,8 @@ class MarginalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                          verbose=verbose,
                          max_data_size=max_data_size,
                          flush=flush)
-        
-    
+
+
     def fit(self, plot=True):
         """
         Fit the EGDF Marginal Analysis model and perform comprehensive marginal analysis.
@@ -281,6 +275,10 @@ class MarginalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             Whether to display a summary plot after fitting.
             If True, shows EGDF, PDF, and all identified boundaries.
             Requires catch=True to be set during initialization.
+        
+        compute_z0 : bool, default=True
+            Whether to compute the central point Z0 during fitting.
+            If True, estimates the point where PDF reaches maximum
         
         Returns
         -------

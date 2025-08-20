@@ -762,8 +762,8 @@ class BaseMarginalAnalysisEGDF:
             x = x_new
 
         return x
-    
-    def _get_z0(self):
+
+    def _get_z0(self, egdf: EGDF):
         """
         Find Z0 point where:
         1. PDF is at global maximum 
@@ -775,7 +775,7 @@ class BaseMarginalAnalysisEGDF:
         float: The Z0 value
         """
         # Start with median of the data as initial estimate
-        zo_est = np.median(self.init_egdf.data)
+        zo_est = np.median(egdf.data)
         loss_history = []
         
         if self.verbose:
@@ -845,11 +845,11 @@ class BaseMarginalAnalysisEGDF:
                 zo_est = zo_est - loss * step_size
             
             # Boundary constraints to keep z0 within reasonable range
-            data_range = self.init_egdf.DUB - self.init_egdf.DLB
+            data_range = egdf.DUB - egdf.DLB
             zo_est = np.clip(zo_est, 
-                            self.init_egdf.DLB - 0.1 * data_range,
-                            self.init_egdf.DUB + 0.1 * data_range)
-            
+                            egdf.DLB - 0.1 * data_range,
+                            egdf.DUB + 0.1 * data_range)
+
             # Early stopping if loss plateaus
             if iteration > self._EARLY_STOPPING_STEPS:
                 recent_losses = loss_history[-self._EARLY_STOPPING_STEPS:]
@@ -1123,7 +1123,7 @@ class BaseMarginalAnalysisEGDF:
                 print("\n\nFitting EGDF Marginal Analysis...")
 
             # get Z0 of the base sample
-            self.z0 = self._get_z0()
+            self.z0 = self._get_z0(self.init_egdf)
 
             # get data sample bounds
             self._get_data_sample_bounds()
