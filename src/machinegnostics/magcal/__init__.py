@@ -1,3 +1,4 @@
+# magcal general imports
 from machinegnostics.magcal.criterion import GnosticCriterion
 from machinegnostics.magcal.layer_base import ModelBase
 from machinegnostics.magcal.data_conversion import DataConversion
@@ -9,10 +10,12 @@ from machinegnostics.magcal.gcor import __gcorrelation
 from machinegnostics.magcal.layer_param_base import ParamBase
 from machinegnostics.magcal.layer_history_base import HistoryBase
 from machinegnostics.magcal.layer_io_process_base import DataProcessLayerBase
+
 # gdf
 from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
+from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
 
 
 # g correlation function
