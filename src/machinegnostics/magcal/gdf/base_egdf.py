@@ -1123,40 +1123,46 @@ class BaseEGDF(BaseDistFunc):
     
     def _fit_egdf(self):
         """Main fitting process with improved organization."""
-        if self.verbose:
-            print("Starting EGDF fitting process...")
-        
-        # Step 1: Data preprocessing
-        self.data = np.sort(self.data)
-        self._estimate_data_bounds()
-        self._transform_data_to_standard_domain()
-        self._estimate_weights()
-        
-        # Step 2: Bounds estimation
-        self._estimate_initial_probable_bounds()
-        self._generate_evaluation_points()
-        
-        # Step 3: Get distribution function values for optimization
-        self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
-        
-        # Step 4: Parameter optimization
-        self._determine_optimization_strategy()
-        
-        # Step 5: Calculate final EGDF and PDF
-        self._calculate_final_results()
-        
-        # Step 6: Generate smooth curves for plotting and analysis
-        self._generate_smooth_curves()
-        
-        # Step 7: Transform bounds back to original domain
-        self._transform_bounds_to_original_domain()
-        
-        # Mark as fitted (Step 8 is now optional via marginal_analysis())
-        self._fitted = True
-        
-        if self.verbose:
-            print("EGDF fitting completed successfully.")
-        
-        # clean up computation cache
-        if self.flush:  
-            self._cleanup_computation_cache()
+        try:
+            if self.verbose:
+                print("Starting EGDF fitting process...")
+            
+            # Step 1: Data preprocessing
+            self.data = np.sort(self.data)
+            self._estimate_data_bounds()
+            self._transform_data_to_standard_domain()
+            self._estimate_weights()
+            
+            # Step 2: Bounds estimation
+            self._estimate_initial_probable_bounds()
+            self._generate_evaluation_points()
+            
+            # Step 3: Get distribution function values for optimization
+            self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
+            
+            # Step 4: Parameter optimization
+            self._determine_optimization_strategy()
+            
+            # Step 5: Calculate final EGDF and PDF
+            self._calculate_final_results()
+            
+            # Step 6: Generate smooth curves for plotting and analysis
+            self._generate_smooth_curves()
+            
+            # Step 7: Transform bounds back to original domain
+            self._transform_bounds_to_original_domain()
+            
+            # Mark as fitted (Step 8 is now optional via marginal_analysis())
+            self._fitted = True
+            
+            if self.verbose:
+                print("EGDF fitting completed successfully.")
+            
+            # clean up computation cache
+            if self.flush:  
+                self._cleanup_computation_cache()
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"Error during EGDF fitting: {e}")
+            raise e

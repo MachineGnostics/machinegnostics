@@ -15,6 +15,7 @@ import numpy as np
 import warnings
 from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.base_eg_ma import BaseMarginalAnalysisEGDF
+from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
     """
@@ -33,7 +34,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 estimate_sample_bounds: bool = False,
                 estimate_cluster_bounds: bool = False,
                 sample_bound_tolerance: float = 0.1,
-                max_iterations: int = 10000,
+                max_iterations: int = 1000, # NOTE for intv specific
                 early_stopping_steps: int = 10,
                 estimating_rate: float = 0.1, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
@@ -43,7 +44,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
-                tolerance: float = 1e-6,
+                tolerance: float = 1e-6, # NOTE for intv specific
                 data_form: str = 'a',
                 n_points: int = 1000, # NOTE for intv specific
                 homogeneous: bool = True,
@@ -191,8 +192,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             
             # Convergence/Plateau detection parameters
             convergence_tolerance = self._TOLERANCE
-            plateau_window = 5
-            min_plateau_points = 3
+            plateau_window = 10
+            min_plateau_points = 10
             
             # Search towards lower bound
             if self.z0 > self.LB:
@@ -1013,57 +1014,68 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         return summary_text
     
+    def _is_homogeneous(self):
+        """
+        Check if the data is homogeneous.
+        Returns True if homogeneous, False otherwise.
+        """
+        ih = DataHomogeneity(self.init_egdf, catch=self.catch, verbose=self.verbose)
+        is_homogeneous = ih.test_homogeneity()
+
+        if self.catch:
+            self.init_egdf.params['is_homogeneous'] = is_homogeneous
+        return is_homogeneous
+    
     def _fit_egdf_intv(self, plot=True):
-        # try:
-        if self.verbose:
-            print("\n\nFitting EGDF Interval Analysis...")
+        try:
+            if self.verbose:
+                print("\n\nFitting EGDF Interval Analysis...")
+                
+            # get initial EGDF
+            self._get_initial_egdf()
+            self.params = getattr(self.init_egdf, 'params', {}).copy()
+
+            # homogeneous check
+            self.h = self._is_homogeneous()
+
+            if self.h:
+                if self.verbose:
+                    print("Data is homogeneous. Using homogeneous data for interval analysis.")
+            else:
+                if self.verbose:
+                    print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
             
-        # get initial EGDF
-        self._get_initial_egdf()
+            # h check
+            if self.h == False and self.estimate_cluster_bounds == False and self.get_clusters == True:
+                warnings.warn("Data is heterogeneous but estimate_cluster_bounds is False. "
+                            "Consider setting 'estimate_cluster_bounds=True' and 'get_clusters=True' to find main cluster bounds and main cluster.")
 
-        # homogeneous check
-        self.h = self._is_homogeneous()
-        if self.h:
+            # optional data sampling bounds
+            if self.estimate_sample_bounds:
+                self._get_data_sample_bounds()
+
+            # cluster bounds
+            if self.estimate_cluster_bounds:
+                self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
+
+            # get Z0 of the base sample
+            self.z0 = self._get_z0(self.init_egdf)
+
             if self.verbose:
-                print("Data is homogeneous. Using homogeneous data for interval analysis.")
-        else:
+                print("Initiating EGDF Interval Analysis...")
+
+            # compute interval values
+            self._compute_intv()
+
+            # plot if requested
+            if plot:
+                self._plot_egdf(plot_type='both', plot_smooth=True, bounds=True,
+                                derivatives=False, intervals=True,
+                                show_all_bounds=True, figsize=(12, 8))
+
             if self.verbose:
-                print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+                print("EGDF Interval Analysis fitted successfully.")
         
-        # h check
-        if self.h == False and self.estimate_cluster_bounds == False:
-            warnings.warn("Data is heterogeneous but estimate_cluster_bounds is False. "
-                          "Consider setting 'estimate_cluster_bounds=True' and 'get_clusters=True' to find main cluster bounds.")
-
-        # optional data sampling bounds
-        if self.estimate_sample_bounds:
-            self._get_data_sample_bounds()
-
-        # cluster bounds
-        if self.estimate_cluster_bounds:
-            self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
-
-        # get Z0 of the base sample
-        self.z0 = self._get_z0(self.init_egdf)
-
-        if self.verbose:
-            print("Initiating EGDF Interval Analysis...")
-
-        # compute interval values
-        self._compute_intv()
-
-        # plot if requested
-        if plot:
-            self._plot_egdf(plot_type='both', plot_smooth=True, bounds=True,
-                            derivatives=False, intervals=True,
-                            show_all_bounds=True, figsize=(12, 8))
-
-        if self.verbose:
-            print("EGDF Interval Analysis fitted successfully.")
-
-
-
-        
-        # except Exception as e:
-        #     if self.verbose:
-        #         print(f"Error occurred during fitting: {e}")
+        except Exception as e:
+            if self.verbose:
+                print(f"Error occurred during fitting: {e}")

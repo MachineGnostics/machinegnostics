@@ -715,16 +715,15 @@ class BaseMarginalAnalysisEGDF:
         
             if self.verbose:
                 print(f"Data sample clustering completed.")
-            
-            self.CLB = onset_point
-            self.CUB = stop_point
-        
+                      
             if self.catch:
                 self.params.update({
                     'lower_cluster': lower_cluster,
                     'main_cluster': main_cluster, 
                     'upper_cluster': upper_cluster,
                 })
+        self.CLB = onset_point
+        self.CUB = stop_point
         # bound update        
         if self.catch:
             self.params.update({
@@ -865,7 +864,7 @@ class BaseMarginalAnalysisEGDF:
                 recent_losses = loss_history[-self._EARLY_STOPPING_STEPS:]
                 if len(recent_losses) >= self._EARLY_STOPPING_STEPS:
                     loss_change = np.std(recent_losses) / np.mean(recent_losses)
-                    if loss_change < 0.01:  # 1% relative change
+                    if loss_change < 0.0001:  # 0.01% relative change
                         if self.verbose:
                             print(f"Z0 early stopping at iteration {iteration} due to loss plateau")
                         break
