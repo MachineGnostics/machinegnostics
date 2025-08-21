@@ -109,8 +109,7 @@ class DataConversion:
             raise ZeroDivisionError("lb must be less than ub")
         
         z = np.asarray(z)
-        # avoiding division by zero
-        a = (np.log(z + eps) * (ub - lb) + lb + ub) / 2
+        a = (np.log(np.abs(z) + eps) * (ub - lb) + lb + ub) / 2
 
         if a.size == 1:
             return a.item()  # Return scalar if input was scalar
