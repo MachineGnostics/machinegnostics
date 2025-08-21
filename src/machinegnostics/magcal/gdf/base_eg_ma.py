@@ -810,9 +810,10 @@ class BaseMarginalAnalysisEGDF:
             d2_loss = np.abs(d2)  # Second derivative should be zero at maximum
             egdf_loss = np.abs(egdf_at_z0 - 0.5)  # EGDF should be 0.5
             ratio_loss = np.abs(d2 / d1) if np.abs(d1) > 1e-12 else 0  # Stability measure
+            sh = egdf_extended.hi.sum()
             
             # Combined loss with weights
-            loss = d2_loss + 2.0 * egdf_loss + 0.5 * ratio_loss
+            loss = (d2_loss + 2.0 * egdf_loss + 0.5 * ratio_loss) * sh
             loss_history.append(loss)
             
             if self.verbose:
