@@ -140,7 +140,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         return egdf_extended
     
 
-    def _compute_intv(self):
+    def _compute_intv(self): # NOTE in future, this computation may be optimized
         """
         Compute interval values including Z0L, Z0U, ZL, and ZU.
         
