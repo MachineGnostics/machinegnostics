@@ -684,11 +684,19 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             raise ValueError("Interval values have not been computed yet. First fit the model for interval analysis.")
 
         return {
+            'LB': float(np.round(self.LB, decimals)),
+            'LSB': float(np.round(self.LSB, decimals)) if hasattr(self, 'LSB') else None,
+            'DLB': float(np.round(self.DLB, decimals)),
+            'CLB': float(np.round(self.CLB, decimals)) if hasattr(self, 'CLB') else None,
             'ZL': float(np.round(self.zl, decimals)),
             'Z0L': float(np.round(self.z0l, decimals)),
             'Z0': float(np.round(self.z0, decimals)),
             'Z0U': float(np.round(self.z0u, decimals)),
-            'ZU': float(np.round(self.zu, decimals))
+            'ZU': float(np.round(self.zu, decimals)),
+            'CUB': float(np.round(self.CUB, decimals)) if hasattr(self, 'CUB') else None,
+            'DUB': float(np.round(self.DUB, decimals)),
+            'USB': float(np.round(self.USB, decimals)) if hasattr(self, 'USB') else None,
+            'UB': float(np.round(self.UB, decimals)),
         }
     
     def _plot_egdf(self, plot_type: str = 'marginal', plot_smooth: bool = True, bounds: bool = True, 
