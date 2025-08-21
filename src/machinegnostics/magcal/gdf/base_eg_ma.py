@@ -6,6 +6,7 @@ Author: Nirmal Parmar
 '''
 
 import numpy as np
+import warnings
 from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
@@ -673,7 +674,7 @@ class BaseMarginalAnalysisEGDF:
         main_cluster_mask = (self.init_egdf.data >= onset_point) & (self.init_egdf.data <= stop_point)
         upper_cluster_mask = self.init_egdf.data > stop_point
         
-        # perfrom clustering based on masks
+        # perform clustering based on masks
         if self.get_clusters:
             # Extract actual data points for each cluster
             lower_cluster = self.init_egdf.data[lower_cluster_mask]
@@ -1125,32 +1126,34 @@ class BaseMarginalAnalysisEGDF:
 
     def _fit_egdf(self, plot=True):
         try:
-            # get initial EGDF
-            self._get_initial_egdf()
-
             if self.verbose:
                 print("\n\nFitting EGDF Marginal Analysis...")
+
+            # get initial EGDF
+            self._get_initial_egdf()
 
             # get Z0 of the base sample
             self.z0 = self._get_z0(self.init_egdf)
 
-            # get data sample bounds
-            self._get_data_sample_bounds()
-
             # homogeneous check
             self.h = self._is_homogeneous()
-
-            # data sample clusters
-            if self.get_clusters and self.h:
+            if self.h:
                 if self.verbose:
-                    print("Data is homogeneous, no need to perform clustering.")
-                    # only estimate bounds
-                    self._get_data_sample_clusters()
+                    print("Data is homogeneous. Using homogeneous data for Marginal Analysis.")
             else:
                 if self.verbose:
-                    print("Data is heterogeneous, performing clustering...")
-                    # Perform clustering
-                    self._get_data_sample_clusters()
+                    print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+            
+            # h check
+            if self.h == False and self.get_clusters == False:
+                warnings.warn("Data is heterogeneous but get_clusters is False. "
+                            "Consider setting 'get_clusters=True' to find main cluster bounds.")
+
+            # optional data sampling bounds
+            self._get_data_sample_bounds()
+
+            # cluster bounds
+            self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
 
             if self.verbose:
                 print(f"Marginal Analysis completed. Z0: {self.z0:.6f}, Homogeneous: {self.h}")

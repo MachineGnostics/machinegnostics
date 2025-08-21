@@ -15,7 +15,6 @@ import numpy as np
 import warnings
 from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.base_eg_ma import BaseMarginalAnalysisEGDF
-from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
     """
@@ -93,6 +92,17 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             raise ValueError("estimate_sample_bounds must be a boolean.")
         if not isinstance(self.estimate_cluster_bounds, bool):
             raise ValueError("estimate_cluster_bounds must be a boolean.")
+        # if get_clusters is True, then estimate_cluster_bounds must be True
+        if self.get_clusters and not self.estimate_cluster_bounds:
+            raise ValueError(
+                "Invalid parameter combination: 'get_clusters=True' requires 'estimate_cluster_bounds=True'. "
+                "To get cluster information, cluster bounds must first be estimated. "
+                "Please set 'estimate_cluster_bounds=True' or set 'get_clusters=False'."
+                )
+
+        # max data size validation
+        if len(self.data) > self.max_data_size:
+            warnings.warn(f"Data length ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). Set max_data_size to a larger value if hardware allows. OR set `flush=True` and `catch=False` to clear data after each iteration.")
 
     def _create_extended_egdf_intv(self, datum):
         """Create EGDF with extended data including the given datum."""
@@ -169,13 +179,13 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             z0u_datum = self.z0
             
             # Early stopping parameters NOTE
-            early_stop_tolerance = 1e-6  # Tolerance for early stopping
+            early_stop_tolerance = self._TOLERANCE #1e-6  # Tolerance for early stopping
             consecutive_increases = 0
             consecutive_decreases = 0
             max_consecutive = 5
             
             # Convergence/Plateau detection parameters NOTE
-            convergence_tolerance = 1e-6  # Tolerance for Z0 change detection
+            convergence_tolerance = self._TOLERANCE #1e-6  # Tolerance for Z0 change detection
             plateau_window = 5  # Number of consecutive points to check for plateau
             min_plateau_points = 3  # Minimum points required before checking for plateau
             
@@ -970,7 +980,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         return summary_text
     
-    def _fit_egdf_intv(self):
+    def _fit_egdf_intv(self, plot=True):
         # try:
         if self.verbose:
             print("\n\nFitting EGDF Interval Analysis...")
@@ -990,7 +1000,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         # h check
         if self.h == False and self.estimate_cluster_bounds == False:
             warnings.warn("Data is heterogeneous but estimate_cluster_bounds is False. "
-                          "Consider setting estimate_cluster_bounds=True to find main cluster bounds.")
+                          "Consider setting 'estimate_cluster_bounds=True' and 'get_clusters=True' to find main cluster bounds.")
 
         # optional data sampling bounds
         if self.estimate_sample_bounds:
@@ -998,15 +1008,22 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
         # cluster bounds
         if self.estimate_cluster_bounds:
-            self._get_data_sample_clusters()
+            self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
 
         # get Z0 of the base sample
         self.z0 = self._get_z0(self.init_egdf)
 
         if self.verbose:
             print("Initiating EGDF Interval Analysis...")
+
         # compute interval values
         self._compute_intv()
+
+        # plot if requested
+        if plot:
+            self._plot_egdf(plot_type='both', plot_smooth=True, bounds=True,
+                            derivatives=False, intervals=True,
+                            show_all_bounds=True, figsize=(12, 8))
 
         if self.verbose:
             print("EGDF Interval Analysis fitted successfully.")
