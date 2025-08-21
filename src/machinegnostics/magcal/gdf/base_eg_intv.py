@@ -137,6 +137,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         egdf_extended.fit()
         return egdf_extended
+    
 
     def _compute_intv(self):
         """
@@ -144,7 +145,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         This method calculates critical interval boundaries based on the Z0 interval
         and the central point Z0. It identifies tolerance bounds and typical value ranges.
-        Enhanced with convergence detection for plateau behavior.
+        Enhanced with convergence detection for plateau behavior and improved logic.
         """
         try:
             # Input validation
@@ -164,13 +165,17 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             self.z0_interval = []
             self.datum_range = []
             
+            # Initialize interval tracking with separate lists for lower and upper searches
+            lower_search_data = {'datum': [], 'z0': []}
+            upper_search_data = {'datum': [], 'z0': []}
+            
             if self.verbose:
                 print("Computing interval values...")
                 print(f"Z0: {self.z0:.6f}, LB: {self.LB:.6f}, UB: {self.UB:.6f}")
             
             # Ensure we have enough points for meaningful analysis
-            min_points_per_side = max(10, self.n_points // 100)
-            points_per_side = max(min_points_per_side, self.n_points // 2)
+            min_points_per_side = max(100, self.n_points)
+            points_per_side = max(min_points_per_side, self.n_points)
             
             # Initialize tracking variables
             current_z0_min = self.z0
@@ -178,23 +183,25 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             z0l_datum = self.z0
             z0u_datum = self.z0
             
-            # Early stopping parameters NOTE
-            early_stop_tolerance = self._TOLERANCE #1e-6  # Tolerance for early stopping
+            # Early stopping parameters
+            early_stop_tolerance = self._TOLERANCE
             consecutive_increases = 0
             consecutive_decreases = 0
             max_consecutive = 5
             
-            # Convergence/Plateau detection parameters NOTE
-            convergence_tolerance = self._TOLERANCE #1e-6  # Tolerance for Z0 change detection
-            plateau_window = 5  # Number of consecutive points to check for plateau
-            min_plateau_points = 3  # Minimum points required before checking for plateau
+            # Convergence/Plateau detection parameters
+            convergence_tolerance = self._TOLERANCE
+            plateau_window = 5
+            min_plateau_points = 3
             
             # Search towards lower bound
             if self.z0 > self.LB:
                 lower_range = np.linspace(self.z0, self.LB, points_per_side)
-                z0_history_lower = []  # Track recent Z0 values for plateau detection
+                z0_history_lower = []
+                lower_z0_min = self.z0
+                lower_z0l_datum = self.z0
     
-                for i, datum in enumerate(lower_range[1:], 1):  # Skip first point (z0)
+                for i, datum in enumerate(lower_range[1:], 1):
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
                             print(f"Processing lower range: {datum:.6f} ({i}/{len(lower_range)-1})")
@@ -202,50 +209,50 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         z_egdf = self._create_extended_egdf_intv(datum)
                         z0_datum = self._get_z0(z_egdf)
                         
+                        # Store in separate lower search data
+                        lower_search_data['datum'].append(datum)
+                        lower_search_data['z0'].append(z0_datum)
+                        
+                        # Also store in combined arrays for backward compatibility
                         self.z0_interval.append(z0_datum)
                         self.datum_range.append(datum)
                         z0_history_lower.append(z0_datum)
                         
-                        # Check if we found a new minimum
-                        if z0_datum < current_z0_min:
-                            current_z0_min = z0_datum
-                            z0l_datum = datum
+                        # Track minimum Z0 in lower search specifically
+                        if z0_datum < lower_z0_min:
+                            lower_z0_min = z0_datum
+                            lower_z0l_datum = datum
                             consecutive_increases = 0
                         else:
                             consecutive_increases += 1
                         
-                        # Convergence/Plateau detection
+                        # Update global minimum
+                        if z0_datum < current_z0_min:
+                            current_z0_min = z0_datum
+                        
+                        # Convergence/Plateau detection (same as before)
                         if len(z0_history_lower) >= min_plateau_points:
-                            # Check if we have enough points to evaluate plateau
                             recent_window = min(plateau_window, len(z0_history_lower))
                             recent_z0_values = z0_history_lower[-recent_window:]
                             
-                            # Calculate variance and range of recent Z0 values
                             z0_variance = np.var(recent_z0_values)
                             z0_range = np.max(recent_z0_values) - np.min(recent_z0_values)
                             
-                            # Check for plateau (low variance and small range)
-                            if (z0_variance < convergence_tolerance and 
-                                z0_range < convergence_tolerance):
+                            if (z0_variance < convergence_tolerance and z0_range < convergence_tolerance):
                                 if self.verbose:
                                     print(f"Convergence detected at lower bound: Z0 plateau reached")
-                                    print(f"  Variance: {z0_variance:.8f}, Range: {z0_range:.8f}")
-                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
                                 break
                             
-                            # Alternative plateau detection: check if all recent values are within tolerance
                             mean_recent_z0 = np.mean(recent_z0_values)
                             max_deviation = np.max(np.abs(recent_z0_values - mean_recent_z0))
                             
                             if max_deviation < convergence_tolerance:
                                 if self.verbose:
                                     print(f"Convergence detected at lower bound: Z0 stabilized")
-                                    print(f"  Max deviation from mean: {max_deviation:.8f}")
-                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
                                 break
                         
-                        # Original early stopping logic (kept as backup)
-                        if (z0_datum > current_z0_min + early_stop_tolerance and 
+                        # Early stopping logic
+                        if (z0_datum > lower_z0_min + early_stop_tolerance and 
                             consecutive_increases >= max_consecutive):
                             if self.verbose:
                                 print(f"Early stopping at lower bound: Z0 increasing for {consecutive_increases} consecutive points")
@@ -258,9 +265,11 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             # Search towards upper bound
             if self.z0 < self.UB:
                 upper_range = np.linspace(self.z0, self.UB, points_per_side)
-                z0_history_upper = []  # Track recent Z0 values for plateau detection
+                z0_history_upper = []
+                upper_z0_max = self.z0
+                upper_z0u_datum = self.z0
     
-                for i, datum in enumerate(upper_range[1:], 1):  # Skip first point (z0)
+                for i, datum in enumerate(upper_range[1:], 1):
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
                             print(f"Processing upper range: {datum:.6f} ({i}/{len(upper_range)-1})")
@@ -268,50 +277,50 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         z_egdf = self._create_extended_egdf_intv(datum)
                         z0_datum = self._get_z0(z_egdf)
                         
+                        # Store in separate upper search data
+                        upper_search_data['datum'].append(datum)
+                        upper_search_data['z0'].append(z0_datum)
+                        
+                        # Also store in combined arrays for backward compatibility
                         self.z0_interval.append(z0_datum)
                         self.datum_range.append(datum)
                         z0_history_upper.append(z0_datum)
                         
-                        # Check if we found a new maximum
-                        if z0_datum > current_z0_max:
-                            current_z0_max = z0_datum
-                            z0u_datum = datum
+                        # Track maximum Z0 in upper search specifically
+                        if z0_datum > upper_z0_max:
+                            upper_z0_max = z0_datum
+                            upper_z0u_datum = datum
                             consecutive_decreases = 0
                         else:
                             consecutive_decreases += 1
                         
-                        # Convergence/Plateau detection
+                        # Update global maximum
+                        if z0_datum > current_z0_max:
+                            current_z0_max = z0_datum
+                        
+                        # Convergence/Plateau detection (same as before)
                         if len(z0_history_upper) >= min_plateau_points:
-                            # Check if we have enough points to evaluate plateau
                             recent_window = min(plateau_window, len(z0_history_upper))
                             recent_z0_values = z0_history_upper[-recent_window:]
                             
-                            # Calculate variance and range of recent Z0 values
                             z0_variance = np.var(recent_z0_values)
                             z0_range = np.max(recent_z0_values) - np.min(recent_z0_values)
                             
-                            # Check for plateau (low variance and small range)
-                            if (z0_variance < convergence_tolerance and 
-                                z0_range < convergence_tolerance):
+                            if (z0_variance < convergence_tolerance and z0_range < convergence_tolerance):
                                 if self.verbose:
                                     print(f"Convergence detected at upper bound: Z0 plateau reached")
-                                    print(f"  Variance: {z0_variance:.8f}, Range: {z0_range:.8f}")
-                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
                                 break
                             
-                            # Alternative plateau detection: check if all recent values are within tolerance
                             mean_recent_z0 = np.mean(recent_z0_values)
                             max_deviation = np.max(np.abs(recent_z0_values - mean_recent_z0))
                             
                             if max_deviation < convergence_tolerance:
                                 if self.verbose:
                                     print(f"Convergence detected at upper bound: Z0 stabilized")
-                                    print(f"  Max deviation from mean: {max_deviation:.8f}")
-                                    print(f"  Recent Z0 values: {[f'{z:.6f}' for z in recent_z0_values]}")
                                 break
                         
-                        # Original early stopping logic (kept as backup)
-                        if (z0_datum < current_z0_max - early_stop_tolerance and 
+                        # Early stopping logic
+                        if (z0_datum < upper_z0_max - early_stop_tolerance and 
                             consecutive_decreases >= max_consecutive):
                             if self.verbose:
                                 print(f"Early stopping at upper bound: Z0 decreasing for {consecutive_decreases} consecutive points")
@@ -328,9 +337,9 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             
             # Validate we have enough data points
             if len(self.z0_interval) < 3:
-                warnings.warn("Insufficient data points for reliable interval analysis. Consider increasing n_points or adjusting bounds.")
+                warnings.warn("Insufficient data points for reliable interval analysis.")
             
-            # Convert to numpy arrays for easier manipulation
+            # Convert to numpy arrays
             self.z0_interval = np.array(self.z0_interval)
             self.datum_range = np.array(self.datum_range)
             
@@ -344,22 +353,46 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if len(self.z0_interval) == 0:
                 raise ValueError("No valid data points remaining after cleaning.")
             
-            # Find the indices of minimum and maximum Z0 values in the interval
-            z0l_idx = np.argmin(self.z0_interval)
-            z0u_idx = np.argmax(self.z0_interval)
+            # IMPROVED LOGIC: Use direction-specific results instead of global min/max
+            # Find Z0L and Z0U from respective search directions
+            if len(lower_search_data['z0']) > 0:
+                lower_z0_array = np.array(lower_search_data['z0'])
+                lower_datum_array = np.array(lower_search_data['datum'])
+                z0l_idx = np.argmin(lower_z0_array)
+                self.z0l = float(lower_z0_array[z0l_idx])
+                self.zl = float(lower_datum_array[z0l_idx])
+            else:
+                self.z0l = float(self.z0)
+                self.zl = float(self.z0)
             
-            # Set the interval values
-            self.z0l = float(self.z0_interval[z0l_idx])
-            self.z0u = float(self.z0_interval[z0u_idx])
-            self.zl = float(self.datum_range[z0l_idx])
-            self.zu = float(self.datum_range[z0u_idx])
+            if len(upper_search_data['z0']) > 0:
+                upper_z0_array = np.array(upper_search_data['z0'])
+                upper_datum_array = np.array(upper_search_data['datum'])
+                z0u_idx = np.argmax(upper_z0_array)
+                self.z0u = float(upper_z0_array[z0u_idx])
+                self.zu = float(upper_datum_array[z0u_idx])
+            else:
+                self.z0u = float(self.z0)
+                self.zu = float(self.z0)
             
-            # Additional validation of computed values
-            if self.z0l > self.z0u:
-                warnings.warn(f"Z0L ({self.z0l:.6f}) > Z0U ({self.z0u:.6f}). This may indicate computational issues.")
-            
+            # Ensure logical ordering: ZL ≤ Z0 ≤ ZU
             if self.zl > self.zu:
-                warnings.warn(f"ZL ({self.zl:.6f}) > ZU ({self.zu:.6f}). This may indicate computational issues.")
+                if self.verbose:
+                    print(f"Swapping ZL and ZU: ZL was {self.zl:.6f}, ZU was {self.zu:.6f}")
+                self.zl, self.zu = self.zu, self.zl
+                self.z0l, self.z0u = self.z0u, self.z0l
+            
+            # Additional validation
+            if self.z0l > self.z0u:
+                if self.verbose:
+                    print(f"Warning: Z0L ({self.z0l:.6f}) > Z0U ({self.z0u:.6f}). Using fallback logic.")
+                # Fallback: use global min/max from combined data
+                z0l_idx_global = np.argmin(self.z0_interval)
+                z0u_idx_global = np.argmax(self.z0_interval)
+                self.z0l = float(self.z0_interval[z0l_idx_global])
+                self.z0u = float(self.z0_interval[z0u_idx_global])
+                self.zl = float(self.datum_range[z0l_idx_global])
+                self.zu = float(self.datum_range[z0u_idx_global])
             
             # Store parameters if catching is enabled
             if self.catch:
@@ -370,9 +403,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                     'Z0': float(self.z0),
                     'Z0U': self.z0u,
                     'ZU': self.zu,
-                    # 'n_interval_points': len(self.z0_interval),
-                    # 'convergence_tolerance': convergence_tolerance,
-                    # 'plateau_window': plateau_window
+                    'lower_search_points': len(lower_search_data['z0']),
+                    'upper_search_points': len(upper_search_data['z0'])
                 })
             
             # Verbose output
@@ -383,7 +415,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 print(f"Z0:  {self.z0:.6f} (original central point)")
                 print(f"Z0U: {self.z0u:.6f} (maximum Z0 value)")
                 print(f"ZU:  {self.zu:.6f} (datum producing maximum Z0)")
-                # print(f"Total points analyzed: {len(self.z0_interval)}")
+                print(f"Lower search points: {len(lower_search_data['z0'])}")
+                print(f"Upper search points: {len(upper_search_data['z0'])}")
                 print("Interval values computed successfully.")
         
         except Exception as e:
