@@ -382,6 +382,8 @@ class BaseEGDF(BaseDistFunc):
     
     def _determine_optimization_strategy(self):
         """Determine which parameters to optimize based on inputs."""
+        if self.verbose:
+            print("Determining optimization strategy...")
         s_is_auto = isinstance(self.S, str) and self.S.lower() == 'auto'
         lb_provided = self.LB is not None
         ub_provided = self.UB is not None
@@ -409,6 +411,8 @@ class BaseEGDF(BaseDistFunc):
 
     def _optimize_all_parameters(self):
         """Optimize all parameters using normalized parameter space."""
+        if self.verbose:
+            print("Optimizing all parameters (S, LB, UB)...")
         bounds = self._OPTIMIZATION_BOUNDS
         
         def normalize_params(s, lb, ub):
@@ -478,6 +482,9 @@ class BaseEGDF(BaseDistFunc):
 
     def _optimize_s_parameter(self, lb, ub):
         """Optimize only S parameter."""
+        if self.verbose:
+            print("Optimizing S parameter...")
+
         def objective_function(s):
             try:
                 egdf_values, _, _ = self._compute_egdf_core(s[0], lb, ub)
@@ -502,6 +509,9 @@ class BaseEGDF(BaseDistFunc):
 
     def _optimize_bounds_parameters(self, s):
         """Optimize only LB and UB parameters."""
+        if self.verbose:
+            print("Optimizing LB and UB parameters...")
+            
         bounds = self._OPTIMIZATION_BOUNDS
         
         def normalize_bounds(lb, ub):
