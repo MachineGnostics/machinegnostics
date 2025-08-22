@@ -196,12 +196,12 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             min_plateau_points = 5
             
             # Search towards lower bound
-            if self.z0 > self.LB:
-                lower_range = np.linspace(self.z0, self.LB, points_per_side)
+            if self._z0_main > self.LB:
+                lower_range = np.linspace(self._z0_main, self.LB, points_per_side)
                 z0_history_lower = []
-                lower_z0_min = self.z0
-                lower_z0l_datum = self.z0
-    
+                lower_z0_min = self._z0_main
+                lower_z0l_datum = self._z0_main
+
                 for i, datum in enumerate(lower_range[1:], 1):
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
@@ -264,12 +264,12 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                         continue
             
             # Search towards upper bound
-            if self.z0 < self.UB:
-                upper_range = np.linspace(self.z0, self.UB, points_per_side)
+            if self._z0_main < self.UB:
+                upper_range = np.linspace(self._z0_main, self.UB, points_per_side)
                 z0_history_upper = []
-                upper_z0_max = self.z0
-                upper_z0u_datum = self.z0
-    
+                upper_z0_max = self._z0_main
+                upper_z0u_datum = self._z0_main
+
                 for i, datum in enumerate(upper_range[1:], 1):
                     try:
                         if self.verbose and i % max(1, points_per_side // 10) == 0:
@@ -356,6 +356,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             
             # IMPROVED LOGIC: Use direction-specific results instead of global min/max
             # Find Z0L and Z0U from respective search directions
+            self.z0 = self._z0_main
             if len(lower_search_data['z0']) > 0:
                 lower_z0_array = np.array(lower_search_data['z0'])
                 lower_datum_array = np.array(lower_search_data['datum'])
@@ -1067,7 +1068,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
 
             # get Z0 of the base sample
-            self.z0 = self._get_z0(self.init_egdf)
+            self._z0_main = self._get_z0(self.init_egdf)
 
             if self.verbose:
                 print("Initiating EGDF Interval Analysis...")

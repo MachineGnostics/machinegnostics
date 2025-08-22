@@ -900,7 +900,7 @@ class BaseMarginalAnalysisEGDF:
                 print(f"Warning: Z0 second derivative {final_derivatives['second']:.6f} is not close to 0")
                 
         self.z0 = float(zo_est)
-        return self.z0
+        return zo_est
 
     
     def _add_marginal_points(self, ax, bounds=True):
