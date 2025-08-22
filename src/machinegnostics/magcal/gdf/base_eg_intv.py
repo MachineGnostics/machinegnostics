@@ -36,7 +36,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 sample_bound_tolerance: float = 0.1,
                 max_iterations: int = 1000, # NOTE for intv specific
                 early_stopping_steps: int = 10,
-                estimating_rate: float = 0.1, # NOTE for intv specific
+                estimating_rate: float = 0.01, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
                 get_clusters: bool = False, # NOTE for intv specific
                 DLB: float = None,
@@ -44,7 +44,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
-                tolerance: float = 1e-6, # NOTE for intv specific
+                tolerance: float = 1e-9, # NOTE for intv specific
                 data_form: str = 'a',
                 n_points: int = 1000, # NOTE for intv specific
                 homogeneous: bool = True,
@@ -192,8 +192,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             
             # Convergence/Plateau detection parameters
             convergence_tolerance = self._TOLERANCE
-            plateau_window = 10
-            min_plateau_points = 10
+            plateau_window = 5
+            min_plateau_points = 5
             
             # Search towards lower bound
             if self.z0 > self.LB:
@@ -610,7 +610,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                     x_range = self.zu - self.zl
                     if x_range == 0:  # Ensure minimum padding
                         x_range = 0.1  # Minimum range for padding
-                    x_padding = x_range * 0.1  # 10% padding or minimum 0.1
+                    x_padding = x_range * 0.2  # 20% padding or minimum 0.1
                     ax.set_xlim(self.zl - x_padding, self.zu + x_padding)
                 
                 # Use Z0L and Z0U for y-axis limits with padding
@@ -618,7 +618,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                     y_range = self.z0u - self.z0l
                     if y_range == 0:  # Ensure minimum padding
                         y_range = 0.1
-                    y_padding = y_range * 0.1 # 10% padding or minimum
+                    y_padding = y_range * 0.2  # 20% padding or minimum
                     ax.set_ylim(self.z0l - y_padding, self.z0u + y_padding)
                     
             except Exception as e:
