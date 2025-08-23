@@ -85,7 +85,12 @@ class IntervalAnalysisEGDF(BaseIntervalAnalysisEGDF):
     cluster_threshold : float, default=0.05
         Threshold for PDF-based cluster detection as fraction of maximum PDF value.
         Lower values detect more subtle clusters and finer intervals. Range typically 0.01 to 0.2.
-        
+    
+    linear_search : bool, default=True
+        Whether to use linear search for interval boundary detection. When True, employs a
+        straightforward linear search algorithm for simplicity and interpretability. When False,
+        uses more complex SciPy optimization methods for potentially faster convergence.
+
     get_clusters : bool, default=False
         Whether to perform cluster analysis during interval detection. When True,
         enables cluster-based interval identification. Set to False for faster processing
@@ -235,6 +240,7 @@ class IntervalAnalysisEGDF(BaseIntervalAnalysisEGDF):
                 early_stopping_steps: int = 10,
                 estimating_rate: float = 0.1, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
+                linear_search: bool = True, # NOTE for intv specific
                 get_clusters: bool = False, # NOTE for intv specific
                 DLB: float = None,
                 DUB: float = None,
@@ -261,6 +267,7 @@ class IntervalAnalysisEGDF(BaseIntervalAnalysisEGDF):
             early_stopping_steps=early_stopping_steps,
             estimating_rate=estimating_rate,
             cluster_threshold=cluster_threshold,
+            linear_search=linear_search,
             get_clusters=get_clusters,
             DLB=DLB,
             DUB=DUB,
