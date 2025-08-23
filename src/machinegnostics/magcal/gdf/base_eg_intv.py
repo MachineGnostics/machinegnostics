@@ -318,11 +318,11 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         
         if self.verbose:
             print(f"\nInterval Analysis Results (Scipy Optimization with Constraints):")
-            print(f"ZL:  {self.zl:.6f} (datum producing minimum Z0)")
-            print(f"Z0L: {self.z0l:.6f} (minimum Z0 value)")
-            print(f"Z0:  {self.z0:.6f} (original central point)")
-            print(f"Z0U: {self.z0u:.6f} (maximum Z0 value)")
-            print(f"ZU:  {self.zu:.6f} (datum producing maximum Z0)")
+            print(f"ZL:  {self.zl:.6f}")
+            print(f"Z0L: {self.z0l:.6f}")
+            print(f"Z0:  {self.z0:.6f}")
+            print(f"Z0U: {self.z0u:.6f}")
+            print(f"ZU:  {self.zu:.6f}")
             print(f"Ordering constraint satisfied: {ordering_satisfied}")
             print(f"ZL optimization: {'Success' if zol_success else 'Failed'}")
             print(f"ZU optimization: {'Success' if zou_success else 'Failed'}")
@@ -627,11 +627,11 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             # Verbose output
             if self.verbose:
                 print(f"\nInterval Analysis Results:")
-                print(f"ZL:  {self.zl:.6f} (datum producing minimum Z0)")
-                print(f"Z0L: {self.z0l:.6f} (minimum Z0 value)")
-                print(f"Z0:  {self.z0:.6f} (original central point)")
-                print(f"Z0U: {self.z0u:.6f} (maximum Z0 value)")
-                print(f"ZU:  {self.zu:.6f} (datum producing maximum Z0)")
+                print(f"ZL:  {self.zl:.6f}")
+                print(f"Z0L: {self.z0l:.6f}")
+                print(f"Z0:  {self.z0:.6f}")
+                print(f"Z0U: {self.z0u:.6f}")
+                print(f"ZU:  {self.zu:.6f}")
                 print(f"Lower search points: {len(lower_search_data['z0'])}")
                 print(f"Upper search points: {len(upper_search_data['z0'])}")
                 print("Interval values computed successfully.")
