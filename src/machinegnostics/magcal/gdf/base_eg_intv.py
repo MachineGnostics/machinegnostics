@@ -38,6 +38,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 early_stopping_steps: int = 10,
                 estimating_rate: float = 0.01, # NOTE for intv specific
                 cluster_threshold: float = 0.05,
+                linear_search: bool = True, # NOTE for intv specific
                 get_clusters: bool = False, # NOTE for intv specific
                 DLB: float = None,
                 DUB: float = None,
@@ -86,6 +87,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         self.ZU = None
         self.estimate_sample_bounds = estimate_sample_bounds
         self.estimate_cluster_bounds = estimate_cluster_bounds
+        self.linear_search = linear_search
         self.params = {}
 
         # input validation
@@ -93,6 +95,8 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             raise ValueError("estimate_sample_bounds must be a boolean.")
         if not isinstance(self.estimate_cluster_bounds, bool):
             raise ValueError("estimate_cluster_bounds must be a boolean.")
+        if not isinstance(self.linear_search, bool):
+            raise ValueError("linear_search must be a boolean.")
         # if get_clusters is True, then estimate_cluster_bounds must be True
         if self.get_clusters and not self.estimate_cluster_bounds:
             raise ValueError(
@@ -139,8 +143,219 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         egdf_extended.fit()
         return egdf_extended
     
+    def _compute_intv_scipy(self):
+        '''
+        using scipy minimize with constraints to find Z0L and Z0U with improved robustness
+        '''
+        if self.verbose:
+            print("Computing interval values using scipy optimization with constraints...")
+    
+        try:
+            from scipy.optimize import minimize
+            import warnings
+        except ImportError as e:
+            raise ImportError("scipy is required for this method. Please install scipy.") from e
+        
+        # For ZL optimization: minimize Z0 subject to LB <= zl <= z0_main
+        zol_bounds = [(self.LB, self._z0_main)]
+        
+        # For ZU optimization: maximize Z0 subject to z0_main <= zu <= UB  
+        zou_bounds = [(self._z0_main, self.UB)]
+    
+        # Improved constraint functions with tolerance
+        def constraint_z0l_value(x):
+            """Ensure resulting Z0L <= z0_main"""
+            try:
+                z_egdf = self._create_extended_egdf_intv(x[0])
+                z0_datum = self._get_z0(z_egdf)
+                return self._z0_main - z0_datum + self.tolerance  # Add tolerance for numerical stability
+            except Exception:
+                return -1e6  # Large negative value if computation fails
+    
+        def constraint_z0u_value(x):
+            """Ensure resulting Z0U >= z0_main"""
+            try:
+                z_egdf = self._create_extended_egdf_intv(x[0])
+                z0_datum = self._get_z0(z_egdf)
+                return z0_datum - self._z0_main + self.tolerance  # Add tolerance for numerical stability
+            except Exception:
+                return -1e6  # Large negative value if computation fails
+    
+        # Define constraints for scipy
+        constraints_zol = [
+            {'type': 'ineq', 'fun': constraint_z0l_value}
+        ]
+        
+        constraints_zou = [
+            {'type': 'ineq', 'fun': constraint_z0u_value}
+        ]
+    
+        # Robust objective functions with error handling
+        def objective_zol(datum):
+            try:
+                z_egdf = self._create_extended_egdf_intv(datum[0])
+                z0_datum = self._get_z0(z_egdf)
+                return z0_datum
+            except Exception:
+                return 1e6  # Large positive value if computation fails
+        
+        def objective_zou(datum):
+            try:
+                z_egdf = self._create_extended_egdf_intv(datum[0])
+                z0_datum = self._get_z0(z_egdf)
+                return -z0_datum  # negative because we want to maximize Z0
+            except Exception:
+                return 1e6  # Large positive value if computation fails
+    
+        # Multiple optimization attempts with different initial points and methods
+        methods = ['SLSQP', 'trust-constr']
+        
+        # Initialize with fallback values
+        self.zl = float(self._z0_main)
+        self.z0l = float(self._z0_main)
+        self.zu = float(self._z0_main)
+        self.z0u = float(self._z0_main)
+        
+        zol_success = False
+        zou_success = False
+        
+        for method in methods:
+            if zol_success and zou_success:
+                break
+                
+            # Try different initial points for ZL optimization
+            if not zol_success:
+                initial_points_zol = [
+                    [self._z0_main],
+                    [self.LB + 0.1 * (self._z0_main - self.LB)],
+                    [self.LB + 0.5 * (self._z0_main - self.LB)],
+                    [self.LB + 0.9 * (self._z0_main - self.LB)]
+                ]
+                
+                for x0_zol in initial_points_zol:
+                    try:
+                        res_zol = minimize(
+                            objective_zol, 
+                            x0=np.array(x0_zol), 
+                            method=method,
+                            bounds=zol_bounds,
+                            constraints=constraints_zol,
+                            options={'ftol': max(self.tolerance, 1e-12), 'maxiter': 1000}
+                        )
+                        
+                        if res_zol.success and res_zol.fun <= self._z0_main + self.tolerance:
+                            self.zl = float(res_zol.x[0])
+                            self.z0l = float(res_zol.fun)
+                            zol_success = True
+                            break
+                    except Exception:
+                        continue
+            
+            # Try different initial points for ZU optimization
+            if not zou_success:
+                initial_points_zou = [
+                    [self._z0_main],
+                    [self._z0_main + 0.1 * (self.UB - self._z0_main)],
+                    [self._z0_main + 0.5 * (self.UB - self._z0_main)],
+                    [self._z0_main + 0.9 * (self.UB - self._z0_main)]
+                ]
+                
+                for x0_zou in initial_points_zou:
+                    try:
+                        res_zou = minimize(
+                            objective_zou,
+                            x0=np.array(x0_zou), 
+                            method=method,
+                            bounds=zou_bounds,
+                            constraints=constraints_zou,
+                            options={'ftol': max(self.tolerance, 1e-12), 'maxiter': 1000}
+                        )
+                        
+                        if res_zou.success and (-res_zou.fun) >= self._z0_main - self.tolerance:
+                            self.zu = float(res_zou.x[0])
+                            self.z0u = float(-res_zou.fun)
+                            zou_success = True
+                            break
+                    except Exception:
+                        continue
+    
+        # Post-processing to ensure ordering
+        if self.z0l > self._z0_main:
+            self.z0l = float(self._z0_main)
+            zol_success = False
+        
+        if self.z0u < self._z0_main:
+            self.z0u = float(self._z0_main)
+            zou_success = False
+        
+        # Ensure datum ordering by adjusting if necessary
+        if self.zl > self._z0_main:
+            self.zl = float(self._z0_main)
+        
+        if self.zu < self._z0_main:
+            self.zu = float(self._z0_main)
+        
+        # Set Z0
+        self.z0 = float(self._z0_main)
+    
+        # Final validation and correction
+        ordering_satisfied = (self.zl <= self.z0l <= self.z0 <= self.z0u <= self.zu)
+        
+        if not ordering_satisfied:
+            warnings.warn("Ordering constraint violated. Applying corrections...")
+            
+            # Apply minimum corrections to satisfy ordering
+            if self.zl > self.z0l:
+                self.zl = self.z0l
+            if self.z0l > self.z0:
+                self.z0l = self.z0
+            if self.z0 > self.z0u:
+                self.z0u = self.z0
+            if self.z0u > self.zu:
+                self.zu = self.z0u
+            
+            ordering_satisfied = (self.zl <= self.z0l <= self.z0 <= self.z0u <= self.zu)
+        
+        if self.verbose:
+            print(f"\nInterval Analysis Results (Scipy Optimization with Constraints):")
+            print(f"ZL:  {self.zl:.6f} (datum producing minimum Z0)")
+            print(f"Z0L: {self.z0l:.6f} (minimum Z0 value)")
+            print(f"Z0:  {self.z0:.6f} (original central point)")
+            print(f"Z0U: {self.z0u:.6f} (maximum Z0 value)")
+            print(f"ZU:  {self.zu:.6f} (datum producing maximum Z0)")
+            print(f"Ordering constraint satisfied: {ordering_satisfied}")
+            print(f"ZL optimization: {'Success' if zol_success else 'Failed'}")
+            print(f"ZU optimization: {'Success' if zou_success else 'Failed'}")
+    
+        if self.catch:
+            self.params = getattr(self.init_egdf, 'params', {}).copy()
+            self.params.update({
+                'ZL': self.zl,
+                'Z0L': self.z0l,
+                'Z0': float(self.z0),
+                'Z0U': self.z0u,
+                'ZU': self.zu,
+                'optimization_success': zol_success and zou_success,
+                'ordering_satisfied': ordering_satisfied
+            })
+    
+    def _compute_intv(self):
+        '''
+        first compute interval using scipy minimize
+        if it fails then use linear search method
+        '''
+        if self.verbose:
+            print("Initiating interval computation...")
 
-    def _compute_intv(self): # NOTE in future, this computation may be optimized
+        # compute with fallback
+        try:
+            self._compute_intv_scipy()
+        except Exception as e:
+            warnings.warn(f"Scipy optimization failed: {e}. Falling back to linear search method.")
+            self._compute_intv_linear_search()
+
+
+    def _compute_intv_linear_search(self): # NOTE in future, this computation may be optimized
         """
         Compute interval values including Z0L, Z0U, ZL, and ZU.
         
@@ -450,11 +665,18 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         - Robust error handling and fallback options
         """
         try:
+            # this plot only works when intervals are computed with _compute_intv_linear_search only
+            # check if self.z0_interval and self.datum_range exist else stop here
+
             import matplotlib.pyplot as plt
             
             # Check if interval computation has been performed
             if not hasattr(self, 'z0_interval') or not hasattr(self, 'datum_range'):
-                raise ValueError("Intervals have not been computed yet. Run _compute_intv() first.")
+                warnings.warn(
+                    "Interval plot data unavailable. This plot requires 'linear_search=True' "
+                    "during interval computation. Please re-run with linear_search=True."
+                )
+                return None, None
             
             if len(self.z0_interval) == 0 or len(self.datum_range) == 0:
                 raise ValueError("No data available for plotting. Interval computation may have failed.")
@@ -1074,7 +1296,14 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 print("Initiating EGDF Interval Analysis...")
 
             # compute interval values
-            self._compute_intv()
+            if self.linear_search:
+                if self.verbose:
+                    print("Using linear search for interval analysis...")
+                self._compute_intv_linear_search()
+            else:
+                if self.verbose:
+                    print("Using optimized search for interval analysis...")
+                self._compute_intv()
 
             # plot if requested
             if plot:

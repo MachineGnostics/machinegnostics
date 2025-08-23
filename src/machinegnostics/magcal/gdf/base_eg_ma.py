@@ -813,7 +813,7 @@ class BaseMarginalAnalysisEGDF:
             sh = egdf_extended.hi.sum()
             
             # Combined loss with weights
-            loss = (d2_loss + 2.0 * egdf_loss + 0.5 * ratio_loss) + sh
+            loss = (d2_loss + 2.0 * egdf_loss + 0.5 * ratio_loss) * sh * 1000 # NOTE can be improved in the future
             loss_history.append(loss)
             
             if self.verbose:
