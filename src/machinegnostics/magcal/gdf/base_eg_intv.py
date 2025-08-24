@@ -605,11 +605,17 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if not (self.zl <= self.z0 <= self.zu):
                 if self.verbose:
                     print(f"Swapping ZL and ZU: ZL was {self.zl:.6f}, ZU was {self.zu:.6f}")
-                self.zl, self.zu = self.zu, self.zl
+                if self.zl > self.z0l:
+                    self.zl = self.z0l
+                if self.zu < self.z0u:
+                    self.zu = self.z0u
             if not (self.z0l <= self.z0 <= self.z0u):
                 if self.verbose:
                     print(f"Swapping Z0L and Z0U: Z0L was {self.z0l:.6f}, Z0U was {self.z0u:.6f}")
-                self.z0l, self.z0u = self.z0u, self.z0l
+                if self.z0l > self.z0:
+                    self.z0l = self.z0
+                if self.z0u < self.z0:
+                    self.z0u = self.z0
             
             # Additional validation
             if self.z0l > self.z0u:
