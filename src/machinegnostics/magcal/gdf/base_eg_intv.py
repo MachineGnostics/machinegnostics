@@ -600,18 +600,13 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             else:
                 self.z0u = float(self.z0)
                 self.zu = float(self.z0)
-
-            # # fallback logic
-            # # if self.z0l <= self.z0 <= self.z0u:
-            # if not self.z0l <= self.z0 <= self.z0u:
-            #     self.z0 = self._get_z0(self.init_egdf)
             
             # Ensure logical ordering: ZL ≤ Z0 ≤ ZU
-            if self.zl > self.zu:
+            if not (self.zl <= self.z0 <= self.zu):
                 if self.verbose:
                     print(f"Swapping ZL and ZU: ZL was {self.zl:.6f}, ZU was {self.zu:.6f}")
                 self.zl, self.zu = self.zu, self.zl
-            if self.z0l > self.z0u:
+            if not (self.z0l <= self.z0 <= self.z0u):
                 if self.verbose:
                     print(f"Swapping Z0L and Z0U: Z0L was {self.z0l:.6f}, Z0U was {self.z0u:.6f}")
                 self.z0l, self.z0u = self.z0u, self.z0l
@@ -1306,9 +1301,6 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if self.estimate_cluster_bounds:
                 self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
 
-            # get Z0 of the base sample
-            self._z0_main = self._get_z0_main(self.init_egdf)
-
             if self.verbose:
                 print("Initiating EGDF Interval Analysis...")
 
@@ -1316,10 +1308,14 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             if self.linear_search:
                 if self.verbose:
                     print("Using linear search for interval analysis...")
+                # get z0 with simple method
+                self._z0_main = self._get_z0(self.init_egdf)
                 self._compute_intv_linear_search()
             else:
                 if self.verbose:
                     print("Using optimized search for interval analysis...")
+                # get Z0 of the base sample
+                self._z0_main = self._get_z0(self.init_egdf)
                 self._compute_intv()
 
             # plot if requested
