@@ -344,6 +344,14 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         first compute interval using scipy minimize
         if it fails then use linear search method
         '''
+        # NOTE
+        # two different methods are used for interval computation _get_z0 and _get_z0_main
+        # _get_z0_main is more robust and used for main computations of g-mode of the sample, this method ensure that egdf is close to 0.5, hence high accuracy with high iterations
+        # _get_z0 is faster and used for interval computations, this method may not be as accurate as _get_z0_main, but is faster. Main difference is that, there is no penalty logic of egdf being not close to 0.5.
+
+        # _compute_intv_scipy uses _get_z0_main for better robustness
+        # _compute_intv_linear_search uses _get_z0 for faster computation
+
         if self.verbose:
             print("Initiating interval computation...")
 
@@ -419,7 +427,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
                 for i, datum in enumerate(lower_range[1:], 1):
                     try:
-                        if self.verbose and i % max(1, points_per_side // 10) == 0:
+                        if self.verbose and i % max(1, points_per_side) == 0:
                             print(f"Processing lower range: {datum:.6f} ({i}/{len(lower_range)-1})")
                         
                         z_egdf = self._create_extended_egdf_intv(datum)
@@ -487,7 +495,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
                 for i, datum in enumerate(upper_range[1:], 1):
                     try:
-                        if self.verbose and i % max(1, points_per_side // 10) == 0:
+                        if self.verbose and i % max(1, points_per_side) == 0:
                             print(f"Processing upper range: {datum:.6f} ({i}/{len(upper_range)-1})")
                         
                         z_egdf = self._create_extended_egdf_intv(datum)
@@ -572,6 +580,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             # IMPROVED LOGIC: Use direction-specific results instead of global min/max
             # Find Z0L and Z0U from respective search directions
             self.z0 = self._z0_main
+            
             if len(lower_search_data['z0']) > 0:
                 lower_z0_array = np.array(lower_search_data['z0'])
                 lower_datum_array = np.array(lower_search_data['datum'])
@@ -591,12 +600,20 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             else:
                 self.z0u = float(self.z0)
                 self.zu = float(self.z0)
+
+            # # fallback logic
+            # # if self.z0l <= self.z0 <= self.z0u:
+            # if not self.z0l <= self.z0 <= self.z0u:
+            #     self.z0 = self._get_z0(self.init_egdf)
             
             # Ensure logical ordering: ZL ≤ Z0 ≤ ZU
             if self.zl > self.zu:
                 if self.verbose:
                     print(f"Swapping ZL and ZU: ZL was {self.zl:.6f}, ZU was {self.zu:.6f}")
                 self.zl, self.zu = self.zu, self.zl
+            if self.z0l > self.z0u:
+                if self.verbose:
+                    print(f"Swapping Z0L and Z0U: Z0L was {self.z0l:.6f}, Z0U was {self.z0u:.6f}")
                 self.z0l, self.z0u = self.z0u, self.z0l
             
             # Additional validation
@@ -1290,7 +1307,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                 self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
 
             # get Z0 of the base sample
-            self._z0_main = self._get_z0(self.init_egdf)
+            self._z0_main = self._get_z0_main(self.init_egdf)
 
             if self.verbose:
                 print("Initiating EGDF Interval Analysis...")

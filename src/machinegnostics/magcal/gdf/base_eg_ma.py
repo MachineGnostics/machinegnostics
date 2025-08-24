@@ -772,6 +772,215 @@ class BaseMarginalAnalysisEGDF:
 
         return x
 
+
+    def _get_z0_main(self, egdf: EGDF):
+        """
+        Find Z0 point where:
+        1. PDF is at global maximum 
+        2. EGDF is at 0.5
+        3. Second derivative (d2) approaches zero
+        
+        Returns:
+        --------
+        float: The Z0 value
+        """
+        # Start with median of the data as initial estimate
+        zo_est = np.median(egdf.data)
+        loss_history = []
+        
+        # Enhanced convergence parameters
+        egdf_tolerance = 1e-4  # Stricter tolerance for EGDF = 0.5
+        max_egdf_deviation = 0.01  # Maximum allowed deviation from 0.5
+
+        # compute overload warning threshold
+        if self.tolerance < egdf_tolerance:
+            if self.verbose:
+                print(f"Warning: User tolerance {self.tolerance} is less than EGDF tolerance {egdf_tolerance}. If location parameter estimation accuracy is sufficient, consider setting tolerance <= {egdf_tolerance}.")
+        
+         # Verbose output
+        if self.verbose:
+            print(f"\nFinding Z0 starting from median: {zo_est:.6f}")
+        
+        for iteration in range(self._MAX_ITERATIONS):
+            # Create extended EGDF with the current estimate
+            egdf_extended = self._create_extended_egdf(zo_est)
+            
+            # Get derivatives at the Z0 estimate point
+            derivatives = self._get_derivatives_at_point(egdf_extended, zo_est)
+            d1, d2, d3 = derivatives['first'], derivatives['second'], derivatives['third']
+            z0_idx = derivatives['index']
+            
+            # Get EGDF value at Z0 estimate
+            egdf_at_z0 = egdf_extended.egdf[z0_idx] if hasattr(egdf_extended, 'egdf') else 0.5
+            
+            # Calculate individual loss components with enhanced EGDF weighting
+            d2_loss = np.abs(d2)  # Second derivative should be zero at maximum
+            egdf_loss = np.abs(egdf_at_z0 - 0.5)  # EGDF should be 0.5
+            ratio_loss = np.abs(d2 / d1) if np.abs(d1) > 1e-12 else 0  # Stability measure
+            
+            # Adaptive weighting: increase EGDF importance as we get closer to solution
+            egdf_weight = 10.0  # Increased base weight for EGDF
+            if egdf_loss < 0.1:  # When close to 0.5, increase weight even more
+                egdf_weight = 50.0
+            elif egdf_loss < 0.05:
+                egdf_weight = 100.0
+            
+            # Penalty for being too far from 0.5
+            egdf_penalty = 0
+            if egdf_loss > max_egdf_deviation:
+                egdf_penalty = (egdf_loss - max_egdf_deviation) ** 2 * 1000
+            
+            sh = egdf_extended.hi.sum()
+            
+            # Enhanced combined loss with stronger EGDF focus
+            loss = (d2_loss + egdf_weight * egdf_loss + 0.5 * ratio_loss + egdf_penalty) * sh * 1000
+            loss_history.append(loss)
+            
+            if self.verbose:
+                print(f"Iteration {iteration}: z0_est = {zo_est:.6f}, "
+                      f"d1(PDF) = {d1:.6f}, d2 = {d2:.6f}, d3 = {d3:.6f}")
+                print(f"  EGDF at z0 = {egdf_at_z0:.6f}, d2_loss = {d2_loss:.6f}, "
+                      f"egdf_loss = {egdf_loss:.6f}, total_loss = {loss:.6f}")
+            
+            # Enhanced convergence check with stricter EGDF criteria
+            egdf_converged = egdf_loss < self.tolerance
+            d2_converged = d2_loss < self.tolerance
+            overall_converged = loss < self.tolerance
+
+            # Primary convergence: EGDF must be very close to 0.5
+            if egdf_converged and (d2_converged or overall_converged):
+                if self.verbose:
+                    print(f"Z0 convergence reached at iteration {iteration} with EGDF deviation {egdf_loss:.8f}")
+                break
+            
+            # Secondary convergence check for edge cases
+            if iteration > 50 and egdf_loss < max_egdf_deviation and d2_loss < self._TOLERANCE * 10:
+                if self.verbose:
+                    print(f"Z0 acceptable convergence at iteration {iteration}")
+                break
+            
+            # Update z0_est using multi-objective optimization
+            if iteration > 0 and len(loss_history) >= 2:
+                # Adaptive learning rate based on loss history
+                if loss_history[-1] > loss_history[-2]:
+                    # Loss is increasing, reduce step size
+                    step_size = self._ESTIMATING_RATE * 0.3
+                else:
+                    # Loss is decreasing, maintain step size
+                    step_size = self._ESTIMATING_RATE
+            else:
+                step_size = self._ESTIMATING_RATE
+            
+            # Enhanced update strategy with EGDF-focused corrections
+            if np.abs(d1) > 1e-12:
+                # Newton step for d2 = 0 (finding PDF maximum)
+                newton_step = d2 / d3 if np.abs(d3) > 1e-12 else 0
+                
+                # Enhanced EGDF correction with adaptive step size
+                egdf_error = egdf_at_z0 - 0.5
+                egdf_step_size = step_size * 2.0  # Larger step for EGDF correction
+                
+                # Direction-aware EGDF correction
+                if egdf_error > 0:  # EGDF > 0.5, move left
+                    egdf_step = egdf_error * egdf_step_size
+                else:  # EGDF < 0.5, move right
+                    egdf_step = egdf_error * egdf_step_size
+                
+                # Combine Newton and EGDF steps with EGDF priority
+                combined_step = 0.3 * newton_step + 0.7 * egdf_step
+                zo_est = zo_est - combined_step
+            else:
+                # Fallback: focus primarily on EGDF correction
+                egdf_error = egdf_at_z0 - 0.5
+                zo_est = zo_est - egdf_error * step_size * 2.0
+            
+            # Boundary constraints with relaxed range for Z0 search
+            data_range = egdf.DUB - egdf.DLB
+            search_range = 0.5 * data_range  # Allow wider search
+            zo_est = np.clip(zo_est, 
+                            egdf.DLB - search_range,
+                            egdf.DUB + search_range)
+    
+            # Enhanced early stopping with EGDF focus
+            if iteration > self._EARLY_STOPPING_STEPS:
+                recent_losses = loss_history[-self._EARLY_STOPPING_STEPS:]
+                recent_egdf_losses = [abs(loss_history[i]) for i in range(-self._EARLY_STOPPING_STEPS, 0)]
+                
+                if len(recent_losses) >= self._EARLY_STOPPING_STEPS:
+                    # Check if EGDF loss is plateauing at acceptable level
+                    if egdf_loss < max_egdf_deviation:
+                        loss_change = np.std(recent_losses) / (np.mean(recent_losses) + 1e-12)
+                        if loss_change < 0.001:  # 0.1% relative change
+                            if self.verbose:
+                                print(f"Z0 early stopping at iteration {iteration} - EGDF acceptable")
+                            break
+        
+        # Final validation and refinement
+        final_egdf_extended = self._create_extended_egdf(zo_est)
+        final_derivatives = self._get_derivatives_at_point(final_egdf_extended, zo_est)
+        final_z0_idx = final_derivatives['index']
+        final_egdf_at_z0 = final_egdf_extended.egdf[final_z0_idx] if hasattr(final_egdf_extended, 'egdf') else 0.5
+        final_egdf_error = abs(final_egdf_at_z0 - 0.5)
+        
+        # Post-optimization refinement if EGDF is still not close enough
+        if final_egdf_error > egdf_tolerance:
+            if self.verbose:
+                print(f"Post-optimization refinement needed. Current EGDF error: {final_egdf_error:.6f}")
+            
+            # Binary search refinement for EGDF = 0.5
+            left_bound = zo_est - 0.1 * (egdf.DUB - egdf.DLB)
+            right_bound = zo_est + 0.1 * (egdf.DUB - egdf.DLB)
+            
+            for refine_iter in range(20):  # Maximum 20 refinement iterations
+                mid_point = (left_bound + right_bound) / 2
+                
+                refine_egdf = self._create_extended_egdf(mid_point)
+                refine_derivatives = self._get_derivatives_at_point(refine_egdf, mid_point)
+                refine_idx = refine_derivatives['index']
+                refine_egdf_val = refine_egdf.egdf[refine_idx] if hasattr(refine_egdf, 'egdf') else 0.5
+                
+                if abs(refine_egdf_val - 0.5) < egdf_tolerance:
+                    zo_est = mid_point
+                    final_egdf_at_z0 = refine_egdf_val
+                    if self.verbose:
+                        print(f"Refinement converged at iteration {refine_iter}")
+                    break
+                
+                if refine_egdf_val > 0.5:
+                    right_bound = mid_point
+                else:
+                    left_bound = mid_point
+            
+            final_egdf_error = abs(final_egdf_at_z0 - 0.5)
+        
+        if self.verbose:
+            print(f"\nZ0 Final Results:")
+            print(f"  Z0 value: {zo_est:.6f}")
+            print(f"  Final EGDF value: {final_egdf_at_z0:.6f}")
+            print(f"  EGDF error: {final_egdf_error:.6f}")
+        
+        # Store Z0 and related information
+        if self.catch:
+            self.params.update({
+                'z0': float(zo_est),
+                'z0_egdf_value': float(final_egdf_at_z0),
+                'z0_egdf_error': float(final_egdf_error)
+            })
+        
+        # Enhanced validation with warnings
+        if final_egdf_error > max_egdf_deviation:
+            warning_msg = f"Warning: Z0 EGDF value {final_egdf_at_z0:.6f} deviates {final_egdf_error:.6f} from 0.5"
+            if self.verbose:
+                print(warning_msg)
+            warnings.warn(warning_msg)
+    
+        if abs(final_derivatives['second']) > 0.01:
+            if self.verbose:
+                print(f"Warning: Z0 second derivative {final_derivatives['second']:.6f} is not close to 0")
+                
+        self.z0 = float(zo_est)
+        return zo_est
+
     def _get_z0(self, egdf: EGDF):
         """
         Find Z0 point where:
@@ -1133,7 +1342,7 @@ class BaseMarginalAnalysisEGDF:
             self._get_initial_egdf()
 
             # get Z0 of the base sample
-            self.z0 = self._get_z0(self.init_egdf)
+            self.z0 = self._get_z0_main(self.init_egdf)
 
             # homogeneous check
             self.h = self._is_homogeneous()
