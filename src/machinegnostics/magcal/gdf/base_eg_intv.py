@@ -111,14 +111,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
     def _create_extended_egdf_intv(self, datum):
         """Create EGDF with extended data including the given datum."""
-        if self.get_clusters:
-            data = self.init_egdf.params['main_cluster']
-            # is main cluster empty? then fall back to init data
-            if data is None or len(data) == 0:
-                warnings.warn("Main cluster is empty, using initial EGDF data instead.")
-                data = self.init_egdf.data
-        else:
-            data = self.init_egdf.data
+        data = self.init_egdf.data
 
         data_extended = np.append(data, datum)
 
@@ -1305,24 +1298,28 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
 
             # cluster bounds
             if self.estimate_cluster_bounds:
-                self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
+                self._get_data_sample_clusters_bounds() # if get_clusters is True, it will estimate cluster bounds
+
 
             if self.verbose:
                 print("Initiating EGDF Interval Analysis...")
+
+            # z0
+            self._z0_main = self._get_z0(self.init_egdf)
 
             # compute interval values
             if self.linear_search:
                 if self.verbose:
                     print("Using linear search for interval analysis...")
-                # get z0 with simple method
-                self._z0_main = self._get_z0(self.init_egdf)
                 self._compute_intv_linear_search()
             else:
                 if self.verbose:
                     print("Using optimized search for interval analysis...")
-                # get Z0 of the base sample
-                self._z0_main = self._get_z0(self.init_egdf)
                 self._compute_intv()
+
+            # get clustered data if requested
+            if self.get_clusters:
+                self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_clustered_data()
 
             # plot if requested
             if plot:
