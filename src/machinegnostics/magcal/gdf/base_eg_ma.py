@@ -521,9 +521,9 @@ class BaseMarginalAnalysisEGDF:
         if self.catch:
             self.params['is_homogeneous'] = is_homogeneous
         return is_homogeneous
-    
-    
-    def _get_data_sample_clusters(self):
+
+
+    def _get_data_sample_clusters_bounds(self):
         """
         Identify data clusters based on PDF characteristics with focus on global maxima.
         Simplified version that tries pdf_points first, then falls back to pdf.
@@ -669,32 +669,32 @@ class BaseMarginalAnalysisEGDF:
         onset_point = sorted_data[onset_start_idx]
         stop_point = sorted_data[stop_end_idx]
         
-        # Create clusters based on identified boundaries using original data
-        lower_cluster_mask = self.init_egdf.data < onset_point
-        main_cluster_mask = (self.init_egdf.data >= onset_point) & (self.init_egdf.data <= stop_point)
-        upper_cluster_mask = self.init_egdf.data > stop_point
+        # # Create clusters based on identified boundaries using original data
+        # lower_cluster_mask = self.init_egdf.data < onset_point
+        # main_cluster_mask = (self.init_egdf.data >= onset_point) & (self.init_egdf.data <= stop_point)
+        # upper_cluster_mask = self.init_egdf.data > stop_point
         
-        # perform clustering based on masks
-        if self.get_clusters:
-            # Extract actual data points for each cluster
-            lower_cluster = self.init_egdf.data[lower_cluster_mask]
-            main_cluster = self.init_egdf.data[main_cluster_mask]
-            upper_cluster = self.init_egdf.data[upper_cluster_mask]
+        # # perform clustering based on masks
+        # if self.get_clusters:
+        #     # Extract actual data points for each cluster
+        #     lower_cluster = self.init_egdf.data[lower_cluster_mask]
+        #     main_cluster = self.init_egdf.data[main_cluster_mask]
+        #     upper_cluster = self.init_egdf.data[upper_cluster_mask]
             
-            # Calculate cluster statistics using original discrete PDF
-            if hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
-                lower_pdf_avg = np.mean(self.init_egdf.pdf[lower_cluster_mask]) if len(lower_cluster) > 0 else 0
-                main_pdf_avg = np.mean(self.init_egdf.pdf[main_cluster_mask]) if len(main_cluster) > 0 else 0
-                upper_pdf_avg = np.mean(self.init_egdf.pdf[upper_cluster_mask]) if len(upper_cluster) > 0 else 0
-            else:
-                lower_pdf_avg = main_pdf_avg = upper_pdf_avg = 0
+            # # Calculate cluster statistics using original discrete PDF
+            # if hasattr(self.init_egdf, 'pdf') and self.init_egdf.pdf is not None:
+            #     lower_pdf_avg = np.mean(self.init_egdf.pdf[lower_cluster_mask]) if len(lower_cluster) > 0 else 0
+            #     main_pdf_avg = np.mean(self.init_egdf.pdf[main_cluster_mask]) if len(main_cluster) > 0 else 0
+            #     upper_pdf_avg = np.mean(self.init_egdf.pdf[upper_cluster_mask]) if len(upper_cluster) > 0 else 0
+            # else:
+            #     lower_pdf_avg = main_pdf_avg = upper_pdf_avg = 0
             
-            # Calculate EGDF values at boundary points for validation
-            onset_egdf_final = None
-            stop_egdf_final = None
-            if sorted_egdf is not None:
-                onset_egdf_final = sorted_egdf[onset_start_idx]
-                stop_egdf_final = sorted_egdf[stop_end_idx]
+            # # Calculate EGDF values at boundary points for validation
+            # onset_egdf_final = None
+            # stop_egdf_final = None
+            # if sorted_egdf is not None:
+            #     onset_egdf_final = sorted_egdf[onset_start_idx]
+            #     stop_egdf_final = sorted_egdf[stop_end_idx]
         
         # clusters = {
         #     'lower_cluster': lower_cluster,
@@ -713,23 +713,55 @@ class BaseMarginalAnalysisEGDF:
         #     'stop_egdf_value': stop_egdf_final
         # }
         
-            if self.verbose:
-                print(f"Data sample clustering completed.")
+        #     if self.verbose:
+        #         print(f"Data sample clustering completed.")
                       
-            if self.catch:
-                self.params.update({
-                    'lower_cluster': lower_cluster,
-                    'main_cluster': main_cluster, 
-                    'upper_cluster': upper_cluster,
-                })
+        #     if self.catch:
+        #         self.params.update({
+        #             'lower_cluster': lower_cluster,
+        #             'main_cluster': main_cluster, 
+        #             'upper_cluster': upper_cluster,
+        #         })
         self.CLB = onset_point
         self.CUB = stop_point
+
         # bound update        
         if self.catch:
             self.params.update({
                 'CLB': onset_point,
                 'CUB': stop_point,
             })
+        # verbose output
+        if self.verbose:
+            print(f"Cluster Boundaries - CLB: {onset_point:.6f}, CUB: {stop_point:.6f}")
+            print(f"Data sample cluster bound estimation completed.")
+
+    def _get_clustered_data(self):
+        """
+        Extract clustered data based on previously identified cluster boundaries.
+        """
+        if not hasattr(self, 'CLB') or not hasattr(self, 'CUB'):
+            raise ValueError("Cluster boundaries (CLB and CUB) not defined. Run _get_data_sample_clusters_bounds() first.")
+        
+        # Create masks for clusters
+        lower_cluster_mask = self.init_egdf.data < self.CLB
+        main_cluster_mask = (self.init_egdf.data >= self.CLB) & (self.init_egdf.data <= self.CUB)
+        upper_cluster_mask = self.init_egdf.data > self.CUB
+        
+        # Extract actual data points for each cluster
+        self.lower_cluster = self.init_egdf.data[lower_cluster_mask]
+        self.main_cluster = self.init_egdf.data[main_cluster_mask]
+        self.upper_cluster = self.init_egdf.data[upper_cluster_mask]
+        
+        if self.catch:
+            self.params.update({
+                'lower_cluster': self.lower_cluster,
+                'main_cluster': self.main_cluster, 
+                'upper_cluster': self.upper_cluster,
+            })
+        
+        if self.verbose:
+            print(f"Extracted clustered data: Lower({len(self.lower_cluster)}), Main({len(self.main_cluster)}), Upper({len(self.upper_cluster)})")
 
 
     def _estimate_sample_bound_newton(self, bound_type='lower'):
@@ -1365,7 +1397,11 @@ class BaseMarginalAnalysisEGDF:
             self._get_data_sample_bounds()
 
             # cluster bounds
-            self._get_data_sample_clusters() # if get_clusters is True, it will estimate cluster bounds
+            self._get_data_sample_clusters_bounds() # if get_clusters is True, it will estimate cluster bounds
+
+            # extract clusters
+            if self.get_clusters:
+                self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_clustered_data()
 
             if self.verbose:
                 print(f"Marginal Analysis completed. Z0: {self.z0:.6f}, Homogeneous: {self.h}")
