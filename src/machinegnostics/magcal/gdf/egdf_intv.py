@@ -247,7 +247,7 @@ class IntervalAnalysisEGDF(BaseIntervalAnalysisEGDF):
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
-                tolerance: float = 1e-3, # NOTE for intv specific
+                tolerance: float = 1e-5, # NOTE for intv specific
                 data_form: str = 'a',
                 n_points: int = 1000, # NOTE for intv specific
                 homogeneous: bool = True,
