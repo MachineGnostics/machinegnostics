@@ -66,7 +66,8 @@ class BaseMarginalAnalysisEGDF:
         self.flush = flush  # whether to flush the output
         self.params = {}
 
-        # vars for marginal analysis
+        # fit status check
+        self._fitted = False
 
         # derivative sample bound tolerance
         self._TOLERANCE = sample_bound_tolerance
@@ -738,30 +739,49 @@ class BaseMarginalAnalysisEGDF:
 
     def _get_clustered_data(self):
         """
-        Extract clustered data based on previously identified cluster boundaries.
+        Extract clustered data based on the cluster bounds.
+        
+        Returns:
+        --------
+        tuple: (lower_cluster, main_cluster, upper_cluster) or None if clustering failed
         """
-        if not hasattr(self, 'CLB') or not hasattr(self, 'CUB'):
-            raise ValueError("Cluster boundaries (CLB and CUB) not defined. Run _get_data_sample_clusters_bounds() first.")
-        
-        # Create masks for clusters
-        lower_cluster_mask = self.init_egdf.data < self.CLB
-        main_cluster_mask = (self.init_egdf.data >= self.CLB) & (self.init_egdf.data <= self.CUB)
-        upper_cluster_mask = self.init_egdf.data > self.CUB
-        
-        # Extract actual data points for each cluster
-        self.lower_cluster = self.init_egdf.data[lower_cluster_mask]
-        self.main_cluster = self.init_egdf.data[main_cluster_mask]
-        self.upper_cluster = self.init_egdf.data[upper_cluster_mask]
-        
-        if self.catch:
-            self.params.update({
-                'lower_cluster': self.lower_cluster,
-                'main_cluster': self.main_cluster, 
-                'upper_cluster': self.upper_cluster,
-            })
-        
-        if self.verbose:
-            print(f"Extracted clustered data: Lower({len(self.lower_cluster)}), Main({len(self.main_cluster)}), Upper({len(self.upper_cluster)})")
+        try:
+            # Check if we have the necessary cluster information
+            if not hasattr(self, 'cluster_info') or self.cluster_info is None:
+                if self.verbose:
+                    print("No cluster information available. Skipping clustering.")
+                return None, None, None
+            
+            # If we have cluster bounds, use them to split the data
+            if hasattr(self, 'LSB') and hasattr(self, 'USB'):
+                data = self.init_egdf.data
+                
+                # Lower cluster: data < LSB
+                lower_cluster = data[data < self.LSB] if hasattr(self, 'LSB') else np.array([])
+                
+                # Main cluster: LSB <= data <= USB
+                main_cluster = data[(data >= self.LSB) & (data <= self.USB)] if hasattr(self, 'LSB') and hasattr(self, 'USB') else data
+                
+                # Upper cluster: data > USB
+                upper_cluster = data[data > self.USB] if hasattr(self, 'USB') else np.array([])
+                
+                if self.verbose:
+                    print(f"Clustered data: Lower={len(lower_cluster)}, Main={len(main_cluster)}, Upper={len(upper_cluster)}")
+                
+                return lower_cluster, main_cluster, upper_cluster
+            else:
+                if self.verbose:
+                    print("Sample bounds not available. Using original data as main cluster.")
+                return np.array([]), self.init_egdf.data, np.array([])
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"Error in clustering: {e}, falling back to original data.")
+            # Fallback to original data
+            lower_cluster = np.array([])
+            main_cluster = self.init_egdf.data
+            upper_cluster = np.array([])
+            return lower_cluster, main_cluster, upper_cluster
 
 
     def _estimate_sample_bound_newton(self, bound_type='lower'):
@@ -1212,6 +1232,10 @@ class BaseMarginalAnalysisEGDF:
         """
         import matplotlib.pyplot as plt
         import numpy as np
+
+        # only if self._fitted is True
+        if not self._fitted:
+            raise RuntimeError("Must fit marginal analysis before plotting.")
         
         if not self.catch:
             print("Plot is not available with argument catch=False")
@@ -1405,6 +1429,10 @@ class BaseMarginalAnalysisEGDF:
 
             if self.verbose:
                 print(f"Marginal Analysis completed. Z0: {self.z0:.6f}, Homogeneous: {self.h}")
+            
+            # fit status update
+            self._fitted = True
+            print(f"Fit status: {self._fitted}")
 
             if plot:
                 self._plot_egdf()
