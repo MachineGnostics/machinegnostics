@@ -568,7 +568,7 @@ class BaseEGDF(BaseDistFuncCompute):
     # MAIN FITTING PROCESS
     # =============================================================================
     
-    def _fit_egdf(self):
+    def _fit_egdf(self, plot:bool = True):
         """Main fitting process with improved organization."""
         try:
             if self.verbose:
@@ -604,7 +604,10 @@ class BaseEGDF(BaseDistFuncCompute):
             
             if self.verbose:
                 print("EGDF fitting completed successfully.")
-            
+
+            if plot:
+                self._plot()
+
             # clean up computation cache
             if self.flush:  
                 self._cleanup_computation_cache()
@@ -613,13 +616,3 @@ class BaseEGDF(BaseDistFuncCompute):
             if self.verbose:
                 print(f"Error during EGDF fitting: {e}")
             raise e
-    
-    def fit(self):
-        """Public method to fit EGDF to the data."""
-        self._fit_egdf()
-        return self
-    
-    def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
-        """Public method to plot the fitted EGDF and PDF."""
-        self._plot(plot_smooth=plot_smooth, plot=plot, bounds=bounds, extra_df=extra_df, figsize=figsize)
-        return self
