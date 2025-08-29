@@ -90,6 +90,9 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         self.linear_search = linear_search
         self.params = {}
 
+        # fit status
+        self._fitted = False
+
         # input validation
         if not isinstance(self.estimate_sample_bounds, bool):
             raise ValueError("estimate_sample_bounds must be a boolean.")
@@ -958,11 +961,10 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
         """
         import matplotlib.pyplot as plt
         import numpy as np
-        
-        if not self.catch:
-            print("Plot is not available with argument catch=False")
-            return
-        
+
+        if not self._fitted:
+            raise RuntimeError("Must fit interval analysis before plotting.")
+
         if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
             raise RuntimeError("Must fit marginal analysis before plotting.")
         
@@ -1320,6 +1322,9 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             # get clustered data if requested
             if self.get_clusters:
                 self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_clustered_data()
+
+            # fit status
+            self._fitted = True
 
             # plot if requested
             if plot:
