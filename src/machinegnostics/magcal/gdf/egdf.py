@@ -278,7 +278,7 @@ class EGDF(BaseEGDF):
             flush=flush
         )
 
-    def fit(self):
+    def fit(self, plot=False):
         """
         Fit the Estimating Global Distribution Function to the provided data.
 
@@ -355,7 +355,7 @@ class EGDF(BaseEGDF):
             - Use verbose=True to diagnose optimization issues
 
         """
-        self._fit_egdf()
+        self._fit_egdf(plot=plot)
 
     def plot(self, 
              plot_smooth: bool = True, 
