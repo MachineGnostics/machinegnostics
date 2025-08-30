@@ -1027,7 +1027,7 @@ class BaseMarginalAnalysisEGDF:
             warning_msg = f"Warning: Z0 EGDF value {final_egdf_at_z0:.6f} deviates {final_egdf_error:.6f} from 0.5"
             if self.verbose:
                 print(warning_msg)
-            warnings.warn(warning_msg)
+                warnings.warn(warning_msg)
     
         if abs(final_derivatives['second']) > 0.01:
             if self.verbose:
