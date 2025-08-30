@@ -579,7 +579,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         #         'zi_n': None
         #     })
         # deleting long arrays from params like z_points, di_points
-        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points']
+        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points']
         for param in long_array_params:
             if param in self.params:
                 self.params[param] = None
