@@ -78,7 +78,19 @@ class DataHomogeneity:
         self.verbose = verbose
         self.catch = catch
         self.params = {}
-    
+
+        # validation
+        self._egdf_obj_validation()
+
+    def _egdf_obj_validation(self):
+        '''
+        validate inputs
+        '''
+        if not isinstance(self.egdf, EGDF):
+            raise TypeError("egdf must be an instance of EGDF")
+        if not hasattr(self.egdf, 'pdf'):
+            raise AttributeError("EGDF object is missing 'pdf' attribute. Please fit EGDF before using DataHomogeneity.")
+
     def test_homogeneity(self):
         """        
         This is the main entry point for checking if the EGDF data is homogeneous.
@@ -162,7 +174,7 @@ class DataHomogeneity:
         """
         if not hasattr(self.egdf, 'pdf') or self.egdf.pdf is None:
             if self.verbose:
-                print("Warning: PDF not available for peak detection")
+                print("Warning: PDF not available for peak detection. Please ensure that the EGDF object is properly initialized and fitted.")
             return 0
         
         try:
