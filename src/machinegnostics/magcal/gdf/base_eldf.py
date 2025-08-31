@@ -16,6 +16,7 @@ from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.mg_weights import GnosticsWeights
 from machinegnostics.magcal.gdf.base_egdf import BaseEGDF
 from machinegnostics.magcal.gdf.base_distfunc import BaseDistFuncCompute
+from machinegnostics.magcal.scale_param import ScaleParam
 
 class BaseELDF(BaseEGDF):
     '''Base ELDF class'''
@@ -180,14 +181,25 @@ class BaseELDF(BaseEGDF):
         # Store for derivative calculations
         self.fi = fi
         self.hi = hi
+
+        # varS
+        if self.varS:
+            fi_m = np.sum(self.fi * self.weights, axis=0) / np.sum(self.weights)
+            scale = ScaleParam()
+            self.S_var = scale._gscale_loc(fi_m)
+            eldf_values, fi, hi = self._compute_eldf_core(self.S_var, self.LB_opt, self.UB_opt)
+            self.fi = fi
+            self.hi = hi
+
         self.eldf = eldf_values
-        self.pdf = self._compute_eldf_pdf(fi, hi)
+        self.pdf = self._compute_eldf_pdf(self.fi, self.hi)
         
         if self.catch:
             self.params.update({
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
-                'zi': self.zi.copy()
+                'zi': self.zi.copy(),
+                'S_var': self.S_var.copy()
             })
 
     def _compute_eldf_pdf(self, fi, hi):
@@ -203,13 +215,35 @@ class BaseELDF(BaseEGDF):
         """Generate smooth curves for plotting and analysis - ELDF."""
         # try:
         # Generate smooth ELDF and PDF
-        smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-            self.S_opt, self.LB_opt, self.UB_opt,
-            zi_data=self.z_points_n, zi_eval=self.z
-        )
+        if self.varS:
+            if self.verbose:
+                print("Generating smooth curves with varying S...")
 
-        smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi)
+            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                self.S_opt, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            # svar
+            scale = ScaleParam()
+            S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0))
+            # re-evaluate ELDF with smoothed variance
+            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                S_var_smooth, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
 
+            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi)
+
+        else:
+            if self.verbose:
+                print("Generating smooth curves without varying S...")
+                
+            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                self.S_opt, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
+      
         self.eldf_points = smooth_eldf
         self.pdf_points = smooth_pdf
         
