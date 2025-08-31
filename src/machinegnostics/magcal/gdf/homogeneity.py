@@ -21,7 +21,7 @@ class DataHomogeneity:
     can lead to inaccurate or misleading results in machine learning and statistical analysis.
     
     Attributes:
-        init_egdf (EGDF): The input EGDF object containing data and computed PDF
+        egdf (EGDF): The input EGDF object containing data and computed PDF
         verbose (bool): Controls detailed output during homogeneity checking
         catch (bool): Controls whether results are stored in internal parameters dictionary
         params (dict): Dictionary storing homogeneity check results when catch=True
@@ -56,15 +56,15 @@ class DataHomogeneity:
         - Error handling ensures robustness against malformed input data
         
     Raises:
-        AttributeError: If init_egdf doesn't have required PDF attribute
+        AttributeError: If egdf doesn't have required PDF attribute
         Exception: Various exceptions caught during peak detection (logged if verbose=True)
     """
-    def __init__(self, init_egdf: EGDF, verbose=True, catch=True):
+    def __init__(self, egdf: EGDF, verbose=True, catch=True):
         """
         Initialize the DataHomogeneity class.
         
         Parameters:
-            init_egdf (EGDF): Initial EGDF object containing the data and computed PDF.
+            egdf (EGDF): Initial EGDF object containing the data and computed PDF.
                             Must have a 'pdf' attribute containing the probability density function.
             verbose (bool, optional): If True, prints detailed information about the homogeneity 
                                     check process including warnings and results. Defaults to True.
@@ -72,9 +72,9 @@ class DataHomogeneity:
                                   params dictionary for later retrieval. Defaults to True.
         
         Raises:
-            TypeError: If init_egdf is not an EGDF object
+            TypeError: If egdf is not an EGDF object
         """
-        self.init_egdf = init_egdf
+        self.egdf = egdf
         self.verbose = verbose
         self.catch = catch
         self.params = {}
@@ -125,7 +125,7 @@ class DataHomogeneity:
                  False otherwise.
         """
         num_peaks = self._get_peaks()
-        has_negative_pdf = np.any(self.init_egdf.pdf < 0)
+        has_negative_pdf = np.any(self.egdf.pdf < 0)
 
         is_homogeneous = not has_negative_pdf and num_peaks == 1
 
@@ -160,13 +160,13 @@ class DataHomogeneity:
             int: Number of significant peaks detected. Returns 0 if PDF is unavailable
                 or an error occurs.
         """
-        if not hasattr(self.init_egdf, 'pdf') or self.init_egdf.pdf is None:
+        if not hasattr(self.egdf, 'pdf') or self.egdf.pdf is None:
             if self.verbose:
                 print("Warning: PDF not available for peak detection")
             return 0
         
         try:
-            pdf = self.init_egdf.pdf
+            pdf = self.egdf.pdf
             
             # Handle edge cases
             if len(pdf) < 3:
