@@ -116,7 +116,10 @@ class BaseDistFuncCompute(BaseDistFunc):
             raise ValueError("S must be positive when specified as a number.")
         if not isinstance(self.varS, bool):
             raise ValueError("varS must be a boolean value. VarS can be only true for 'ELDF' and 'QLDF'.")
-        
+        # varS can be only true with S = 'auto'
+        if self.varS and self.S != 'auto':
+            raise ValueError("varS can only be true when S is set to 'auto'.")
+
         if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
             raise ValueError("Tolerance must be a positive numeric value.")
         
