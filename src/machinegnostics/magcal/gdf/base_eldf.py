@@ -79,9 +79,6 @@ class BaseELDF(BaseEGDF):
 
         # Validate all inputs
         self._validate_inputs()
-        # validation for varS, it should be a boolean
-        if not isinstance(self.varS, bool):
-            raise ValueError("varS must be a boolean")
 
         # Store initial parameters if catching
         if self.catch:
