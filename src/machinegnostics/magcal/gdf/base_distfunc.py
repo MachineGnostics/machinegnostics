@@ -341,8 +341,8 @@ class BaseDistFuncCompute(BaseDistFunc):
             self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
         elif lb_provided and ub_provided and s_is_auto:
             # Optimize only S
-            self.LB_opt = self.LB
-            self.UB_opt = self.UB
+            self.LB_opt = self.LB_init
+            self.UB_opt = self.UB_init
             self.S_opt = self._optimize_s_parameter(self.LB_opt, self.UB_opt)
         elif not s_is_auto and (not lb_provided or not ub_provided):
             # Optimize bounds only
@@ -351,9 +351,9 @@ class BaseDistFuncCompute(BaseDistFunc):
         else:
             # Use provided parameters
             self.S_opt = self.S if not s_is_auto else 1.0
-            self.LB_opt = self.LB
-            self.UB_opt = self.UB
-        
+            self.LB_opt = self.LB_init
+            self.UB_opt = self.UB_init
+
         if self.verbose:
             print(f"Optimized parameters: S={self.S_opt:.6f}, LB={self.LB_opt:.6f}, UB={self.UB_opt:.6f}")
 
