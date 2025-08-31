@@ -199,7 +199,7 @@ class BaseELDF(BaseEGDF):
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
                 'zi': self.zi.copy(),
-                'S_var': self.S_var.copy()
+                'S_var': self.S_var.copy() if self.varS else None
             })
 
     def _compute_eldf_pdf(self, fi, hi):
@@ -237,7 +237,7 @@ class BaseELDF(BaseEGDF):
         else:
             if self.verbose:
                 print("Generating smooth curves without varying S...")
-                
+
             smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
                 self.S_opt, self.LB_opt, self.UB_opt,
                 zi_data=self.z_points_n, zi_eval=self.z
