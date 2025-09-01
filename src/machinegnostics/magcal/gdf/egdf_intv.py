@@ -287,7 +287,7 @@ class IntervalAnalysisEGDF(BaseIntervalAnalysisEGDF):
             flush=flush
         )
 
-    def fit(self, plot=True):
+    def fit(self, plot=False):
         """
         Fit the EGDF Interval Analysis model to the data and detect critical intervals.
         

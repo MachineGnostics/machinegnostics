@@ -158,7 +158,7 @@ class BaseMarginalAnalysisEGDF:
             flush=self.flush
         )
         # fitting the initial EGDF
-        self.init_egdf.fit()
+        self.init_egdf.fit(plot=False)
 
         # saving bounds from initial EGDF
         self.LB = self.init_egdf.LB

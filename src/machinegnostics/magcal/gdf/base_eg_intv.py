@@ -136,7 +136,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             flush=False
         )
         
-        egdf_extended.fit()
+        egdf_extended.fit(plot=False)
         return egdf_extended
     
     def _compute_intv_scipy(self):
@@ -1270,7 +1270,7 @@ class BaseIntervalAnalysisEGDF(BaseMarginalAnalysisEGDF):
             self.init_egdf.params['is_homogeneous'] = is_homogeneous
         return is_homogeneous
     
-    def _fit_egdf_intv(self, plot=True):
+    def _fit_egdf_intv(self, plot=False):
         try:
             if self.verbose:
                 print("\n\nFitting EGDF Interval Analysis...")

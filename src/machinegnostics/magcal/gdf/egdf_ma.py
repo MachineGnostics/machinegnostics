@@ -251,7 +251,7 @@ class MarginalAnalysisEGDF(BaseMarginalAnalysisEGDF):
                          flush=flush)
 
 
-    def fit(self, plot=True):
+    def fit(self, plot=False):
         """
         Fit the EGDF Marginal Analysis model and perform comprehensive marginal analysis.
         
