@@ -122,8 +122,8 @@ class BaseELDF(BaseEGDF):
         if self.verbose:
             print("ELDF fitting completed successfully.")
 
-        # if plot:
-        #     self._plot()
+        if plot:
+            self._plot()
         
         # clean up computation cache
         if self.flush:  
@@ -277,9 +277,9 @@ class BaseELDF(BaseEGDF):
         # Implement variance computation logic here
         pass
 
-    def fit(self):
+    def fit(self, plot: bool = False):
         """Fit the ELDF model to the data."""
-        self._fit_eldf()
+        self._fit_eldf(plot=plot)
 
     
     def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
@@ -424,6 +424,71 @@ class BaseELDF(BaseEGDF):
         ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
         ax1.grid(True, alpha=0.3)
 
-    def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
-        """Public interface for plotting ELDF results."""
-        self._plot(plot_smooth=plot_smooth, plot=plot, bounds=bounds, extra_df=extra_df, figsize=figsize)
+    def _get_eldf_second_derivative(self):
+        """Calculate second derivative of ELDF from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
+        
+        weights = self.weights.reshape(-1, 1)
+        
+        # Calculate f^2 * h (fidelity squared times irrelevance)
+        fh = (self.fi**2) * self.hi
+        
+        # Weight and scale by S^2
+        weighted_fh = fh * (weights / (self.S_opt**2))
+        
+        # Sum over data points
+        second_derivative = 4 * np.sum(weighted_fh, axis=0) / np.sum(weights)
+        
+        return second_derivative.flatten()
+    
+    def _get_eldf_third_derivative(self):
+        """Calculate third derivative of ELDF from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
+        
+        weights = self.weights.reshape(-1, 1)
+        
+        # Calculate components
+        h2 = self.hi**2  # h^2
+        f2 = self.fi**2  # f^2
+        f2h2 = f2 * h2   # f^2 * h^2
+        f4 = f2**2       # f^4
+        
+        # Calculate the expression: 8 * (2 * f^2 * h^2 - f^4) * (W / S^3)
+        expression = 2 * f2h2 - f4
+        weighted_expression = expression * (weights / (self.S_opt**3))
+        
+        # Sum over data points
+        third_derivative = 8 * np.sum(weighted_expression, axis=0) / np.sum(weights)
+        
+        return third_derivative.flatten()
+    
+    def _get_eldf_fourth_derivative(self):
+        """Calculate fourth derivative of ELDF from stored fidelities and irrelevances."""
+        if self.fi is None or self.hi is None:
+            raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
+        
+        weights = self.weights.reshape(-1, 1)
+        
+        # Calculate components
+        f2 = self.fi**2  # f^2
+        h = self.hi      # h
+        h3 = h**3        # h^3
+        
+        # Calculate f^2 * h^3 and f^4 * h
+        f2h3 = f2 * h3
+        f4h = (f2**2) * h  # f^4 * h
+        
+        # Weight and scale by (2/S)^4
+        scale_factor = (2 / self.S_opt)**4
+        weighted_f2h3 = f2h3 * (weights * scale_factor)
+        weighted_f4h = f4h * (weights * scale_factor)
+        
+        # Calculate the expression: 4 * (f^2 * h^3 - 2 * f^4 * h)
+        sum_f2h3 = np.sum(weighted_f2h3, axis=0) / np.sum(weights)
+        sum_f4h = np.sum(weighted_f4h, axis=0) / np.sum(weights)
+        
+        fourth_derivative = 4 * (sum_f2h3 - 2 * sum_f4h)
+        
+        return fourth_derivative.flatten()
