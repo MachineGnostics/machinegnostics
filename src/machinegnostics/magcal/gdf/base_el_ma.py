@@ -196,8 +196,7 @@ class BaseMarginalAnalysisELDF:
         """
         self.ih = DataHomogeneity(self.init_eldf, 
                              catch=self.catch, 
-                             verbose=self.verbose,
-                             cluster_threshold=self.cluster_threshold)
+                             verbose=self.verbose)
         is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
         # cluster bounds
         self.CLB = self.ih.CLB
