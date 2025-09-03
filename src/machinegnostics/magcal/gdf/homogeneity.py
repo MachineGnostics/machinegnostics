@@ -419,9 +419,10 @@ class DataHomogeneity:
         Returns:
         --------
         tuple: (lower_cluster, main_cluster, upper_cluster)
-            - lower_cluster: Data points < CLB
-            - main_cluster: Data points between CLB and CUB (inclusive)
-            - upper_cluster: Data points > CUB
+
+        - lower_cluster: Data points < CLB
+        - main_cluster: Data points between CLB and CUB (inclusive)
+        - upper_cluster: Data points > CUB
         
         Raises:
         -------
