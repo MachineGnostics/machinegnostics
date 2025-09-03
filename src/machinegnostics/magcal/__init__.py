@@ -17,6 +17,7 @@ from machinegnostics.magcal.gdf.eldf import ELDF
 from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
+from machinegnostics.magcal.gdf.eldf_ma import MarginalAnalysisELDF
 from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
 
 
