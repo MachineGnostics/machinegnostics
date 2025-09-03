@@ -23,9 +23,7 @@ class BaseMarginalAnalysisELDF:
 
     def __init__(self,
                 data: np.ndarray,
-                max_iterations: int = 10000,
                 early_stopping_steps: int = 10,
-                estimating_rate: float = 0.1,
                 cluster_threshold: float = 0.05,
                 get_clusters: bool = True,
                 DLB: float = None,
@@ -47,9 +45,7 @@ class BaseMarginalAnalysisELDF:
                 flush: bool = True):
         
         self.data = data
-        self.max_iterations = max_iterations
         self.early_stopping_steps = early_stopping_steps
-        self.estimating_rate = estimating_rate
         self.cluster_threshold = cluster_threshold
         self.get_clusters = get_clusters
         self.DLB = DLB
@@ -79,9 +75,7 @@ class BaseMarginalAnalysisELDF:
 
         # derivative sample bound tolerance
         self._TOLERANCE = tolerance
-        self._MAX_ITERATIONS = max_iterations
         self._EARLY_STOPPING_STEPS = early_stopping_steps
-        self._ESTIMATING_RATE = estimating_rate
         self._EARLY_STOPPING_THRESHOLD = 0.01  # threshold for early stopping
 
         # validate input parameters
@@ -90,12 +84,12 @@ class BaseMarginalAnalysisELDF:
     def _input_validation(self):
         """Validate input parameters for EGDF."""
 
-        # max iterations
-        if not isinstance(self.max_iterations, int):
-            raise ValueError(f"Maximum iterations must be an integer. Current type: {type(self.max_iterations)}.")
+        # # max iterations
+        # if not isinstance(self.max_iterations, int):
+        #     raise ValueError(f"Maximum iterations must be an integer. Current type: {type(self.max_iterations)}.")
 
-        if self.max_iterations <= 0:
-            raise ValueError(f"Maximum iterations must be greater than 0. Current value: {self.max_iterations}.")
+        # if self.max_iterations <= 0:
+        #     raise ValueError(f"Maximum iterations must be greater than 0. Current value: {self.max_iterations}.")
         
         # early stopping steps
         if not isinstance(self.early_stopping_steps, int):
@@ -104,12 +98,12 @@ class BaseMarginalAnalysisELDF:
         if self.early_stopping_steps <= 0:
             raise ValueError(f"Early stopping steps must be greater than 0. Current value: {self.early_stopping_steps}.")
 
-        # estimating rate
-        if not isinstance(self.estimating_rate, (int, float)):
-            raise ValueError(f"Estimating rate must be a number. Current type: {type(self.estimating_rate)}.")
+        # # estimating rate
+        # if not isinstance(self.estimating_rate, (int, float)):
+        #     raise ValueError(f"Estimating rate must be a number. Current type: {type(self.estimating_rate)}.")
 
-        if self.estimating_rate <= 0:
-            raise ValueError(f"Estimating rate must be greater than 0. Current value: {self.estimating_rate}.")
+        # if self.estimating_rate <= 0:
+        #     raise ValueError(f"Estimating rate must be greater than 0. Current value: {self.estimating_rate}.")
         
         # get clusters
         if not isinstance(self.get_clusters, bool):
@@ -204,22 +198,25 @@ class BaseMarginalAnalysisELDF:
                              catch=self.catch, 
                              verbose=self.verbose,
                              cluster_threshold=self.cluster_threshold)
-        is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds)
+        is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
+        # cluster bounds
+        self.CLB = self.ih.CLB
+        self.CUB = self.ih.CUB
 
         if self.catch:
             self.params.update(self.ih.params)
 
         return is_homogeneous
 
-    def _get_cluster_bounds(self):
+    def _get_cluster(self):
         """
         Get the bounds for the clusters in the ELDF.
         """
-        # cluster bounds
-        self.CLB = self.ih.CLB
-        self.CUB = self.ih.CUB
-        # clusters
-        lower_cluster, main_cluster, upper_cluster = self.ih.get_cluster_data()
+        if self.get_clusters:
+            # clusters
+            lower_cluster, main_cluster, upper_cluster = self.ih.get_cluster_data()
+        else:
+            lower_cluster, main_cluster, upper_cluster = (None, None, None)
 
         return lower_cluster, main_cluster, upper_cluster
 
@@ -454,7 +451,8 @@ class BaseMarginalAnalysisELDF:
         self.is_homogeneous = self._is_homogeneous()
 
         # get main cluster and other clusters
-        self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster_bounds()
+        self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
+        
 
         # fit status update
         self._fitted = True
