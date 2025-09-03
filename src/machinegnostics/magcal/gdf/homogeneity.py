@@ -135,10 +135,8 @@ class DataHomogeneity:
         self._fitted = True
         
         if self.verbose:
-            print(f"Analysis completed for {self.gdf_type.upper()}.")
-            if hasattr(self, 'CLB') and hasattr(self, 'CUB'):
-                print(f"Cluster boundaries: CLB={self.CLB}, CUB={self.CUB}")
-        
+            print(f"Data-Homogeneity analysis completed for {self.gdf_type.upper()}.")
+            
         return is_homogeneous
 
     def test_homogeneity(self, estimate_cluster_bounds=True):
