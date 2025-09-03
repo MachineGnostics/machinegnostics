@@ -13,6 +13,7 @@ from machinegnostics.magcal.layer_io_process_base import DataProcessLayerBase
 
 # gdf
 from machinegnostics.magcal.gdf.egdf import EGDF
+from machinegnostics.magcal.gdf.eldf import ELDF
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
 from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
