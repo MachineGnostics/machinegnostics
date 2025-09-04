@@ -88,6 +88,10 @@ class MarginalAnalysisELDF(BaseMarginalAnalysisELDF):
     S : float or 'auto', default='auto'
         Scale parameter for local distribution. When 'auto', estimated from data.
         When float, used as fixed scale. Critical for local density estimation quality.
+    
+    varS : bool, default=False
+        Whether to allow variable scale (S) during optimization.
+        If True, S is optimized; if False, S remains fixed. Need to keep S == 'auto' if varS is True.
         
     z0_optimize : bool, default=True
         Whether to use advanced optimization for Z0 (mode) estimation.
@@ -295,6 +299,7 @@ class MarginalAnalysisELDF(BaseMarginalAnalysisELDF):
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
+                varS: bool = False,
                 z0_optimize: bool = True,
                 tolerance: float = 1e-6,
                 data_form: str = 'a',
@@ -316,6 +321,7 @@ class MarginalAnalysisELDF(BaseMarginalAnalysisELDF):
                          LB=LB,
                          UB=UB,
                          S=S,
+                         varS=varS,
                          z0_optimize=z0_optimize,
                          tolerance=tolerance,
                          data_form=data_form,

@@ -31,6 +31,7 @@ class BaseMarginalAnalysisELDF:
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
+                varS: bool = False,
                 z0_optimize: bool = True,
                 tolerance: float = 1e-6,
                 data_form: str = 'a',
@@ -53,6 +54,7 @@ class BaseMarginalAnalysisELDF:
         self.LB = LB
         self.UB = UB
         self.S = S
+        self.varS = varS
         self.z0_optimize = z0_optimize
         self.tolerance = tolerance
         self.data_form = data_form
@@ -77,6 +79,10 @@ class BaseMarginalAnalysisELDF:
         self._TOLERANCE = tolerance
         self._EARLY_STOPPING_STEPS = early_stopping_steps
         self._EARLY_STOPPING_THRESHOLD = 0.01  # threshold for early stopping
+
+        # if S is float or int and is greater than 2, warn user
+        if (isinstance(self.S, float) or isinstance(self.S, int)) and self.S > 2:
+            warnings.warn("S is greater than 2, which may not suitable for local distribution estimation. Consider using in range [0, 2]", UserWarning)
 
         # validate input parameters
         self._input_validation()
@@ -126,6 +132,7 @@ class BaseMarginalAnalysisELDF:
                                   LB=self.LB,
                                   UB=self.UB,
                                   S=self.S,
+                                  varS=self.varS,
                                   z0_optimize=self.z0_optimize,
                                   tolerance=self.tolerance,
                                   data_form=self.data_form,
