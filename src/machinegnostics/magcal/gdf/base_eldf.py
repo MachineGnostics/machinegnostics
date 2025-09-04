@@ -9,14 +9,12 @@ Machine Gnostics
 import numpy as np
 import warnings
 from scipy.optimize import minimize
+from typing import Dict, Any
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
-from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
-from machinegnostics.magcal.gdf.wedf import WEDF
-from machinegnostics.magcal.mg_weights import GnosticsWeights
 from machinegnostics.magcal.gdf.base_egdf import BaseEGDF
-from machinegnostics.magcal.gdf.base_distfunc import BaseDistFuncCompute
 from machinegnostics.magcal.scale_param import ScaleParam
+from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 
 class BaseELDF(BaseEGDF):
     '''Base ELDF class'''
@@ -92,55 +90,54 @@ class BaseELDF(BaseEGDF):
 
     def _fit_eldf(self, plot: bool = True):
         """Fit the ELDF model to the data."""
-    #     try:
-        if self.verbose:
-            print("Starting ELDF fitting process...")
+        try:
+            if self.verbose:
+                print("Starting ELDF fitting process...")
 
-        # Step 1: Data preprocessing
-        self.data = np.sort(self.data)
-        self._estimate_data_bounds()
-        self._transform_data_to_standard_domain()
-        self._estimate_weights()
-        
-        # Step 2: Bounds estimation
-        self._estimate_initial_probable_bounds()
-        self._generate_evaluation_points()
-        
-        # Step 3: Get distribution function values for optimization
-        self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
-        
-        # Step 4: Parameter optimization
-        self._determine_optimization_strategy()
-        
-        # Step 5: Calculate final ELDF and PDF
-        self._compute_final_results()
-        
-        # Step 6: Generate smooth curves for plotting and analysis
-        self._generate_smooth_curves()
-        
-        # Step 7: Transform bounds back to original domain
-        self._transform_bounds_to_original_domain()
+            # Step 1: Data preprocessing
+            self.data = np.sort(self.data)
+            self._estimate_data_bounds()
+            self._transform_data_to_standard_domain()
+            self._estimate_weights()
+            
+            # Step 2: Bounds estimation
+            self._estimate_initial_probable_bounds()
+            self._generate_evaluation_points()
+            
+            # Step 3: Get distribution function values for optimization
+            self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
+            
+            # Step 4: Parameter optimization
+            self._determine_optimization_strategy()
+            
+            # Step 5: Calculate final ELDF and PDF
+            self._compute_final_results()
+            
+            # Step 6: Generate smooth curves for plotting and analysis
+            self._generate_smooth_curves()
+            
+            # Step 7: Transform bounds back to original domain
+            self._transform_bounds_to_original_domain()
+            # Mark as fitted (Step 8 is now optional via marginal_analysis())
+            self._fitted = True
 
-        # Step 8: Z0 estimate
-        self._compute_z0(optimize=self.z0_optimize)
+            # Step 8: Z0 estimate with Z0Estimator
+            self._compute_z0(optimize=self.z0_optimize)         
+            
+            if self.verbose:
+                print("ELDF fitting completed successfully.")
 
-        # Mark as fitted (Step 8 is now optional via marginal_analysis())
-        self._fitted = True
-        
-        if self.verbose:
-            print("ELDF fitting completed successfully.")
-
-        if plot:
-            self._plot()
-        
-        # clean up computation cache
-        if self.flush:  
-            self._cleanup_computation_cache()
-                
-    #     except Exception as e:
-    #         if self.verbose:
-    #             print(f"Error during EGDF fitting: {e}")
-    #         raise e
+            if plot:
+                self._plot()
+            
+            # clean up computation cache
+            if self.flush:  
+                self._cleanup_computation_cache()
+                    
+        except Exception as e:
+            if self.verbose:
+                print(f"Error during EGDF fitting: {e}")
+            raise e
 
 
     def _compute_eldf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
@@ -519,243 +516,116 @@ class BaseELDF(BaseEGDF):
         fourth_derivative = 4 * (sum_f2h3 - 2 * sum_f4h)
         
         return fourth_derivative.flatten()
+    
 
-    def _compute_z0(self, optimize: bool = True):
+    def _compute_z0(self, optimize: bool = None):
         """
-        Compute the Z0 point where PDF is maximum.
+        Compute the Z0 point where PDF is maximum using the Z0Estimator class.
         
         Parameters:
         -----------
-        optimize : bool
-            If True, use interpolation-based methods for higher accuracy
-            If False, use simple linear search on existing points
-        max_iterations : int
-            Not used in current implementation (for future optimization methods)
+        optimize : bool, optional
+            If True, use interpolation-based methods for higher accuracy.
+            If False, use simple linear search on existing points.
+            If None, uses the instance's z0_optimize setting.
         """
         if self.z is None:
             raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
         
+        # Use provided optimize parameter or fall back to instance setting
+        use_optimize = optimize if optimize is not None else self.z0_optimize
+        
         if self.verbose:
-            print('ELDF: Computing Z0 point...')
-        
-        if optimize:
-            # Method 1: Advanced interpolation-based methods
-            if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
-                raise ValueError("Please fit ELDF before computing Z0.")
-            
-            if self.verbose:
-                print('ELDF: Using interpolation-based optimization for Z0 point...')
-            
-            # Choose interpolation method based on data quality
-            method = self._choose_interpolation_method()
-            
-            if method == 'spline_optimization':
-                self.z0 = self._find_z0_spline_optimization()
-            elif method == 'polynomial_fit':
-                self.z0 = self._find_z0_polynomial_fit()
-            elif method == 'refined_interpolation':
-                self.z0 = self._find_z0_refined_interpolation()
-            else:  # fallback
-                self.z0 = self._find_z0_simple_maximum()
-            
-            if self.verbose:
-                print(f"Z0 point (interpolation method: {method}): {self.z0:.6f}")
-            
-            # Store comprehensive information
-            if self.catch:
-                max_pdf_idx = np.argmax(self.pdf_points)
-                self.params.update({
-                    'z0': float(self.z0),
-                    'z0_method': f'interpolation_{method}',
-                    # 'z0_max_pdf_value': self.pdf_points[max_pdf_idx],
-                    # 'z0_interpolation_points': len(self.pdf_points)
-                })
-        
-        else:
-            # Method 2: Simple linear search (unchanged)
-            if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
-                raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for linear search.")
-            
-            if self.verbose:
-                print('ELDF: Performing linear search for Z0 point...')
-            
-            # Find index with maximum PDF
-            idx = np.argmax(self.pdf_points)
-            self.z0 = self.di_points_n[idx]
-    
-            if self.verbose:
-                print(f"Z0 point (linear search): {self.z0:.6f}")
-    
-            if self.catch:
-                self.params.update({
-                    'z0': float(self.z0),
-                    'z0_method': 'linear_search',
-                    # 'z0_max_pdf_value': self.pdf_points[idx],
-                    # 'z0_max_pdf_index': idx
-                })
-    
-    def _choose_interpolation_method(self):
-        """Choose the best interpolation method based on data characteristics."""
-        n_points = len(self.pdf_points)
-        pdf_range = np.max(self.pdf_points) - np.min(self.pdf_points)
-        
-        # Check for smoothness (second differences)
-        if n_points >= 10:
-            second_diffs = np.diff(self.pdf_points, n=2)
-            smoothness = np.std(second_diffs) / pdf_range
-            
-            if smoothness < 0.1 and n_points >= 20:
-                return 'spline_optimization'
-            elif n_points >= 15:
-                return 'polynomial_fit'
-            else:
-                return 'refined_interpolation'
-        else:
-            return 'simple_maximum'
-    
-    def _find_z0_spline_optimization(self):
-        """Find Z0 using spline interpolation and optimization."""
+            print('ELDF: Computing Z0 point using Z0Estimator...')
+
         try:
-            from scipy.interpolate import UnivariateSpline
-            from scipy.optimize import minimize_scalar
-            
-            # Create spline interpolation of PDF
-            spline = UnivariateSpline(self.di_points_n, self.pdf_points, s=0, k=3)
-            
-            # Find maximum of spline
-            result = minimize_scalar(
-                lambda x: -spline(x),  # Negative because we minimize
-                bounds=(self.di_points_n.min(), self.di_points_n.max()),
-                method='bounded'
+            # Create Z0Estimator instance with proper constructor signature
+            z0_estimator = Z0Estimator(
+                gdf_object=self,  # Pass the ELDF object itself
+                optimize=use_optimize,
+                verbose=self.verbose
             )
             
-            if result.success:
-                return result.x
-            else:
-                return self._find_z0_simple_maximum()
-                
-        except ImportError:
+            # Call fit() method to estimate Z0
+            self.z0 = z0_estimator.fit()
+            
+            # Get estimation info for debugging and storage
+            if self.catch:
+                estimation_info = z0_estimator.get_estimation_info()
+                self.params.update({
+                    'z0': float(self.z0),
+                    'z0_method': estimation_info.get('z0_method', 'unknown'),
+                    'z0_estimation_info': estimation_info
+                })
+            
             if self.verbose:
-                print("SciPy not available for spline optimization, falling back...")
-            return self._find_z0_polynomial_fit()
+                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
+                print(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+                
         except Exception as e:
             if self.verbose:
-                print(f"Spline optimization failed: {e}, falling back...")
-            return self._find_z0_polynomial_fit()
-    
-    def _find_z0_polynomial_fit(self):
-        """Find Z0 using polynomial fitting around the maximum."""
-        try:
-            # Find approximate maximum
-            max_idx = np.argmax(self.pdf_points)
+                print(f"Warning: Z0Estimator failed with error: {e}")
+                print("Falling back to simple maximum finding...")
             
-            # Define window around maximum (e.g., ±5 points or ±20% of data)
-            window_size = min(5, len(self.pdf_points) // 5)
-            start_idx = max(0, max_idx - window_size)
-            end_idx = min(len(self.pdf_points), max_idx + window_size + 1)
+            # Fallback to simple maximum finding
+            self._compute_z0_fallback()
             
-            # Extract window data
-            x_window = self.di_points_n[start_idx:end_idx]
-            y_window = self.pdf_points[start_idx:end_idx]
-            
-            if len(x_window) >= 3:
-                # Fit polynomial (degree 2 or 3 depending on data)
-                degree = min(3, len(x_window) - 1)
-                coeffs = np.polyfit(x_window, y_window, degree)
-                poly = np.poly1d(coeffs)
-                
-                # Find derivative
-                poly_deriv = np.polyder(poly)
-                
-                # Find roots of derivative (critical points)
-                critical_points = np.roots(poly_deriv)
-                
-                # Filter real roots within the window
-                real_critical = critical_points[np.isreal(critical_points)].real
-                valid_critical = real_critical[
-                    (real_critical >= x_window.min()) & 
-                    (real_critical <= x_window.max())
-                ]
-                
-                if len(valid_critical) > 0:
-                    # Evaluate polynomial at critical points to find maximum
-                    critical_values = [poly(cp) for cp in valid_critical]
-                    max_critical_idx = np.argmax(critical_values)
-                    return valid_critical[max_critical_idx]
-            
-            # Fallback if polynomial fitting fails
-            return self.di_points_n[max_idx]
-            
-        except Exception as e:
-            if self.verbose:
-                print(f"Polynomial fitting failed: {e}, falling back...")
-            return self._find_z0_refined_interpolation()
-    
-    def _find_z0_refined_interpolation(self):
-        """Find Z0 using refined interpolation around the maximum."""
-        try:
-            from scipy.interpolate import interp1d
-            
-            # Find approximate maximum
-            max_idx = np.argmax(self.pdf_points)
-            
-            # Create finer grid around maximum
-            window_size = min(3, len(self.pdf_points) // 10)
-            start_idx = max(0, max_idx - window_size)
-            end_idx = min(len(self.pdf_points), max_idx + window_size + 1)
-            
-            # Extract window data
-            x_window = self.di_points_n[start_idx:end_idx]
-            y_window = self.pdf_points[start_idx:end_idx]
-            
-            if len(x_window) >= 3:
-                # Create interpolation function
-                interp_func = interp1d(x_window, y_window, kind='cubic', 
-                                     bounds_error=False, fill_value='extrapolate')
-                
-                # Create fine grid
-                x_fine = np.linspace(x_window.min(), x_window.max(), 1000)
-                y_fine = interp_func(x_fine)
-                
-                # Find maximum on fine grid
-                max_fine_idx = np.argmax(y_fine)
-                return x_fine[max_fine_idx]
-            else:
-                return self.di_points_n[max_idx]
-                
-        except ImportError:
-            if self.verbose:
-                print("SciPy not available for interpolation, using simple maximum...")
-            return self._find_z0_simple_maximum()
-        except Exception as e:
-            if self.verbose:
-                print(f"Refined interpolation failed: {e}, using simple maximum...")
-            return self._find_z0_simple_maximum()
-    
-    def _find_z0_simple_maximum(self):
-        """Find Z0 using simple maximum finding with optional parabolic interpolation."""
+            if self.catch:
+                self.params.update({
+                    'z0': float(self.z0),
+                    'z0_method': 'fallback_simple_maximum',
+                    'z0_estimation_info': {'error': str(e)}
+                })
+
+    def _compute_z0_fallback(self):
+        """
+        Fallback method for Z0 computation using simple maximum finding.
+        """
+        if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
+            raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
+        
+        if self.verbose:
+            print('ELDF: Using fallback method for Z0 point...')
+        
+        # Find index with maximum PDF
         max_idx = np.argmax(self.pdf_points)
+        self.z0 = self.di_points_n[max_idx]
+
+        if self.verbose:
+            print(f"Z0 point (fallback method): {self.z0:.6f}")
+
         
-        # Try parabolic interpolation around the maximum
-        if 1 <= max_idx <= len(self.pdf_points) - 2:
-            try:
-                # Get three points around maximum
-                x1, x2, x3 = self.di_points_n[max_idx-1:max_idx+2]
-                y1, y2, y3 = self.pdf_points[max_idx-1:max_idx+2]
-                
-                # Parabolic interpolation formula
-                denom = (x1 - x2) * (x1 - x3) * (x2 - x3)
-                if abs(denom) > 1e-12:  # Avoid division by zero
-                    A = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom
-                    B = (x3*x3 * (y1 - y2) + x2*x2 * (y3 - y1) + x1*x1 * (y2 - y3)) / denom
-                    
-                    if abs(A) > 1e-12:  # Ensure we have a parabola
-                        x_max = -B / (2 * A)
-                        
-                        # Check if interpolated maximum is reasonable
-                        if x1 <= x_max <= x3:
-                            return x_max
-            except:
-                pass  # Fall back to simple maximum
+    def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
+        """
+        Analyze and visualize Z0 estimation results.
         
-        return self.di_points_n[max_idx]
+        Parameters:
+        -----------
+        figsize : tuple
+            Figure size for the plot
+            
+        Returns:
+        --------
+        Dict[str, Any]
+            Z0 analysis information
+        """
+        if not hasattr(self, 'z0') or self.z0 is None:
+            raise ValueError("Z0 must be computed before analysis. Call fit() first.")
+        
+        # Create Z0Estimator for analysis
+        z0_estimator = Z0Estimator(
+            gdf_object=self,
+            optimize=self.z0_optimize,
+            verbose=self.verbose
+        )
+        
+        # Re-estimate for analysis (this is safe since it's already computed)
+        z0_estimator.fit()
+        
+        # Get detailed info
+        analysis_info = z0_estimator.get_estimation_info()
+        
+        # Create visualization
+        z0_estimator.plot_z0_analysis(figsize=figsize)
+        
+        return analysis_info
