@@ -194,7 +194,7 @@ class BaseMarginalAnalysisELDF:
         Check if the data is homogeneous.
         Returns True if homogeneous, False otherwise.
         """
-        self.ih = DataHomogeneity(self.init_eldf, 
+        self.ih = DataHomogeneity(gdf=self.init_eldf, 
                              catch=self.catch, 
                              verbose=self.verbose)
         is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
@@ -443,6 +443,8 @@ class BaseMarginalAnalysisELDF:
         plt.show()
 
     def _fit_eldf(self, plot:bool = False):
+        if self.verbose:
+            print("Fitting ELDF for Marginal Analysis...")
         # fit init eldf and get z0
         self._get_init_eldf_fit()
 
@@ -452,10 +454,12 @@ class BaseMarginalAnalysisELDF:
         # get main cluster and other clusters
         self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
         
-
         # fit status update
         self._fitted = True
         
         # optional plot
         if plot:
             self._plot_eldf()
+
+        if self.verbose:
+            print("Marginal Analysis ELDF fitting complete.")
