@@ -126,6 +126,8 @@ class BaseMarginalAnalysisELDF:
             raise ValueError(f"Data must be a 1-dimensional array. Current dimensions: {self.data.ndim}.")
         
     def _get_init_eldf_fit(self):
+        if self.verbose:
+            print("Fitting initial ELDF...")
         self.init_eldf = ELDF(data=self.data,
                                   DLB=self.DLB,
                                   DUB=self.DUB,
@@ -157,6 +159,8 @@ class BaseMarginalAnalysisELDF:
         # store if catch is True
         if self.catch:
             self.params = self.init_eldf.params.copy()
+        if self.verbose:
+            print("Initial ELDF fitting complete.")
 
     # # will required in interval analysis
     # def _create_extended_eldf(self, datum):
