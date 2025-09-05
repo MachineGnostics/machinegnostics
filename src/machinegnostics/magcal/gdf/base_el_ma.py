@@ -454,23 +454,42 @@ class BaseMarginalAnalysisELDF:
         plt.show()
 
     def _fit_eldf(self, plot:bool = False):
-        if self.verbose:
-            print("Fitting ELDF for Marginal Analysis...")
-        # fit init eldf and get z0
-        self._get_init_eldf_fit(plot=plot)
+        try:
+            if self.verbose:
+                print("Fitting ELDF for Marginal Analysis...")
+            # fit init eldf and get z0
+            self._get_init_eldf_fit(plot=False)
 
-        # homogeneity check, pick counts, cluster bounds
-        self.is_homogeneous = self._is_homogeneous()
+            # homogeneity check, pick counts, cluster bounds
+            self.is_homogeneous = self._is_homogeneous()
 
-        # get main cluster and other clusters
-        self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
-        
-        # fit status update
-        self._fitted = True
-        
-        # optional plot
-        if plot:
-            self._plot_eldf()
+            if self._is_homogeneous:
+                    if self.verbose:
+                        print("Data is homogeneous. Using homogeneous data for Marginal Analysis.")
+            else:
+                if self.verbose:
+                    print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+            
+            # h check
+            if self._is_homogeneous == False and self.get_clusters == False:
+                warnings.warn("Data is heterogeneous but get_clusters is False. "
+                            "Consider setting 'get_clusters=True' to find main cluster bounds.")
 
-        if self.verbose:
-            print("Marginal Analysis ELDF fitting complete.")
+            # get main cluster and other clusters
+            self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
+
+            if self.verbose:
+                    print(f"Marginal Analysis completed. Z0: {float(self.z0):.4f}, Homogeneous: {self._is_homogeneous}")
+            
+            # fit status update
+            self._fitted = True
+            
+            # optional plot
+            if plot:
+                self._plot_eldf()
+
+            if self.verbose:
+                print("Marginal Analysis ELDF fitting complete.")
+        except Exception as e:
+            if self.verbose:
+                print(f"Error occurred during fitting: {e}")
