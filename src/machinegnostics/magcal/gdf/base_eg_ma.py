@@ -528,6 +528,347 @@ class BaseMarginalAnalysisEGDF:
         return is_homogeneous
 
 
+    def _estimate_sample_bound_newton(self, bound_type='lower'):
+        """
+        Newton-Raphson method for quadratic convergence.
+        """
+        # Initial guess
+        x = self.init_egdf.DLB if bound_type == 'lower' else self.init_egdf.DUB
+        
+        for i in range(min(20, self._MAX_ITERATIONS)):  # Newton converges very fast
+            egdf_extended = self._create_extended_egdf(x)
+            derivatives = self._get_derivatives_at_point(egdf_extended, x)
+            
+            # f(x) = d2 + d3 (we want this to be zero)
+            f_val = derivatives['second'] + derivatives['third']
+            
+            # f'(x) = d3 + d4 (derivative of our target function)
+            # For simplicity, approximate f'(x) using numerical differentiation
+            h = 1e-6
+            egdf_h = self._create_extended_egdf(x + h)
+            derivatives_h = self._get_derivatives_at_point(egdf_h, x + h)
+            f_prime = (derivatives_h['second'] + derivatives_h['third'] - f_val) / h
+            
+            if np.abs(f_prime) < 1e-12:  # Avoid division by zero
+                break
+                
+            # Newton update
+            x_new = x - f_val / f_prime
+            
+            # Check convergence
+            if np.abs(f_val) < self._TOLERANCE:
+                if self.verbose:
+                    print(f"Newton method converged at iteration {i} with loss {np.abs(f_val):.8f}")
+                return x_new
+                
+            if self.verbose:
+                print(f"Newton iteration {i}: x = {x:.6f}, f(x) = {f_val:.8f}")
+                
+            x = x_new
+
+        return x
+
+    
+    def _add_marginal_points(self, ax, bounds=True):
+        """Add marginal analysis points to plot."""
+        marginal_info = []
+        
+        # Always add Z0 regardless of bounds setting
+        if hasattr(self, 'params') and 'z0' in self.params:
+            marginal_info.append((self.params['z0'], 'magenta', '-.', 'Z0'))
+        
+        # Only add other marginal points if bounds=True
+        if bounds:
+            if hasattr(self, 'LSB') and self.LSB is not None:
+                marginal_info.append((self.LSB, 'darkred', ':', 'LSB'))
+            if hasattr(self, 'USB') and self.USB is not None:
+                marginal_info.append((self.USB, 'darkblue', ':', 'USB'))
+            
+            # Add CLB and CUB (Cluster Lower Bound and Cluster Upper Bound)
+            if hasattr(self, 'CLB') and self.CLB is not None:
+                marginal_info.append((self.CLB, 'orange', '--', 'CLB'))
+            if hasattr(self, 'CUB') and self.CUB is not None:
+                marginal_info.append((self.CUB, 'orange', '--', 'CUB'))
+    
+        for point, color, style, name in marginal_info:
+            # Make CLB, CUB, and Z0 lines very thin as requested
+            linewidth = 1 if name in ['CLB', 'CUB', 'Z0'] else 2
+            alpha = 0.6 if name in ['CLB', 'CUB', 'Z0'] else 0.8
+            
+            ax.axvline(x=point, color=color, linestyle=style, linewidth=linewidth, 
+                    alpha=alpha, label=f"{name}={point:.3f}")
+    
+    def _add_bounds(self, ax):
+        """Add bound lines to plot."""
+        bound_info = []
+        
+        if hasattr(self.init_egdf, 'DLB') and self.init_egdf.DLB is not None:
+            bound_info.append((self.init_egdf.DLB, 'green', '-', 'DLB'))
+        if hasattr(self.init_egdf, 'DUB') and self.init_egdf.DUB is not None:
+            bound_info.append((self.init_egdf.DUB, 'orange', '-', 'DUB'))
+        if hasattr(self.init_egdf, 'LB') and self.init_egdf.LB is not None:
+            bound_info.append((self.init_egdf.LB, 'purple', '--', 'LB'))
+        if hasattr(self.init_egdf, 'UB') and self.init_egdf.UB is not None:
+            bound_info.append((self.init_egdf.UB, 'brown', '--', 'UB'))
+        
+        for bound, color, style, name in bound_info:
+            ax.axvline(x=bound, color=color, linestyle=style, linewidth=1, 
+                      alpha=0.6, label=f"{name}={bound:.3f}")
+    
+    def _plot_egdf(self, plot_type: str = 'marginal', plot_smooth: bool = True, bounds: bool = True, derivatives: bool = False, figsize: tuple = (12, 8)):
+        """
+        Enhanced plotting for marginal analysis with LSB, USB, and clustering visualization.
+        
+        Parameters:
+        -----------
+        plot_type : str, default='marginal'
+            Type of plot: 'marginal', 'egdf', 'pdf', 'both', 'clusters'
+        plot_smooth : bool, default=True
+            Whether to plot smooth curves
+        bounds : bool, default=True
+            Whether to show bounds (LB, UB, DLB, DUB, LSB, USB, CLB, CUB)
+        derivatives : bool, default=False
+            Whether to show derivative analysis plot
+        figsize : tuple, default=(12, 8)
+            Figure size
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        # only if self._fitted is True
+        if not self._fitted:
+            raise RuntimeError("Must fit marginal analysis before plotting.")
+        
+        if not self.catch:
+            print("Plot is not available with argument catch=False")
+            return
+        
+        if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
+            raise RuntimeError("Must fit marginal analysis before plotting.")
+        
+        # Validate plot_type
+        valid_types = ['marginal', 'egdf', 'pdf', 'both']
+        if plot_type not in valid_types:
+            raise ValueError(f"plot_type must be one of {valid_types}")
+        
+        if derivatives:
+            self._plot_derivatives(figsize=figsize)
+            return
+        
+        # Create single plot with dual y-axes
+        fig, ax1 = plt.subplots(figsize=figsize)
+        
+        # Get data
+        x_points = self.init_egdf.data
+        egdf_vals = self.init_egdf.params.get('egdf')
+        pdf_vals = self.init_egdf.params.get('pdf')
+        wedf_vals = self.init_egdf.params.get('wedf')
+        
+        # Plot EGDF on primary y-axis
+        if plot_type in ['marginal', 'egdf', 'both']:
+            if plot_smooth and hasattr(self.init_egdf, 'egdf_points') and self.init_egdf.egdf_points is not None:
+                ax1.plot(x_points, egdf_vals, 'o', color='blue', label='EGDF', markersize=4)
+                ax1.plot(self.init_egdf.di_points_n, self.init_egdf.egdf_points, 
+                        color='blue', linestyle='-', linewidth=2, alpha=0.8)
+            else:
+                ax1.plot(x_points, egdf_vals, 'o-', color='blue', label='EGDF', 
+                        markersize=4, linewidth=2, alpha=0.8)
+        
+        # Plot WEDF if available
+        if wedf_vals is not None and plot_type in ['marginal', 'egdf', 'both']:
+            ax1.plot(x_points, wedf_vals, 's', color='lightblue', 
+                    label='WEDF', markersize=3, alpha=0.8)
+        
+        ax1.set_xlabel('Data Points')
+        ax1.set_ylabel('EGDF', color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_ylim(0, 1)
+        
+        # Create secondary y-axis for PDF
+        ax2 = ax1.twinx()
+        
+        if plot_type in ['marginal', 'pdf', 'both']:
+            if plot_smooth and hasattr(self.init_egdf, 'pdf_points') and self.init_egdf.pdf_points is not None:
+                ax2.plot(x_points, pdf_vals, 'o', color='red', label='PDF', markersize=4)
+                ax2.plot(self.init_egdf.di_points_n, self.init_egdf.pdf_points, 
+                        color='red', linestyle='-', linewidth=2, alpha=0.8)
+                max_pdf = np.max(self.init_egdf.pdf_points)
+            else:
+                ax2.plot(x_points, pdf_vals, 'o-', color='red', label='PDF', 
+                        markersize=4, linewidth=2, alpha=0.8)
+                max_pdf = np.max(pdf_vals) if pdf_vals is not None else 1
+        
+        ax2.set_ylabel('PDF', color='red')
+        ax2.tick_params(axis='y', labelcolor='red')
+        if 'max_pdf' in locals():
+            ax2.set_ylim(0, max_pdf * 1.1)
+        
+        # Add bounds only if bounds=True
+        if bounds:
+            self._add_bounds(ax1)
+        
+        # Add marginal points (Z0 always, others only if bounds=True)
+        self._add_marginal_points(ax1, bounds=bounds)
+        
+        # Set xlim to DLB-DUB range
+        if hasattr(self.init_egdf, 'DLB') and hasattr(self.init_egdf, 'DUB'):
+            # 5% data pad on either side
+            pad = (self.init_egdf.DUB - self.init_egdf.DLB) * 0.05
+            ax1.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
+            ax2.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
+    
+        # Add shaded regions for bounds only if bounds=True
+        if bounds and hasattr(self.init_egdf, 'LB') and hasattr(self.init_egdf, 'UB'):
+            if self.init_egdf.LB is not None:
+                ax1.axvspan(self.init_egdf.DLB, self.init_egdf.LB, alpha=0.15, color='purple')
+            if self.init_egdf.UB is not None:
+                ax1.axvspan(self.init_egdf.UB, self.init_egdf.DUB, alpha=0.15, color='brown')
+        
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+        
+        # Set title
+        plt.title('EGDF and PDF with Bounds and Marginal Points', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+    
+    def _plot_derivatives(self, figsize: tuple = (14, 10)):
+        """Plot EGDF derivatives for marginal analysis visualization."""
+        import matplotlib.pyplot as plt
+        
+        if not self.catch:
+            print("Plot is not available with argument catch=False")
+            return
+            
+        if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
+            raise RuntimeError("Must fit EGDF before plotting derivatives.")
+        
+        # Get derivatives from init_egdf
+        try:
+            d1_vals = self.init_egdf.pdf
+            d2_vals = self.init_egdf._get_egdf_second_derivative()
+            d3_vals = self.init_egdf._get_egdf_third_derivative()
+        except:
+            print("Error: Could not calculate derivatives")
+            return
+        
+        # Create subplot figure
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
+        
+        # Plot derivatives
+        ax1.plot(self.init_egdf.data, d1_vals, 'b-', linewidth=2, label='1st Derivative (PDF)')
+        ax1.set_title('First Derivative (PDF)')
+        ax1.set_ylabel('PDF Value')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
+        
+        ax2.plot(self.init_egdf.data, d2_vals, 'r-', linewidth=2, label='2nd Derivative')
+        ax2.set_title('Second Derivative')
+        ax2.set_ylabel('2nd Derivative Value')
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        
+        ax3.plot(self.init_egdf.data, d3_vals, 'g-', linewidth=2, label='3rd Derivative')
+        ax3.set_title('Third Derivative')
+        ax3.set_xlabel('Data Points')
+        ax3.set_ylabel('3rd Derivative Value')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+        
+        # Combined derivatives for boundary analysis
+        ax4.axhline(y=0, color='black', linestyle='--', alpha=0.5)
+        ax4.set_title('Derivative Analysis for LSB/USB Detection')
+        ax4.set_xlabel('Data Points')
+        ax4.set_ylabel('Derivative Value')
+        ax4.grid(True, alpha=0.3)
+        
+        # For derivatives plot, always show all marginal points
+        for ax in [ax1, ax2, ax3, ax4]:
+            self._add_marginal_points(ax, bounds=True)
+        
+        plt.suptitle('EGDF Derivative Analysis', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        plt.show()
+
+        # homogeneity check for ELDF
+    def _is_homogeneous(self):
+        """
+        Check if the data is homogeneous.
+        Returns True if homogeneous, False otherwise.
+        """
+        self.ih = DataHomogeneity(gdf=self.init_egdf, 
+                             catch=self.catch, 
+                             verbose=self.verbose)
+        is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
+        # cluster bounds
+        self.CLB = self.ih.CLB
+        self.CUB = self.ih.CUB
+
+        if self.catch:
+            self.params.update(self.ih.params)
+
+        return is_homogeneous
+
+    def _get_cluster(self):
+        """
+        Get the bounds for the clusters in the ELDF.
+        """
+        if self.get_clusters:
+            # clusters
+            lower_cluster, main_cluster, upper_cluster = self.ih.get_cluster_data()
+        else:
+            lower_cluster, main_cluster, upper_cluster = (None, None, None)
+
+        return lower_cluster, main_cluster, upper_cluster
+
+    def _fit_egdf(self, plot=True):
+        try:
+            if self.verbose:
+                print("\n\nFitting EGDF Marginal Analysis...")
+
+            # get initial EGDF and z0
+            self._get_initial_egdf()
+
+            # homogeneous check
+            self._is_homogeneous = self._is_homogeneous()
+
+            if self._is_homogeneous:
+                if self.verbose:
+                    print("Data is homogeneous. Using homogeneous data for Marginal Analysis.")
+            else:
+                if self.verbose:
+                    print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+            
+            # h check
+            if self._is_homogeneous == False and self.get_clusters == False:
+                warnings.warn("Data is heterogeneous but get_clusters is False. "
+                            "Consider setting 'get_clusters=True' to find main cluster bounds.")
+
+            # optional data sampling bounds
+            self._get_data_sample_bounds()
+
+            # extract clusters
+            if self.get_clusters:
+                self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
+
+            if self.verbose:
+                print(f"Marginal Analysis completed. Z0: {float(self.z0):.4f}, Homogeneous: {self._is_homogeneous}")
+
+            # fit status update
+            self._fitted = True
+
+            if plot:
+                self._plot_egdf()
+
+        except Exception as e:
+            if self.verbose:
+                print(f"Error occurred during fitting: {e}")
+
+
     # def _get_data_sample_clusters_bounds(self):
     #     """
     #     Identify data clusters based on PDF characteristics with focus on global maxima.
@@ -787,48 +1128,7 @@ class BaseMarginalAnalysisEGDF:
     #         upper_cluster = np.array([])
     #         return lower_cluster, main_cluster, upper_cluster
 
-
-    def _estimate_sample_bound_newton(self, bound_type='lower'):
-        """
-        Newton-Raphson method for quadratic convergence.
-        """
-        # Initial guess
-        x = self.init_egdf.DLB if bound_type == 'lower' else self.init_egdf.DUB
-        
-        for i in range(min(20, self._MAX_ITERATIONS)):  # Newton converges very fast
-            egdf_extended = self._create_extended_egdf(x)
-            derivatives = self._get_derivatives_at_point(egdf_extended, x)
-            
-            # f(x) = d2 + d3 (we want this to be zero)
-            f_val = derivatives['second'] + derivatives['third']
-            
-            # f'(x) = d3 + d4 (derivative of our target function)
-            # For simplicity, approximate f'(x) using numerical differentiation
-            h = 1e-6
-            egdf_h = self._create_extended_egdf(x + h)
-            derivatives_h = self._get_derivatives_at_point(egdf_h, x + h)
-            f_prime = (derivatives_h['second'] + derivatives_h['third'] - f_val) / h
-            
-            if np.abs(f_prime) < 1e-12:  # Avoid division by zero
-                break
-                
-            # Newton update
-            x_new = x - f_val / f_prime
-            
-            # Check convergence
-            if np.abs(f_val) < self._TOLERANCE:
-                if self.verbose:
-                    print(f"Newton method converged at iteration {i} with loss {np.abs(f_val):.8f}")
-                return x_new
-                
-            if self.verbose:
-                print(f"Newton iteration {i}: x = {x:.6f}, f(x) = {f_val:.8f}")
-                
-            x = x_new
-
-        return x
-
-    # def _get_z0(self, egdf: EGDF):
+        # def _get_z0(self, egdf: EGDF):
     #     """
     #     Find Z0 point where:
     #     1. PDF is at global maximum 
@@ -1169,303 +1469,3 @@ class BaseMarginalAnalysisEGDF:
                 
     #     self.z0 = float(zo_est)
     #     return zo_est
-
-    
-    def _add_marginal_points(self, ax, bounds=True):
-        """Add marginal analysis points to plot."""
-        marginal_info = []
-        
-        # Always add Z0 regardless of bounds setting
-        if hasattr(self, 'params') and 'z0' in self.params:
-            marginal_info.append((self.params['z0'], 'magenta', '-.', 'Z0'))
-        
-        # Only add other marginal points if bounds=True
-        if bounds:
-            if hasattr(self, 'LSB') and self.LSB is not None:
-                marginal_info.append((self.LSB, 'darkred', ':', 'LSB'))
-            if hasattr(self, 'USB') and self.USB is not None:
-                marginal_info.append((self.USB, 'darkblue', ':', 'USB'))
-            
-            # Add CLB and CUB (Cluster Lower Bound and Cluster Upper Bound)
-            if hasattr(self, 'CLB') and self.CLB is not None:
-                marginal_info.append((self.CLB, 'orange', '--', 'CLB'))
-            if hasattr(self, 'CUB') and self.CUB is not None:
-                marginal_info.append((self.CUB, 'orange', '--', 'CUB'))
-    
-        for point, color, style, name in marginal_info:
-            # Make CLB, CUB, and Z0 lines very thin as requested
-            linewidth = 1 if name in ['CLB', 'CUB', 'Z0'] else 2
-            alpha = 0.6 if name in ['CLB', 'CUB', 'Z0'] else 0.8
-            
-            ax.axvline(x=point, color=color, linestyle=style, linewidth=linewidth, 
-                    alpha=alpha, label=f"{name}={point:.3f}")
-    
-    def _add_bounds(self, ax):
-        """Add bound lines to plot."""
-        bound_info = []
-        
-        if hasattr(self.init_egdf, 'DLB') and self.init_egdf.DLB is not None:
-            bound_info.append((self.init_egdf.DLB, 'green', '-', 'DLB'))
-        if hasattr(self.init_egdf, 'DUB') and self.init_egdf.DUB is not None:
-            bound_info.append((self.init_egdf.DUB, 'orange', '-', 'DUB'))
-        if hasattr(self.init_egdf, 'LB') and self.init_egdf.LB is not None:
-            bound_info.append((self.init_egdf.LB, 'purple', '--', 'LB'))
-        if hasattr(self.init_egdf, 'UB') and self.init_egdf.UB is not None:
-            bound_info.append((self.init_egdf.UB, 'brown', '--', 'UB'))
-        
-        for bound, color, style, name in bound_info:
-            ax.axvline(x=bound, color=color, linestyle=style, linewidth=1, 
-                      alpha=0.6, label=f"{name}={bound:.3f}")
-    
-    def _plot_egdf(self, plot_type: str = 'marginal', plot_smooth: bool = True, bounds: bool = True, derivatives: bool = False, figsize: tuple = (12, 8)):
-        """
-        Enhanced plotting for marginal analysis with LSB, USB, and clustering visualization.
-        
-        Parameters:
-        -----------
-        plot_type : str, default='marginal'
-            Type of plot: 'marginal', 'egdf', 'pdf', 'both', 'clusters'
-        plot_smooth : bool, default=True
-            Whether to plot smooth curves
-        bounds : bool, default=True
-            Whether to show bounds (LB, UB, DLB, DUB, LSB, USB, CLB, CUB)
-        derivatives : bool, default=False
-            Whether to show derivative analysis plot
-        figsize : tuple, default=(12, 8)
-            Figure size
-        """
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        # only if self._fitted is True
-        if not self._fitted:
-            raise RuntimeError("Must fit marginal analysis before plotting.")
-        
-        if not self.catch:
-            print("Plot is not available with argument catch=False")
-            return
-        
-        if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
-            raise RuntimeError("Must fit marginal analysis before plotting.")
-        
-        # Validate plot_type
-        valid_types = ['marginal', 'egdf', 'pdf', 'both']
-        if plot_type not in valid_types:
-            raise ValueError(f"plot_type must be one of {valid_types}")
-        
-        if derivatives:
-            self._plot_derivatives(figsize=figsize)
-            return
-        
-        # Create single plot with dual y-axes
-        fig, ax1 = plt.subplots(figsize=figsize)
-        
-        # Get data
-        x_points = self.init_egdf.data
-        egdf_vals = self.init_egdf.params.get('egdf')
-        pdf_vals = self.init_egdf.params.get('pdf')
-        wedf_vals = self.init_egdf.params.get('wedf')
-        
-        # Plot EGDF on primary y-axis
-        if plot_type in ['marginal', 'egdf', 'both']:
-            if plot_smooth and hasattr(self.init_egdf, 'egdf_points') and self.init_egdf.egdf_points is not None:
-                ax1.plot(x_points, egdf_vals, 'o', color='blue', label='EGDF', markersize=4)
-                ax1.plot(self.init_egdf.di_points_n, self.init_egdf.egdf_points, 
-                        color='blue', linestyle='-', linewidth=2, alpha=0.8)
-            else:
-                ax1.plot(x_points, egdf_vals, 'o-', color='blue', label='EGDF', 
-                        markersize=4, linewidth=2, alpha=0.8)
-        
-        # Plot WEDF if available
-        if wedf_vals is not None and plot_type in ['marginal', 'egdf', 'both']:
-            ax1.plot(x_points, wedf_vals, 's', color='lightblue', 
-                    label='WEDF', markersize=3, alpha=0.8)
-        
-        ax1.set_xlabel('Data Points')
-        ax1.set_ylabel('EGDF', color='blue')
-        ax1.tick_params(axis='y', labelcolor='blue')
-        ax1.set_ylim(0, 1)
-        
-        # Create secondary y-axis for PDF
-        ax2 = ax1.twinx()
-        
-        if plot_type in ['marginal', 'pdf', 'both']:
-            if plot_smooth and hasattr(self.init_egdf, 'pdf_points') and self.init_egdf.pdf_points is not None:
-                ax2.plot(x_points, pdf_vals, 'o', color='red', label='PDF', markersize=4)
-                ax2.plot(self.init_egdf.di_points_n, self.init_egdf.pdf_points, 
-                        color='red', linestyle='-', linewidth=2, alpha=0.8)
-                max_pdf = np.max(self.init_egdf.pdf_points)
-            else:
-                ax2.plot(x_points, pdf_vals, 'o-', color='red', label='PDF', 
-                        markersize=4, linewidth=2, alpha=0.8)
-                max_pdf = np.max(pdf_vals) if pdf_vals is not None else 1
-        
-        ax2.set_ylabel('PDF', color='red')
-        ax2.tick_params(axis='y', labelcolor='red')
-        if 'max_pdf' in locals():
-            ax2.set_ylim(0, max_pdf * 1.1)
-        
-        # Add bounds only if bounds=True
-        if bounds:
-            self._add_bounds(ax1)
-        
-        # Add marginal points (Z0 always, others only if bounds=True)
-        self._add_marginal_points(ax1, bounds=bounds)
-        
-        # Set xlim to DLB-DUB range
-        if hasattr(self.init_egdf, 'DLB') and hasattr(self.init_egdf, 'DUB'):
-            # 5% data pad on either side
-            pad = (self.init_egdf.DUB - self.init_egdf.DLB) * 0.05
-            ax1.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
-            ax2.set_xlim(self.init_egdf.DLB - pad, self.init_egdf.DUB + pad)
-    
-        # Add shaded regions for bounds only if bounds=True
-        if bounds and hasattr(self.init_egdf, 'LB') and hasattr(self.init_egdf, 'UB'):
-            if self.init_egdf.LB is not None:
-                ax1.axvspan(self.init_egdf.DLB, self.init_egdf.LB, alpha=0.15, color='purple')
-            if self.init_egdf.UB is not None:
-                ax1.axvspan(self.init_egdf.UB, self.init_egdf.DUB, alpha=0.15, color='brown')
-        
-        # Combine legends
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
-        
-        # Set title
-        plt.title('EGDF and PDF with Bounds and Marginal Points', fontsize=14, fontweight='bold')
-        ax1.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.show()
-    
-    def _plot_derivatives(self, figsize: tuple = (14, 10)):
-        """Plot EGDF derivatives for marginal analysis visualization."""
-        import matplotlib.pyplot as plt
-        
-        if not self.catch:
-            print("Plot is not available with argument catch=False")
-            return
-            
-        if not hasattr(self.init_egdf, '_fitted') or not self.init_egdf._fitted:
-            raise RuntimeError("Must fit EGDF before plotting derivatives.")
-        
-        # Get derivatives from init_egdf
-        try:
-            d1_vals = self.init_egdf.pdf
-            d2_vals = self.init_egdf._get_egdf_second_derivative()
-            d3_vals = self.init_egdf._get_egdf_third_derivative()
-        except:
-            print("Error: Could not calculate derivatives")
-            return
-        
-        # Create subplot figure
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
-        
-        # Plot derivatives
-        ax1.plot(self.init_egdf.data, d1_vals, 'b-', linewidth=2, label='1st Derivative (PDF)')
-        ax1.set_title('First Derivative (PDF)')
-        ax1.set_ylabel('PDF Value')
-        ax1.grid(True, alpha=0.3)
-        ax1.legend()
-        
-        ax2.plot(self.init_egdf.data, d2_vals, 'r-', linewidth=2, label='2nd Derivative')
-        ax2.set_title('Second Derivative')
-        ax2.set_ylabel('2nd Derivative Value')
-        ax2.grid(True, alpha=0.3)
-        ax2.legend()
-        
-        ax3.plot(self.init_egdf.data, d3_vals, 'g-', linewidth=2, label='3rd Derivative')
-        ax3.set_title('Third Derivative')
-        ax3.set_xlabel('Data Points')
-        ax3.set_ylabel('3rd Derivative Value')
-        ax3.grid(True, alpha=0.3)
-        ax3.legend()
-        
-        # Combined derivatives for boundary analysis
-        ax4.axhline(y=0, color='black', linestyle='--', alpha=0.5)
-        ax4.set_title('Derivative Analysis for LSB/USB Detection')
-        ax4.set_xlabel('Data Points')
-        ax4.set_ylabel('Derivative Value')
-        ax4.grid(True, alpha=0.3)
-        
-        # For derivatives plot, always show all marginal points
-        for ax in [ax1, ax2, ax3, ax4]:
-            self._add_marginal_points(ax, bounds=True)
-        
-        plt.suptitle('EGDF Derivative Analysis', fontsize=16, fontweight='bold')
-        plt.tight_layout()
-        plt.show()
-
-        # homogeneity check for ELDF
-    def _is_homogeneous(self):
-        """
-        Check if the data is homogeneous.
-        Returns True if homogeneous, False otherwise.
-        """
-        self.ih = DataHomogeneity(gdf=self.init_egdf, 
-                             catch=self.catch, 
-                             verbose=self.verbose)
-        is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
-        # cluster bounds
-        self.CLB = self.ih.CLB
-        self.CUB = self.ih.CUB
-
-        if self.catch:
-            self.params.update(self.ih.params)
-
-        return is_homogeneous
-
-    def _get_cluster(self):
-        """
-        Get the bounds for the clusters in the ELDF.
-        """
-        if self.get_clusters:
-            # clusters
-            lower_cluster, main_cluster, upper_cluster = self.ih.get_cluster_data()
-        else:
-            lower_cluster, main_cluster, upper_cluster = (None, None, None)
-
-        return lower_cluster, main_cluster, upper_cluster
-
-    def _fit_egdf(self, plot=True):
-        try:
-            if self.verbose:
-                print("\n\nFitting EGDF Marginal Analysis...")
-
-            # get initial EGDF and z0
-            self._get_initial_egdf()
-
-            # homogeneous check
-            self._is_homogeneous = self._is_homogeneous()
-
-            if self._is_homogeneous:
-                if self.verbose:
-                    print("Data is homogeneous. Using homogeneous data for Marginal Analysis.")
-            else:
-                if self.verbose:
-                    print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
-            
-            # h check
-            if self._is_homogeneous == False and self.get_clusters == False:
-                warnings.warn("Data is heterogeneous but get_clusters is False. "
-                            "Consider setting 'get_clusters=True' to find main cluster bounds.")
-
-            # optional data sampling bounds
-            self._get_data_sample_bounds()
-
-            # extract clusters
-            if self.get_clusters:
-                self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
-
-            if self.verbose:
-                print(f"Marginal Analysis completed. Z0: {float(self.z0):.4f}, Homogeneous: {self._is_homogeneous}")
-
-            # fit status update
-            self._fitted = True
-
-            if plot:
-                self._plot_egdf()
-
-        except Exception as e:
-            if self.verbose:
-                print(f"Error occurred during fitting: {e}")
