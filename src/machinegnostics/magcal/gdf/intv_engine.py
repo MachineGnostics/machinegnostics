@@ -1254,7 +1254,7 @@ class IntveEngine:
     def _print_results(self):
         """Print formatted results."""
         print(f"\n{'='*70}")
-        print(f"Z0-BASED INTERVAL ESTIMATION RESULTS WITH ORDERING ({self.df_type})")
+        print(f"Z0-BASED INTERVAL ESTIMATION RESULTS - ({self.df_type})")
         print(f"{'='*70}")
         
         print(f"Original Configuration:")
