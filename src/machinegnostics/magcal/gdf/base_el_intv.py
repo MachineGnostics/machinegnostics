@@ -14,6 +14,64 @@ from machinegnostics.magcal.gdf.base_el_ma import BaseMarginalAnalysisELDF
 from machinegnostics.magcal.gdf.intv_engine import IntveEngine
 
 class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
+    """
+    Base class for ELDF Interval Analysis.
+    
+    This is an internal developer class that provides the foundation for performing
+    interval analysis on Empirical Likelihood Distribution Functions (ELDF). It extends
+    the marginal analysis capabilities with interval estimation functionality.
+    
+    The class handles:
+    - Data homogeneity assessment and clustering
+    - Initial ELDF fitting with outlier handling
+    - Interval engine integration for extrema estimation
+    - Comprehensive validation and user guidance
+    
+    Developer Notes:
+    ----------------
+    - This is NOT a public API class - use derived classes for public interfaces
+    - Inherits from BaseMarginalAnalysisELDF for clustering and marginal analysis
+    - Uses IntveEngine for the core interval estimation algorithms
+    - Implements extensive validation logic with contextual warnings
+    - All methods prefixed with '_' are internal and may change without notice
+    
+    Key Internal Workflow:
+    ----------------------
+    1. Initial ELDF fitting (_get_init_eldf_fit)
+    2. Homogeneity assessment (_is_homogeneous)
+    3. Cluster identification and validation
+    4. Main cluster ELDF fitting (if needed)
+    5. Interval engine execution
+    6. Results extraction and storage
+    
+    Attributes:
+    -----------
+    Z0, Z0L, Z0U : float
+        Interval estimation results from IntveEngine
+    ZL, ZU : float
+        Lower and upper interval bounds
+    intv : IntveEngine
+        The interval analysis engine instance
+    _fitted : bool
+        Internal fitting status flag
+        
+    Warning Categories:
+    -------------------
+    - Data-parameter mismatch warnings (homogeneous setting vs actual data)
+    - Insufficient data warnings (cluster size, main cluster quality)
+    - Configuration mismatch warnings (parameter combinations)
+    
+    Thread Safety:
+    --------------
+    Not thread-safe. Each instance should be used by a single thread.
+    
+    Performance Notes:
+    ------------------
+    - Large datasets are automatically subsampled (max_data_size parameter)
+    - Clustering operations scale O(n log n) with data size
+    - Interval estimation complexity depends on n_points_per_direction
+    """
+    
     def __init__(self,
             data: np.ndarray,
             DLB: float = None,
@@ -114,9 +172,35 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
         # fit status
         self._fitted = False
 
-        # validation inputs
-
     def _fit_eldf_intv(self, plot: bool = False):
+        """
+        Internal method to perform complete ELDF interval analysis.
+        
+        Developer Notes:
+        ----------------
+        This is the main orchestration method that coordinates:
+        1. Initial ELDF fitting and parameter extraction
+        2. Data homogeneity assessment and validation
+        3. Cluster analysis and main cluster identification
+        4. Conditional re-fitting on main cluster
+        5. Interval engine execution and result extraction
+        
+        Parameters:
+        -----------
+        plot : bool
+            Whether to generate diagnostic plots during fitting
+            
+        Side Effects:
+        -------------
+        - Sets self._fitted = True upon successful completion
+        - Populates interval results (Z0, Z0L, Z0U, ZL, ZU)
+        - May issue warnings for data/parameter mismatches
+        - Creates self.intv (IntveEngine instance)
+        
+        Raises:
+        -------
+        Various exceptions from underlying ELDF fitting or interval engine
+        """
         # fit ELDF
         # extract z0, and bounds
         self._get_init_eldf_fit(plot=plot)
@@ -138,7 +222,7 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
             self._get_main_init_eldf(self.main_cluster, plot=plot)
 
         if self.verbose:
-                print("Initiating EGDF Interval Analysis...")
+                print("Initiating ELDF Interval Analysis...")
                 
         # intv analysis
         # get extended ELDF with a new datum
@@ -169,46 +253,158 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
             print("ELDF Interval Analysis completed.")
 
     def _main_cluster_validation_and_msg(self):
+        """
+        Validates main cluster quality and provides user guidance.
+        
+        Developer Notes:
+        ----------------
+        Checks if the identified main cluster is suitable for reliable ELDF fitting.
+        Issues warnings when cluster quality is insufficient, which could lead to
+        unreliable interval estimates.
+        
+        Validation Criteria:
+        - Main cluster exists (not None)  
+        - Main cluster has at least 4 data points (minimum for ELDF fitting)
+        
+        Warning Conditions:
+        - Cluster too small: < 4 points (insufficient for parameter estimation)
+        - Cluster undefined: clustering algorithm failed to identify main group
+        """
         # main cluster check
         if self.main_cluster is None or len(self.main_cluster) < 4:
-            warnings.warn("Main cluster is not well-defined or has fewer than 4 data points. ELDF fitting and interval estimation may be unreliable. Consider reviewing the data or adjusting clustering parameters.")
+            warnings.warn(
+                "Insufficient main cluster data detected. "
+                f"Main cluster has {len(self.main_cluster) if self.main_cluster is not None else 0} points, "
+                "but at least 4 are required for reliable ELDF parameter estimation. "
+                "This may result in unreliable interval estimates. "
+                "Consider: (1) increasing data size, (2) adjusting cluster_threshold parameter, "
+                "(3) setting homogeneous=True if outliers are not expected, or "
+                "(4) reviewing data quality for potential issues.",
+                UserWarning,
+                stacklevel=2
+            )
         else:
             if self.verbose:
-                print(f"Main cluster identified with {len(self.main_cluster)} points.")
+                print(f"✓ Main cluster validated with {len(self.main_cluster)} data points.")
 
     def _homogeneity_validation_and_msg(self):
+        """
+        Validates consistency between user settings and actual data characteristics.
+        
+        Developer Notes:
+        ----------------
+        Performs cross-validation between user-specified homogeneity assumptions
+        and algorithmically-determined data characteristics. Issues actionable
+        warnings when mismatches are detected.
+        
+        Validation Logic:
+        - homogeneous=True + heterogeneous data → suggest clustering approach
+        - homogeneous=False + homogeneous data → suggest simplified approach  
+        - Missing cluster bounds + heterogeneous data → suggest enabling estimation
+        
+        Warning Categories:
+        - Parameter-data mismatch (most critical)
+        - Suboptimal configuration (performance/accuracy)
+        - Missing required settings (functionality)
+        """
         # user understanding check with data homogeneity
         if self.homogeneous == True and self.is_homogeneous == False:
-            warnings.warn("Data is heterogeneous but 'homogeneous' is set to True. "
-                          "Consider setting 'homogeneous=False' and 'get_clusters=True' for outlier treatment and interval estimation based on the main cluster.")
+            warnings.warn(
+                "Data-parameter mismatch detected: Your data appears heterogeneous (contains outliers/clusters), "
+                "but 'homogeneous=True' was specified. This may lead to biased interval estimates. "
+                "Recommended actions: (1) Set homogeneous=False and get_clusters=True for robust outlier handling, "
+                "or (2) if your dataset is small (<50 points) with no clear clustering patterns, "
+                "you may continue with current settings but interpret results cautiously.",
+                UserWarning,
+                stacklevel=2
+            )
         elif self.homogeneous == False and self.is_homogeneous == True:
-            warnings.warn("Data is homogeneous but 'homogeneous' is set to False. "
-                          "Consider setting 'homogeneous=True' to skip cluster analysis and use all data for interval estimation.")
+            warnings.warn(
+                "Suboptimal configuration detected: Your data appears homogeneous (no significant outliers), "
+                "but 'homogeneous=False' was specified. This adds unnecessary computational overhead. "
+                "Consider setting homogeneous=True to improve performance and skip cluster analysis.",
+                UserWarning,
+                stacklevel=2
+            )
         else:
             if self.verbose:
-                print("User setting for 'homogeneous' matches data characteristics.")
+                print("✓ Data homogeneity setting matches detected data characteristics.")
 
+        # Informational messages about detected data structure
         if self.is_homogeneous:
             if self.verbose:
-                print("Data is homogeneous. Using homogeneous data for interval analysis.")
+                print("→ Data assessment: Homogeneous structure detected. Using full dataset for interval analysis.")
         else:
             if self.verbose:
-                print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
+                print("→ Data assessment: Heterogeneous structure detected. Cluster-based analysis required.")
 
-        # homogeneous check
-            if self.is_homogeneous == False and self.estimate_cluster_bounds == False and self.get_clusters == True:
-                warnings.warn("Data is heterogeneous but estimate_cluster_bounds is False. "
-                            "Consider setting 'estimate_cluster_bounds=True' and 'get_clusters=True' to find main cluster bounds and main cluster.")
+        # Configuration consistency check for heterogeneous data
+        if self.is_homogeneous == False and self.estimate_cluster_bounds == False and self.get_clusters == True:
+            warnings.warn(
+                "Incomplete configuration for heterogeneous data: 'get_clusters=True' was specified, "
+                "but 'estimate_cluster_bounds=False'. For heterogeneous data, cluster boundary estimation "
+                "is typically required to identify the main cluster accurately. "
+                "Consider setting estimate_cluster_bounds=True for optimal results.",
+                UserWarning,
+                stacklevel=2
+            )
 
     def _plot_eldf_intv(self):
+        """
+        Generate diagnostic plots for interval analysis results.
+        
+        Developer Notes:
+        ----------------
+        Creates visualization of both the interval analysis results and the
+        underlying initial ELDF fit. Useful for debugging and result interpretation.
+        
+        Raises:
+        -------
+        RuntimeError : If called before fitting is complete
+        """
         if not self._fitted:
-            raise RuntimeError("Interval analysis not fitted yet. Please call the 'fit' method before plotting.")
+            raise RuntimeError(
+                "Cannot generate plots: Interval analysis not yet fitted. "
+                "Please call the 'fit' method before attempting to plot results."
+            )
         self.intv.plot(figsize=(12, 8))
         self.init_eldf.plot(figsize=(12, 8))
 
     def _get_main_init_eldf(self, cluster: np.ndarray, plot: bool = False):
+        """
+        Fit ELDF model specifically to the main cluster data.
+        
+        This method creates a new ELDF instance using only the main cluster data,
+        which is essential for obtaining accurate interval estimates when the full
+        dataset contains outliers or multiple clusters.
+        
+        Developer Notes:
+        ----------------
+        - Called only when data is determined to be heterogeneous
+        - Updates instance bounds (LB, UB, DLB, DUB) from the cluster-specific fit
+        - Preserves all user-specified fitting parameters
+        - Updates internal parameter storage if catch=True
+        
+        Parameters:
+        -----------
+        cluster : np.ndarray
+            Main cluster data points identified by clustering algorithm
+        plot : bool
+            Whether to generate diagnostic plots during ELDF fitting
+            
+        Returns:
+        --------
+        ELDF
+            The fitted ELDF instance for the main cluster
+            
+        Side Effects:
+        -------------
+        - Updates self.init_eldf with cluster-specific model
+        - Updates boundary parameters (LB, UB, DLB, DUB, S_opt, z0)
+        - Updates self.params if catch=True
+        """
         if self.verbose:
-            print("Fitting initial ELDF to the main cluster...")
+            print(f"→ Fitting specialized ELDF model to main cluster ({len(cluster)} points)...")
 
         self.init_eldf = ELDF(data=cluster,
                                   varS=self.varS,
@@ -235,6 +431,6 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
         if self.catch:
             self.params = self.init_eldf.params.copy()
         if self.verbose:
-            print("Initial ELDF fit to the main cluster completed.")
+            print("✓ Main cluster ELDF fitting completed successfully.")
 
         return self.init_eldf
