@@ -13,6 +13,7 @@ from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.mg_weights import GnosticsWeights
+from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 
 class BaseDistFuncCompute(BaseDistFunc):
     '''Base Distribution Function class
@@ -42,6 +43,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                  LB: float = None,
                  UB: float = None,
                  S = 'auto',
+                 z0_optimize: bool = True,
                  varS: bool = False,
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
@@ -63,6 +65,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         self.LB = LB
         self.UB = UB
         self.S = S
+        self.z0_optimize = z0_optimize
         self.varS = varS
         self.tolerance = tolerance
         self.data_form = data_form
@@ -612,4 +615,64 @@ class BaseDistFuncCompute(BaseDistFunc):
         # Store fidelities and irrelevances
         self.fi = gc._fi(q=q, q1=q1)
         self.hi = gc._hi(q=q, q1=q1)
+
+    # z0 compute
+    def _compute_z0(self, optimize: bool = None):
+        """
+        Compute the Z0 point where PDF is maximum using the Z0Estimator class.
+        
+        Parameters:
+        -----------
+        optimize : bool, optional
+            If True, use interpolation-based methods for higher accuracy.
+            If False, use simple linear search on existing points.
+            If None, uses the instance's z0_optimize setting.
+        """
+        if self.z is None:
+            raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
+        
+        # Use provided optimize parameter or fall back to instance setting
+        use_optimize = optimize if optimize is not None else self.z0_optimize
+        
+        if self.verbose:
+            print('ELDF: Computing Z0 point using Z0Estimator...')
+
+        try:
+            # Create Z0Estimator instance with proper constructor signature
+            z0_estimator = Z0Estimator(
+                gdf_object=self,  # Pass the ELDF object itself
+                optimize=use_optimize,
+                verbose=self.verbose
+            )
+            
+            # Call fit() method to estimate Z0
+            self.z0 = z0_estimator.fit()
+            
+            # Get estimation info for debugging and storage
+            if self.catch:
+                estimation_info = z0_estimator.get_estimation_info()
+                self.params.update({
+                    'z0': float(self.z0),
+                    'z0_method': estimation_info.get('z0_method', 'unknown'),
+                    'z0_estimation_info': estimation_info
+                })
+            
+            if self.verbose:
+                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
+                print(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: Z0Estimator failed with error: {e}")
+                print("Falling back to simple maximum finding...")
+            
+            # Fallback to simple maximum finding
+            self._compute_z0_fallback()
+            
+            if self.catch:
+                self.params.update({
+                    'z0': float(self.z0),
+                    'z0_method': 'fallback_simple_maximum',
+                    'z0_estimation_info': {'error': str(e)}
+                })
 
