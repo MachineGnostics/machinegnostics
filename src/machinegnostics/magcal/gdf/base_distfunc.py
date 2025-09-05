@@ -84,6 +84,9 @@ class BaseDistFuncCompute(BaseDistFunc):
         self._fitted = False
         self._derivatives_calculated = False
         self._marginal_analysis_done = False
+
+        # safe for z0 compute
+        self.pdf_points = None
         
         # Initialize computation cache
         self._computation_cache = {
@@ -676,3 +679,19 @@ class BaseDistFuncCompute(BaseDistFunc):
                     'z0_estimation_info': {'error': str(e)}
                 })
 
+    def _compute_z0_fallback(self):
+        """
+        Fallback method for Z0 computation using simple maximum finding.
+        """
+        if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
+            raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
+        
+        if self.verbose:
+            print('ELDF: Using fallback method for Z0 point...')
+        
+        # Find index with maximum PDF
+        max_idx = np.argmax(self.pdf_points)
+        self.z0 = self.di_points_n[max_idx]
+
+        if self.verbose:
+            print(f"Z0 point (fallback method): {self.z0:.6f}")
