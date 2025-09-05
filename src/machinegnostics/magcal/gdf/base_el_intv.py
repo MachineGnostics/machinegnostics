@@ -349,26 +349,26 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
                 stacklevel=2
             )
 
-    def _plot_eldf_intv(self, figsize=(12, 8)):
-        """
-        Generate diagnostic plots for interval analysis results.
+    # def _plot_eldf_intv(self, figsize=(12, 8)):
+    #     """
+    #     Generate diagnostic plots for interval analysis results.
         
-        Developer Notes:
-        ----------------
-        Creates visualization of both the interval analysis results and the
-        underlying initial ELDF fit. Useful for debugging and result interpretation.
+    #     Developer Notes:
+    #     ----------------
+    #     Creates visualization of both the interval analysis results and the
+    #     underlying initial ELDF fit. Useful for debugging and result interpretation.
         
-        Raises:
-        -------
-        RuntimeError : If called before fitting is complete
-        """
-        if not self._fitted:
-            raise RuntimeError(
-                "Cannot generate plots: Interval analysis not yet fitted. "
-                "Please call the 'fit' method before attempting to plot results."
-            )
-        self.intv.plot(figsize=figsize)
-        self.init_eldf.plot(figsize=figsize)
+    #     Raises:
+    #     -------
+    #     RuntimeError : If called before fitting is complete
+    #     """
+    #     if not self._fitted:
+    #         raise RuntimeError(
+    #             "Cannot generate plots: Interval analysis not yet fitted. "
+    #             "Please call the 'fit' method before attempting to plot results."
+    #         )
+    #     self.intv.plot(figsize=figsize)
+    #     self.init_eldf.plot(figsize=figsize)
 
     def _get_main_init_eldf(self, cluster: np.ndarray, plot: bool = False):
         """
@@ -434,3 +434,285 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
             print("✓ Main cluster ELDF fitting completed successfully.")
 
         return self.init_eldf
+    
+    def _plot_eldf_intv(self, figsize=(12, 8)):
+        """
+        Generate comprehensive ELDF Interval Analysis plots with tolerance and typical data intervals.
+        
+        Creates visualization showing:
+        - ELDF curve with distribution fitting
+        - PDF curve on secondary axis
+        - Tolerance interval (Z0L, Z0U) as light green filled zone
+        - Typical data interval (ZL, ZU) as light blue filled zone
+        - All critical points and bounds including Z0 vertical line
+        - Original data points as rug plot
+        
+        Developer Notes:
+        ----------------
+        Creates visualization of both the interval analysis results and the
+        underlying initial ELDF fit. Useful for debugging and result interpretation.
+        
+        Parameters:
+        -----------
+        figsize : tuple, default=(12, 8)
+            Figure size as (width, height) in inches
+            
+        Raises:
+        -------
+        RuntimeError : If called before fitting is complete
+        """
+        if not self._fitted:
+            raise RuntimeError(
+                "Cannot generate plots: Interval analysis not yet fitted. "
+                "Please call the 'fit' method before attempting to plot results."
+            )
+        
+        if not self.catch:
+            print("Plot is not available with argument catch=False")
+            return
+            
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ImportError:
+            raise ImportError("matplotlib and numpy required for plotting")
+        
+        # Create figure with dual y-axes
+        fig, ax1 = plt.subplots(figsize=figsize)
+        ax2 = ax1.twinx()
+        
+        # Get data from fitted ELDF
+        x_points = self.init_eldf.data
+        eldf_vals = self.init_eldf.params.get('eldf') if hasattr(self.init_eldf, 'params') else None
+        pdf_vals = self.init_eldf.params.get('pdf') if hasattr(self.init_eldf, 'params') else None
+        wedf_vals = self.init_eldf.params.get('wedf') if hasattr(self.init_eldf, 'params') else None
+        
+        # Get smooth curve data if available
+        smooth_x = None
+        smooth_eldf = None
+        smooth_pdf = None
+        
+        if hasattr(self.init_eldf, 'di_points_n') and self.init_eldf.di_points_n is not None:
+            smooth_x = self.init_eldf.di_points_n
+            
+            if hasattr(self.init_eldf, 'eldf_points') and self.init_eldf.eldf_points is not None:
+                smooth_eldf = self.init_eldf.eldf_points
+                
+            if hasattr(self.init_eldf, 'pdf_points') and self.init_eldf.pdf_points is not None:
+                smooth_pdf = self.init_eldf.pdf_points
+        
+        # Set up x-axis range with padding
+        if hasattr(self.init_eldf, 'DLB') and hasattr(self.init_eldf, 'DUB'):
+            x_range = self.init_eldf.DUB - self.init_eldf.DLB
+            x_pad = x_range * 0.05
+            x_min = self.init_eldf.DLB - x_pad
+            x_max = self.init_eldf.DUB + x_pad
+        else:
+            data_range = np.max(x_points) - np.min(x_points)
+            x_pad = data_range * 0.05
+            x_min = np.min(x_points) - x_pad
+            x_max = np.max(x_points) + x_pad
+        
+        # Create fine x array for smooth interval zones
+        x_fine = np.linspace(x_min, x_max, 1000)
+        
+        # ==================== PLOT ELDF CURVE ====================
+        
+        # Plot discrete ELDF points
+        if eldf_vals is not None:
+            ax1.plot(x_points, eldf_vals, 'o', color='blue', label='ELDF', markersize=4, alpha=0.7)
+        
+        # Plot smooth ELDF curve if available
+        if smooth_x is not None and smooth_eldf is not None:
+            ax1.plot(smooth_x, smooth_eldf, '-', color='blue', linewidth=2.5, alpha=0.9)
+        
+        # Plot WEDF if available
+        if wedf_vals is not None:
+            ax1.plot(x_points, wedf_vals, 's', color='lightblue', 
+                    label='WEDF', markersize=3, alpha=0.6)
+        
+        # ==================== PLOT PDF CURVE ====================
+        
+        # Plot discrete PDF points
+        if pdf_vals is not None:
+            ax2.plot(x_points, pdf_vals, 'o', color='red', label='PDF', markersize=4, alpha=0.7)
+            max_pdf = np.max(pdf_vals)
+        else:
+            max_pdf = 1.0
+        
+        # Plot smooth PDF curve if available
+        if smooth_x is not None and smooth_pdf is not None:
+            ax2.plot(smooth_x, smooth_pdf, '-', color='red', linewidth=2.5, alpha=0.9)
+            max_pdf = max(max_pdf, np.max(smooth_pdf))
+        
+        # ==================== PLOT FILLED INTERVALS ====================
+        
+        # 1. Tolerance Interval (Z0L to Z0U) - Light Green
+        if hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'z0l') and hasattr(self.intv, 'z0u'):
+            tolerance_mask = (x_fine >= self.intv.z0l) & (x_fine <= self.intv.z0u)
+            
+            if smooth_x is not None and smooth_eldf is not None:
+                # Interpolate ELDF values for smooth filling
+                tolerance_eldf = np.interp(x_fine[tolerance_mask], smooth_x, smooth_eldf)
+                ax1.fill_between(x_fine[tolerance_mask], 0, tolerance_eldf, 
+                               alpha=0.4, color='lightgreen', 
+                               label=f'Tolerance Interval [Z0L: {self.intv.z0l:.3f}, Z0U: {self.intv.z0u:.3f}]')
+            else:
+                # Fallback to simple vertical fill
+                ax1.axvspan(self.intv.z0l, self.intv.z0u, alpha=0.15, color='lightgreen',
+                           label=f'Tolerance Interval [Z0L: {self.intv.z0l:.3f}, Z0U: {self.intv.z0u:.3f}]')
+        
+        # 2. Typical Data Interval (ZL to ZU) - Light Blue
+        if hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'zl') and hasattr(self.intv, 'zu'):
+            typical_mask = (x_fine >= self.intv.zl) & (x_fine <= self.intv.zu)
+            
+            if smooth_x is not None and smooth_eldf is not None:
+                # Interpolate ELDF values for smooth filling
+                typical_eldf = np.interp(x_fine[typical_mask], smooth_x, smooth_eldf)
+                ax1.fill_between(x_fine[typical_mask], 0, typical_eldf, 
+                               alpha=0.1, color='blue',
+                               label=f'Typical Data Interval [ZL: {self.intv.zl:.3f}, ZU: {self.intv.zu:.3f}]')
+            else:
+                # Fallback to simple vertical fill
+                ax1.axvspan(self.intv.zl, self.intv.zu, alpha=0.15, color='lightblue',
+                           label=f'Typical Data Interval [ZL: {self.intv.zl:.3f}, ZU: {self.intv.zu:.3f}]')
+        
+        # ==================== PLOT CRITICAL VERTICAL LINES ====================
+        
+        # ZL (lower datum) - Purple dashed
+        if hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'zl'):
+            ax1.axvline(x=self.intv.zl, color='purple', linestyle='--', linewidth=2, 
+                       alpha=0.8, label=f'ZL={self.intv.zl:.3f}')
+        
+        # Z0 (gnostic mode) - GREEN SOLID (most prominent)
+        z0_value = None
+        if hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'z0'):
+            z0_value = self.intv.z0
+        elif hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'z0_original'):
+            z0_value = self.intv.z0_original
+        elif hasattr(self.init_eldf, 'z0'):
+            z0_value = self.init_eldf.z0
+        
+        if z0_value is not None:
+            ax1.axvline(x=z0_value, color='magenta', linestyle='-.', linewidth=1, 
+                       alpha=0.9, label=f'Z0={z0_value:.3f}')
+        
+        # ZU (upper datum) - Orange dashed  
+        if hasattr(self, 'intv') and self.intv and hasattr(self.intv, 'zu'):
+            ax1.axvline(x=self.intv.zu, color='orange', linestyle='--', linewidth=2, 
+                       alpha=0.8, label=f'ZU={self.intv.zu:.3f}')
+        
+        # ==================== PLOT DATA BOUNDS ====================
+        
+        # Data bounds (DLB, DUB) - Solid lines
+        if hasattr(self.init_eldf, 'DLB') and self.init_eldf.DLB is not None:
+            ax1.axvline(x=self.init_eldf.DLB, color='green', linestyle='-', 
+                       linewidth=1, alpha=0.6, label=f'DLB={self.init_eldf.DLB:.3f}')
+        if hasattr(self.init_eldf, 'DUB') and self.init_eldf.DUB is not None:
+            ax1.axvline(x=self.init_eldf.DUB, color='orange', linestyle='-', 
+                       linewidth=1, alpha=0.6, label=f'DUB={self.init_eldf.DUB:.3f}')
+        
+        # Probable bounds (LB, UB) - Dashed lines
+        if hasattr(self.init_eldf, 'LB') and self.init_eldf.LB is not None:
+            ax1.axvline(x=self.init_eldf.LB, color='purple', linestyle='--', 
+                       linewidth=1, alpha=0.6, label=f'LB={self.init_eldf.LB:.3f}')
+        if hasattr(self.init_eldf, 'UB') and self.init_eldf.UB is not None:
+            ax1.axvline(x=self.init_eldf.UB, color='brown', linestyle='--', 
+                       linewidth=1, alpha=0.6, label=f'UB={self.init_eldf.UB:.3f}')
+        
+        # ==================== PLOT DATA POINTS (RUG) - NO LEGEND ====================
+        
+        # Add original data points as rug plot at bottom (no legend entry)
+        data_y_pos = -0.05  # Position below x-axis
+        ax1.scatter(x_points, [data_y_pos] * len(x_points), 
+                   alpha=0.6, s=15, color='black', marker='|')
+        
+        # ==================== FORMATTING ====================
+        
+        # Set axis labels and limits
+        ax1.set_xlabel('Data Values', fontsize=12, fontweight='bold')
+        ax1.set_ylabel('ELDF Value', fontsize=12, fontweight='bold', color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_ylim(-0.1, 1.05)  # Extended to show rug plot
+        ax1.set_xlim(x_min, x_max)
+        
+        ax2.set_ylabel('PDF Value', fontsize=12, fontweight='bold', color='red')
+        ax2.tick_params(axis='y', labelcolor='red')
+        ax2.set_ylim(0, max_pdf * 1.1)
+        ax2.set_xlim(x_min, x_max)
+        
+        # Grid
+        ax1.grid(True, alpha=0.3)
+        
+        # Simplified title with Z0 information
+        df_type = 'ELDF'  # Default to ELDF, but detect actual type
+        if hasattr(self.init_eldf, '__class__'):
+            class_name = self.init_eldf.__class__.__name__
+            if 'EGDF' in class_name:
+                df_type = 'EGDF'
+        
+        # Build title with Z0 value
+        title_text = f'{df_type} Interval Analysis'
+        if z0_value is not None:
+            title_text += f' (Z0 = {z0_value:.3f})'
+        
+        plt.title(title_text, fontsize=14, fontweight='bold')
+        
+        # Combined legend - organized by category
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        
+        # Filter and organize legend entries
+        interval_entries = []
+        critical_entries = []
+        bound_entries = []
+        curve_entries = []
+        
+        # Process ax1 entries
+        for line, label in zip(lines1, labels1):
+            if 'Interval' in label:
+                interval_entries.append((line, label))
+            elif any(marker in label for marker in ['ZL=', 'Z0=', 'ZU=']):
+                critical_entries.append((line, label))
+            elif any(bound in label for bound in ['LB=', 'UB=', 'DLB=', 'DUB=']):
+                bound_entries.append((line, label))
+            elif any(curve in label for curve in ['ELDF', 'WEDF']):
+                curve_entries.append((line, label))
+        
+        # Process ax2 entries
+        for line, label in zip(lines2, labels2):
+            if 'PDF' in label:
+                curve_entries.append((line, label))
+        
+        # Combine in logical order: intervals, critical points, curves, bounds
+        all_entries = interval_entries + critical_entries + curve_entries + bound_entries
+        
+        if all_entries:
+            all_lines, all_labels = zip(*all_entries)
+            ax1.legend(all_lines, all_labels, loc='upper left', fontsize=10, 
+                      bbox_to_anchor=(0.02, 0.98))
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Print summary information with Z0
+        if self.verbose:
+            print(f"\n{df_type} Interval Analysis Plot Summary:")
+            if hasattr(self, 'intv') and self.intv:
+                if z0_value is not None:
+                    print(f"  Z0 (Gnostic Mode): {z0_value:.4f}")
+                if hasattr(self.intv, 'z0l') and hasattr(self.intv, 'z0u'):
+                    print(f"  Tolerance interval: [{self.intv.z0l:.4f}, {self.intv.z0u:.4f}] (width: {self.intv.tolerance_interval:.4f})")
+                if hasattr(self.intv, 'zl') and hasattr(self.intv, 'zu'):
+                    print(f"  Typical data interval: [{self.intv.zl:.4f}, {self.intv.zu:.4f}] (width: {self.intv.typical_data_interval:.4f})")
+                
+                # Data coverage analysis
+                if hasattr(self.intv, 'z0l') and hasattr(self.intv, 'z0u'):
+                    data_in_tolerance = np.sum((x_points >= self.intv.z0l) & (x_points <= self.intv.z0u))
+                    print(f"  Data coverage - Tolerance: {data_in_tolerance}/{len(x_points)} ({data_in_tolerance/len(x_points):.1%})")
+                if hasattr(self.intv, 'zl') and hasattr(self.intv, 'zu'):
+                    data_in_typical = np.sum((x_points >= self.intv.zl) & (x_points <= self.intv.zu))
+                    print(f"  Data coverage - Typical: {data_in_typical}/{len(x_points)} ({data_in_typical/len(x_points):.1%})")
+            
+            print(f"  Total data points: {len(x_points)}")
+            print(f"  Data range: [{np.min(x_points):.4f}, {np.max(x_points):.4f}]")
