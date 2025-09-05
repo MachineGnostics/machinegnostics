@@ -125,7 +125,7 @@ class BaseMarginalAnalysisELDF:
         if self.data.ndim != 1:
             raise ValueError(f"Data must be a 1-dimensional array. Current dimensions: {self.data.ndim}.")
         
-    def _get_init_eldf_fit(self):
+    def _get_init_eldf_fit(self, plot: bool = False):
         if self.verbose:
             print("Fitting initial ELDF...")
         self.init_eldf = ELDF(data=self.data,
@@ -148,7 +148,7 @@ class BaseMarginalAnalysisELDF:
                                   max_data_size=self.max_data_size,
                                   flush=self.flush)
         # fit init eldf model
-        self.init_eldf.fit(plot=False)
+        self.init_eldf.fit(plot=plot)
         # saving bounds from initial ELDF
         self.LB = self.init_eldf.LB
         self.UB = self.init_eldf.UB
@@ -457,7 +457,7 @@ class BaseMarginalAnalysisELDF:
         if self.verbose:
             print("Fitting ELDF for Marginal Analysis...")
         # fit init eldf and get z0
-        self._get_init_eldf_fit()
+        self._get_init_eldf_fit(plot=plot)
 
         # homogeneity check, pick counts, cluster bounds
         self.is_homogeneous = self._is_homogeneous()
