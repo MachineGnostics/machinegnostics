@@ -294,8 +294,8 @@ class BaseEGDF(BaseDistFuncCompute):
         
         # Check smooth plotting availability
         has_smooth = (hasattr(self, 'di_points_n') and hasattr(self, 'egdf_points') 
-                     and hasattr(self, 'pdf_points') and self.di_points_n is not None
-                     and self.egdf_points is not None and self.pdf_points is not None)
+                    and hasattr(self, 'pdf_points') and self.di_points_n is not None
+                    and self.egdf_points is not None and self.pdf_points is not None)
         plot_smooth = plot_smooth and has_smooth
         
         # Create figure
@@ -315,6 +315,13 @@ class BaseEGDF(BaseDistFuncCompute):
         
         # Add bounds and formatting
         self._add_plot_formatting(ax1, plot, bounds)
+        
+        # Add Z0 vertical line if available
+        if hasattr(self, 'z0') and self.z0 is not None:
+            ax1.axvline(x=self.z0, color='magenta', linestyle='-.', linewidth=1, 
+                    alpha=0.8, label=f'Z0={self.z0:.3f}')
+            # Update legend to include Z0
+            ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
         
         plt.tight_layout()
         plt.show()
