@@ -1461,12 +1461,13 @@ class IntveEngine:
         plt.tight_layout()
         plt.show()
         
-        # Print summary
-        print(f"\nZ0 Variation Plot Summary:")
-        print(f"  Total valid points: {len(datum_vals)}")
-        print(f"  Typical data interval: [{self.zl:.6f}, {self.zu:.6f}] (width: {self.typical_data_interval:.6f})")
-        print(f"  Tolerance interval: [{self.z0l:.6f}, {self.z0u:.6f}] (width: {self.tolerance_interval:.6f})")
-        print(f"  Ordering constraint: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
+        if self.verbose:
+            # Print summary
+            print(f"\nZ0 Variation Plot Summary:")
+            print(f"  Total valid points: {len(datum_vals)}")
+            print(f"  Typical data interval: [{self.zl:.6f}, {self.zu:.6f}] (width: {self.typical_data_interval:.6f})")
+            print(f"  Tolerance interval: [{self.z0l:.6f}, {self.z0u:.6f}] (width: {self.tolerance_interval:.6f})")
+            print(f"  Ordering constraint: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
     
     # def _plot_distribution_with_intervals(self, figsize: Tuple[int, int] = (12, 8), 
     #                                     eldf_plot: bool = True):
