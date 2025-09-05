@@ -349,7 +349,7 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
                 stacklevel=2
             )
 
-    def _plot_eldf_intv(self):
+    def _plot_eldf_intv(self, figsize=(12, 8)):
         """
         Generate diagnostic plots for interval analysis results.
         
@@ -367,8 +367,8 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
                 "Cannot generate plots: Interval analysis not yet fitted. "
                 "Please call the 'fit' method before attempting to plot results."
             )
-        self.intv.plot(figsize=(12, 8))
-        self.init_eldf.plot(figsize=(12, 8))
+        self.intv.plot(figsize=figsize)
+        self.init_eldf.plot(figsize=figsize)
 
     def _get_main_init_eldf(self, cluster: np.ndarray, plot: bool = False):
         """
