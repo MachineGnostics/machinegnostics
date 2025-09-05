@@ -12,6 +12,7 @@ from scipy.optimize import minimize
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.base_distfunc import BaseDistFuncCompute
+from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 
 class BaseEGDF(BaseDistFuncCompute):
     """
@@ -28,6 +29,7 @@ class BaseEGDF(BaseDistFuncCompute):
                  LB: float = None,
                  UB: float = None,
                  S = 'auto',
+                 z0_optimize: bool = True,
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
                  n_points: int = 500,
@@ -45,6 +47,7 @@ class BaseEGDF(BaseDistFuncCompute):
                          LB=LB, 
                          UB=UB, 
                          S=S, 
+                         z0_optimize=z0_optimize,
                          varS=False, # NOTE for EGDfF varS is always False 
                          tolerance=tolerance, 
                          data_form=data_form, 
@@ -65,6 +68,7 @@ class BaseEGDF(BaseDistFuncCompute):
         self.LB = LB
         self.UB = UB
         self.S = S
+        self.z0_optimize = z0_optimize
 
         self.tolerance = tolerance
         self.data_form = data_form
@@ -601,7 +605,10 @@ class BaseEGDF(BaseDistFuncCompute):
             
             # Mark as fitted (Step 8 is now optional via marginal_analysis())
             self._fitted = True
-            
+
+            # Compute Z0 point
+            self._compute_z0()
+
             if self.verbose:
                 print("EGDF fitting completed successfully.")
 

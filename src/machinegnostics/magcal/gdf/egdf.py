@@ -37,6 +37,7 @@ class EGDF(BaseEGDF):
         LB (float): Lower Probable Bound - practical lower limit for the distribution.
         UB (float): Upper Probable Bound - practical upper limit for the distribution.
         S (float or str): Scale parameter for the distribution. Set to 'auto' for automatic estimation.
+        z0_optimize (bool): Whether to optimize the location parameter z0 during fitting (default: True).
         data_form (str): Form of the data processing:
             - 'a': Additive form (default) - treats data linearly
             - 'm': Multiplicative form - applies logarithmic transformation
@@ -153,6 +154,7 @@ class EGDF(BaseEGDF):
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
+                z0_optimize: bool = True,
                 tolerance: float = 1e-9,
                 data_form: str = 'a',
                 n_points: int = 500,
@@ -265,6 +267,7 @@ class EGDF(BaseEGDF):
             LB=LB,
             UB=UB,
             S=S,
+            z0_optimize=z0_optimize,
             tolerance=tolerance,
             data_form=data_form,
             n_points=n_points,
