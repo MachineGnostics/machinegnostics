@@ -515,17 +515,17 @@ class BaseMarginalAnalysisEGDF:
         return False
 
         
-    def _is_homogeneous(self):
-        """
-        Check if the data is homogeneous.
-        Returns True if homogeneous, False otherwise.
-        """
-        ih = DataHomogeneity(self.init_egdf, catch=self.catch, verbose=self.verbose)
-        is_homogeneous = ih.test_homogeneity()
+    # def _is_homogeneous(self):
+    #     """
+    #     Check if the data is homogeneous.
+    #     Returns True if homogeneous, False otherwise.
+    #     """
+    #     ih = DataHomogeneity(self.init_egdf, catch=self.catch, verbose=self.verbose)
+    #     is_homogeneous = ih.test_homogeneity()
 
-        if self.catch:
-            self.params['is_homogeneous'] = is_homogeneous
-        return is_homogeneous
+    #     if self.catch:
+    #         self.params['is_homogeneous'] = is_homogeneous
+    #     return is_homogeneous
 
 
     def _estimate_sample_bound_newton(self, bound_type='lower'):
@@ -805,8 +805,9 @@ class BaseMarginalAnalysisEGDF:
                              verbose=self.verbose)
         is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
         # cluster bounds
-        self.CLB = self.ih.CLB
-        self.CUB = self.ih.CUB
+        if self.estimate_cluster_bounds:
+            self.CLB = self.ih.CLB
+            self.CUB = self.ih.CUB
 
         if self.catch:
             self.params.update(self.ih.params)
@@ -834,9 +835,9 @@ class BaseMarginalAnalysisEGDF:
             self._get_initial_egdf()
 
             # homogeneous check
-            self._is_homogeneous = self._is_homogeneous()
+            self._is_homogeneous_data = self._is_homogeneous()
 
-            if self._is_homogeneous:
+            if self._is_homogeneous_data:
                 if self.verbose:
                     print("Data is homogeneous. Using homogeneous data for Marginal Analysis.")
             else:
@@ -844,7 +845,7 @@ class BaseMarginalAnalysisEGDF:
                     print("Data is heterogeneous. Need to estimate cluster bounds to find main cluster.")
             
             # h check
-            if self._is_homogeneous == False and self.get_clusters == False:
+            if self._is_homogeneous_data == False and self.get_clusters == False:
                 warnings.warn("Data is heterogeneous but get_clusters is False. "
                             "Consider setting 'get_clusters=True' to find main cluster bounds.")
 
@@ -856,7 +857,7 @@ class BaseMarginalAnalysisEGDF:
                 self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
 
             if self.verbose:
-                print(f"Marginal Analysis completed. Z0: {float(self.z0):.4f}, Homogeneous: {self._is_homogeneous}")
+                print(f"Marginal Analysis completed. Z0: {float(self.z0):.4f}, Homogeneous: {self._is_homogeneous_data}")
 
             # fit status update
             self._fitted = True
