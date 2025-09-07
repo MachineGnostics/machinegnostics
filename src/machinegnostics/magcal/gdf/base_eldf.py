@@ -78,15 +78,18 @@ class BaseELDF(BaseEGDF):
         self.flush = flush
         self._fitted = False  # To track if fit has been called
 
+        # Store initial parameters if catching
+        if self.catch:
+            self._store_initial_params()
+
         # Validate all inputs
-        self._validate_inputs()
+        # self._validate_inputs()
+
         # if S is float or int and is greater than 2, warn user
         if (isinstance(self.S, float) or isinstance(self.S, int)) and self.S > 2:
             warnings.warn("S is greater than 2, which may not suitable for local distribution estimation. Consider using in range [0, 2]", UserWarning)
 
-        # Store initial parameters if catching
-        if self.catch:
-            self._store_initial_params()
+        
 
     def _fit_eldf(self, plot: bool = True):
         """Fit the ELDF model to the data."""
@@ -135,8 +138,15 @@ class BaseELDF(BaseEGDF):
                 self._cleanup_computation_cache()
                     
         except Exception as e:
+            # log error
+            error_msg = f"ELDF fitting failed: {e}"
+            self.params['errors'].append({
+                'method': '_fit_eldf',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
             if self.verbose:
-                print(f"Error during EGDF fitting: {e}")
+                print(f"Error during ELDF fitting: {e}")
             raise e
 
 
@@ -218,73 +228,72 @@ class BaseELDF(BaseEGDF):
 
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis - ELDF."""
-        # try:
-        # Generate smooth ELDF and PDF
-        if self.varS:
+        try:
+            # Generate smooth ELDF and PDF
+            if self.varS:
+                if self.verbose:
+                    print("Generating smooth curves with varying S...")
+
+                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                    self.S_opt, self.LB_opt, self.UB_opt,
+                    zi_data=self.z_points_n, zi_eval=self.z
+                )
+                # svar
+                scale = ScaleParam()
+                S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0))
+                # re-evaluate ELDF with smoothed variance
+                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                    S_var_smooth, self.LB_opt, self.UB_opt,
+                    zi_data=self.z_points_n, zi_eval=self.z
+                )
+
+                smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi)
+
+            else:
+                if self.verbose:
+                    print("Generating smooth curves without varying S...")
+
+                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                    self.S_opt, self.LB_opt, self.UB_opt,
+                    zi_data=self.z_points_n, zi_eval=self.z
+                )
+                smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
+        
+            self.eldf_points = smooth_eldf
+            self.pdf_points = smooth_pdf
+            
+            # Store zi_n for derivative calculations
+            self.zi_n = DataConversion._convert_fininf(self.z_points_n, self.LB_opt, self.UB_opt)
+            
+            # Mark as generated
+            self._computation_cache['smooth_curves_generated'] = True
+            
+            if self.catch:
+                self.params.update({
+                    'eldf_points': self.eldf_points.copy(),
+                    'pdf_points': self.pdf_points.copy(),
+                    'zi_points': self.zi_n.copy()
+                })
+            
             if self.verbose:
-                print("Generating smooth curves with varying S...")
-
-            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                self.S_opt, self.LB_opt, self.UB_opt,
-                zi_data=self.z_points_n, zi_eval=self.z
-            )
-            # svar
-            scale = ScaleParam()
-            S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0))
-            # re-evaluate ELDF with smoothed variance
-            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                S_var_smooth, self.LB_opt, self.UB_opt,
-                zi_data=self.z_points_n, zi_eval=self.z
-            )
-
-            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi)
-
-        else:
-            if self.verbose:
-                print("Generating smooth curves without varying S...")
-
-            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                self.S_opt, self.LB_opt, self.UB_opt,
-                zi_data=self.z_points_n, zi_eval=self.z
-            )
-            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
-      
-        self.eldf_points = smooth_eldf
-        self.pdf_points = smooth_pdf
-        
-        # Store zi_n for derivative calculations
-        self.zi_n = DataConversion._convert_fininf(self.z_points_n, self.LB_opt, self.UB_opt)
-        
-        # Mark as generated
-        self._computation_cache['smooth_curves_generated'] = True
-        
-        if self.catch:
-            self.params.update({
-                'eldf_points': self.eldf_points.copy(),
-                'pdf_points': self.pdf_points.copy(),
-                'zi_points': self.zi_n.copy()
-            })
-        
-        if self.verbose:
-            print(f"Generated smooth curves with {self.n_points} points.")
+                print(f"Generated smooth curves with {self.n_points} points.")
                 
-        # except Exception as e:
-        #     if self.verbose:
-        #         print(f"Warning: Could not generate smooth curves: {e}")
+        except Exception as e:
+            # log error
+            error_msg = f"Smooth curve generation failed: {e}"
+            self.params['errors'].append({
+                'method': '_generate_smooth_curves',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
 
-        #     # Create fallback points using original data
-        #     self.eldf_points = self.eldf.copy() if hasattr(self, 'eldf') else None
-        #     self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
-        #     self._computation_cache['smooth_curves_generated'] = False
+            if self.verbose:
+                print(f"Warning: Could not generate smooth curves: {e}")
 
-    def _compute_varS(self):
-        """Compute the varying S for the ELDF model."""
-        # Implement variance computation logic here
-        pass
-
-    def fit(self, plot: bool = False):
-        """Fit the ELDF model to the data."""
-        self._fit_eldf(plot=plot)
+            # Create fallback points using original data
+            self.eldf_points = self.eldf.copy() if hasattr(self, 'eldf') else None
+            self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
+            self._computation_cache['smooth_curves_generated'] = False
 
     
     def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
@@ -517,115 +526,3 @@ class BaseELDF(BaseEGDF):
         
         return fourth_derivative.flatten()
     
-
-    def _compute_z0(self, optimize: bool = None):
-        """
-        Compute the Z0 point where PDF is maximum using the Z0Estimator class.
-        
-        Parameters:
-        -----------
-        optimize : bool, optional
-            If True, use interpolation-based methods for higher accuracy.
-            If False, use simple linear search on existing points.
-            If None, uses the instance's z0_optimize setting.
-        """
-        if self.z is None:
-            raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
-        
-        # Use provided optimize parameter or fall back to instance setting
-        use_optimize = optimize if optimize is not None else self.z0_optimize
-        
-        if self.verbose:
-            print('ELDF: Computing Z0 point using Z0Estimator...')
-
-        try:
-            # Create Z0Estimator instance with proper constructor signature
-            z0_estimator = Z0Estimator(
-                gdf_object=self,  # Pass the ELDF object itself
-                optimize=use_optimize,
-                verbose=self.verbose
-            )
-            
-            # Call fit() method to estimate Z0
-            self.z0 = z0_estimator.fit()
-            
-            # Get estimation info for debugging and storage
-            if self.catch:
-                estimation_info = z0_estimator.get_estimation_info()
-                self.params.update({
-                    'z0': float(self.z0),
-                    'z0_method': estimation_info.get('z0_method', 'unknown'),
-                    'z0_estimation_info': estimation_info
-                })
-            
-            if self.verbose:
-                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
-                print(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
-                
-        except Exception as e:
-            if self.verbose:
-                print(f"Warning: Z0Estimator failed with error: {e}")
-                print("Falling back to simple maximum finding...")
-            
-            # Fallback to simple maximum finding
-            self._compute_z0_fallback()
-            
-            if self.catch:
-                self.params.update({
-                    'z0': float(self.z0),
-                    'z0_method': 'fallback_simple_maximum',
-                    'z0_estimation_info': {'error': str(e)}
-                })
-
-    def _compute_z0_fallback(self):
-        """
-        Fallback method for Z0 computation using simple maximum finding.
-        """
-        if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
-            raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
-        
-        if self.verbose:
-            print('ELDF: Using fallback method for Z0 point...')
-        
-        # Find index with maximum PDF
-        max_idx = np.argmax(self.pdf_points)
-        self.z0 = self.di_points_n[max_idx]
-
-        if self.verbose:
-            print(f"Z0 point (fallback method): {self.z0:.6f}")
-
-        
-    def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
-        """
-        Analyze and visualize Z0 estimation results.
-        
-        Parameters:
-        -----------
-        figsize : tuple
-            Figure size for the plot
-            
-        Returns:
-        --------
-        Dict[str, Any]
-            Z0 analysis information
-        """
-        if not hasattr(self, 'z0') or self.z0 is None:
-            raise ValueError("Z0 must be computed before analysis. Call fit() first.")
-        
-        # Create Z0Estimator for analysis
-        z0_estimator = Z0Estimator(
-            gdf_object=self,
-            optimize=self.z0_optimize,
-            verbose=self.verbose
-        )
-        
-        # Re-estimate for analysis (this is safe since it's already computed)
-        z0_estimator.fit()
-        
-        # Get detailed info
-        analysis_info = z0_estimator.get_estimation_info()
-        
-        # Create visualization
-        z0_estimator.plot_z0_analysis(figsize=figsize)
-        
-        return analysis_info
