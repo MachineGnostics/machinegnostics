@@ -179,5 +179,6 @@ examples/mlruns
 tests/checks/
 
 # take out old dist func
+.DS_Store
 src/machinegnostics/magcal/x_distfunc/*
 src/machinegnostics/magcal/x_gdf/*
