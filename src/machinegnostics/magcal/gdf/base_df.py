@@ -31,9 +31,9 @@ class BaseDistFunc(ABC):
         """
         pass
 
-    @abstractmethod
-    def results(self):
-        """
-        Return the results of the fitted distribution function.
-        """
-        pass
+    # @abstractmethod
+    # def results(self):
+    #     """
+    #     Return the results of the fitted distribution function.
+    #     """
+    #     pass

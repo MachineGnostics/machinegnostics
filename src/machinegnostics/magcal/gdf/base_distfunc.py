@@ -125,7 +125,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         # varS can be only true with S = 'auto'
         if self.varS and self.S != 'auto':
             raise ValueError("varS can only be true when S is set to 'auto'.")
-
+    
         if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
             raise ValueError("Tolerance must be a positive numeric value.")
         
@@ -152,13 +152,58 @@ class BaseDistFuncCompute(BaseDistFunc):
             warnings.warn(f"Data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). "
                           "For optimal compute performance, set 'flush=True' or increase 'max_data_size'.")
             self.flush = True
-
+    
         # Boolean parameters
         for param, name in [(self.homogeneous, 'homogeneous'), (self.catch, 'catch'), 
                            (self.wedf, 'wedf'), (self.verbose, 'verbose')]:
             if not isinstance(param, bool):
                 raise ValueError(f"{name} must be a boolean value.")
-
+    
+        # Missing validations:
+        
+        # 1. z0_optimize validation
+        if not isinstance(self.z0_optimize, bool):
+            raise ValueError("z0_optimize must be a boolean value.")
+        
+        # 2. opt_method validation
+        valid_methods = ['L-BFGS-B', 'SLSQP', 'TNC', 'trust-constr', 'Powell', 'COBYLA']
+        if not isinstance(self.opt_method, str):
+            raise ValueError("opt_method must be a string.")
+        if self.opt_method not in valid_methods:
+            raise ValueError(f"opt_method must be one of {valid_methods}.")
+        
+        # 3. max_data_size validation
+        if not isinstance(self.max_data_size, int) or self.max_data_size <= 0:
+            raise ValueError("max_data_size must be a positive integer.")
+        
+        # 4. Data dimensional validation
+        if self.data.ndim != 1:
+            raise ValueError("Data must be a 1-dimensional array.")
+        
+        # 5. Bounds logical validation
+        if self.DLB is not None and self.DUB is not None and self.DLB >= self.DUB:
+            raise ValueError("DLB must be less than DUB when both are provided.")
+        if self.LB is not None and self.UB is not None and self.LB >= self.UB:
+            raise ValueError("LB must be less than UB when both are provided.")
+        
+        # 6. S string validation when it's a string
+        if isinstance(self.S, str) and self.S.lower() != 'auto':
+            raise ValueError("When S is a string, it must be 'auto'.")
+        
+        # 7. Weights finite values validation
+        if self.weights is not None and not np.isfinite(self.weights).all():
+            raise ValueError("All weights must be finite values.")
+        
+        # 8. n_points reasonable range validation
+        if self.n_points > 10000:
+            warnings.warn(f"n_points ({self.n_points}) is very large and may impact performance.")
+        
+        # 9. tolerance range validation
+        if self.tolerance > 1.0:
+            warnings.warn(f"tolerance ({self.tolerance}) is unusually large.")
+        if self.tolerance < 1e-10:
+            warnings.warn(f"tolerance ({self.tolerance}) is very small and may cause numerical issues.")
+            
     def _store_initial_params(self):
         """Store initial parameters for reference."""
         self.params.update({
@@ -172,8 +217,17 @@ class BaseDistFuncCompute(BaseDistFunc):
             'data_form': self.data_form,
             'n_points': self.n_points,
             'homogeneous': self.homogeneous,
-            'weights': self.weights.copy() if self.weights is not None else None
-        })
+            'weights': self.weights.copy() if self.weights is not None else None,
+            'wedf': None,
+            'opt_method': self.opt_method,
+            'varS': self.varS,
+            'z0_optimize': self.z0_optimize,
+            'max_data_size': self.max_data_size,
+            'flush': self.flush,
+            'verbose': self.verbose,
+            'warnings': [],
+            'errors': [],
+            })
 
     # =============================================================================
     # DATA PREPROCESSING AND TRANSFORMATION
