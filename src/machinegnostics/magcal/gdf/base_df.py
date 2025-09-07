@@ -30,3 +30,10 @@ class BaseDistFunc(ABC):
         Plot the distribution function.
         """
         pass
+
+    @abstractmethod
+    def results(self):
+        """
+        Return the results of the fitted distribution function.
+        """
+        pass
