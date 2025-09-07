@@ -7,6 +7,7 @@ Machine Gnostics
 
 import numpy as np
 import warnings
+from typing import Dict, Any
 from scipy.optimize import minimize
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
@@ -95,9 +96,6 @@ class BaseDistFuncCompute(BaseDistFunc):
             'weights_normalized': None,
             'smooth_curves_generated': False
         }
-
-        # params
-        self._store_initial_params()
         
     # =============================================================================
     # VALIDATION AND INITIALIZATION
@@ -456,8 +454,8 @@ class BaseDistFuncCompute(BaseDistFunc):
                     })
                     raise TypeError(error_msg)
             
-            if self.verbose:
-                print("Input validation completed successfully.")
+            # if self.verbose:
+            #     print("Input validation completed successfully.")
                 if self.params['warnings']:
                     print(f"Generated {len(self.params['warnings'])} warnings during validation.")
         
@@ -1040,3 +1038,38 @@ class BaseDistFuncCompute(BaseDistFunc):
 
         if self.verbose:
             print(f"Z0 point (fallback method): {self.z0:.6f}")
+
+    def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
+        """
+        Analyze and visualize Z0 estimation results.
+        
+        Parameters:
+        -----------
+        figsize : tuple
+            Figure size for the plot
+            
+        Returns:
+        --------
+        Dict[str, Any]
+            Z0 analysis information
+        """
+        if not hasattr(self, 'z0') or self.z0 is None:
+            raise ValueError("Z0 must be computed before analysis. Call fit() first.")
+        
+        # Create Z0Estimator for analysis
+        z0_estimator = Z0Estimator(
+            gdf_object=self,
+            optimize=self.z0_optimize,
+            verbose=self.verbose
+        )
+        
+        # Re-estimate for analysis (this is safe since it's already computed)
+        z0_estimator.fit()
+        
+        # Get detailed info
+        analysis_info = z0_estimator.get_estimation_info()
+        
+        # Create visualization
+        z0_estimator.plot_z0_analysis(figsize=figsize)
+        
+        return analysis_info
