@@ -96,13 +96,13 @@ class BaseEGDF(BaseDistFuncCompute):
             'smooth_curves_generated': False
         }
         
-        # Validate all inputs
-        self._validate_inputs()
-        
         # Store initial parameters if catching
         if self.catch:
             self._store_initial_params()
 
+        # Validate all inputs
+        self._validate_inputs()
+        
 
     def _compute_egdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
         """Core EGDF computation with caching."""
