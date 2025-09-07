@@ -581,6 +581,16 @@ class BaseEGDF(BaseDistFuncCompute):
         self.fi = gc._fi(q=q, q1=q1)
         self.hi = gc._hi(q=q, q1=q1)
 
+    def _get_results(self)-> dict:
+        """Return fitting results."""
+        if not self._fitted:
+            raise RuntimeError("Must fit EGDF before getting results.")
+        
+        # selected key from params if exists
+        keys = ['DLB', 'DUB', 'LB', 'UB', 'S_opt', 'z0', 'egdf', 'pdf', 
+                'egdf_points', 'pdf_points', 'zi', 'zi_points', 'weights']
+        results = {key: self.params.get(key) for key in keys if key in self.params}
+        return results
 
     # =============================================================================
     # MAIN FITTING PROCESS

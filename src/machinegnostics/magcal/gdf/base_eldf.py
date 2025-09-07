@@ -526,3 +526,14 @@ class BaseELDF(BaseEGDF):
         
         return fourth_derivative.flatten()
     
+    def _get_results(self)-> dict:
+        """Return fitting results."""
+        if not self._fitted:
+            raise RuntimeError("Must fit ELDF before getting results.")
+        
+        # selected key from params if exists
+        keys = ['DLB', 'DUB', 'LB', 'UB', 'S_opt', 'z0', 'eldf', 'pdf',
+                'eldf_points', 'pdf_points', 'zi', 'zi_points', 'weights']
+        results = {key: self.params.get(key) for key in keys if key in self.params}
+        return results
+    
