@@ -19,6 +19,7 @@ from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
 from machinegnostics.magcal.gdf.eldf_ma import MarginalAnalysisELDF
 from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
+from machinegnostics.magcal.gdf.eldf_intv import IntervalAnalysisELDF
 
 
 # g correlation function

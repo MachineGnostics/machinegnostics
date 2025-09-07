@@ -201,56 +201,63 @@ class BaseIntervalAnalysisELDF(BaseMarginalAnalysisELDF):
         -------
         Various exceptions from underlying ELDF fitting or interval engine
         """
-        # fit ELDF
-        # extract z0, and bounds
-        self._get_init_eldf_fit(plot=plot)
+        try:
+            # fit ELDF
+            # extract z0, and bounds
+            self._get_init_eldf_fit(plot=plot)
 
-        # homogeneity check, pick counts, cluster bounds
-        self.is_homogeneous = self._is_homogeneous()
-        # user understanding check with data homogeneity
-        self._homogeneity_validation_and_msg()
+            # homogeneity check, pick counts, cluster bounds
+            self.is_homogeneous = self._is_homogeneous()
+            # user understanding check with data homogeneity
+            self._homogeneity_validation_and_msg()
 
-        # get main cluster and other clusters
-        self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
+            # get main cluster and other clusters
+            self.lower_cluster, self.main_cluster, self.upper_cluster = self._get_cluster()
 
-        # main cluster check
-        self._main_cluster_validation_and_msg()
+            # main cluster check
+            self._main_cluster_validation_and_msg()
 
-        # if data is not homogeneous, user option
-        # get the main cluster and the cluster bounds
-        if not self.homogeneous and self.get_clusters and len(self.main_cluster) > 4: # + user choice
-            self._get_main_init_eldf(self.main_cluster, plot=plot)
+            # if data is not homogeneous, user option
+            # get the main cluster and the cluster bounds
+            if not self.homogeneous and self.get_clusters and len(self.main_cluster) > 4: # + user choice
+                self._get_main_init_eldf(self.main_cluster, plot=plot)
 
-        if self.verbose:
-                print("Initiating ELDF Interval Analysis...")
-                
-        # intv analysis
-        # get extended ELDF with a new datum
-        self.intv = IntveEngine(self.init_eldf,
-                            n_points_per_direction=self.n_points_per_direction,
-                            dense_zone_fraction=self.dense_zone_fraction,
-                            dense_points_fraction=self.dense_points_fraction,
-                            convergence_window=self.convergence_window,
-                            convergence_threshold=self.convergence_threshold,
-                            min_search_points=self.min_search_points,
-                            boundary_margin_factor=self.boundary_margin_factor,
-                            extrema_search_tolerance=self.extrema_search_tolerance,
-                            verbose=self.verbose)
+            if self.verbose:
+                    print("Initiating ELDF Interval Analysis...")
+                    
+            # intv analysis
+            # get extended ELDF with a new datum
+            self.intv = IntveEngine(self.init_eldf,
+                                n_points_per_direction=self.n_points_per_direction,
+                                dense_zone_fraction=self.dense_zone_fraction,
+                                dense_points_fraction=self.dense_points_fraction,
+                                convergence_window=self.convergence_window,
+                                convergence_threshold=self.convergence_threshold,
+                                min_search_points=self.min_search_points,
+                                boundary_margin_factor=self.boundary_margin_factor,
+                                extrema_search_tolerance=self.extrema_search_tolerance,
+                                verbose=self.verbose)
 
-        self.intv.fit(plot=plot, update_df_params=True)
-        # extract results
-        self.Z0 = self.intv.z0
-        self.Z0L = self.intv.z0l
-        self.Z0U = self.intv.z0u
-        self.ZL = self.intv.zl
-        self.ZU = self.intv.zu
+            self.intv.fit(plot=plot, update_df_params=True)
+            # extract results
+            self.Z0 = self.intv.z0
+            self.Z0L = self.intv.z0l
+            self.Z0U = self.intv.z0u
+            self.ZL = self.intv.zl
+            self.ZU = self.intv.zu
 
-        # status update
-        self._fitted = True
+            # status update
+            self._fitted = True
 
-        # verbose message
-        if self.verbose:
-            print("ELDF Interval Analysis completed.")
+            # plot intv
+            if plot:
+                self._plot_eldf_intv(figsize=(12, 8))
+
+            # verbose message
+            if self.verbose:
+                print("ELDF Interval Analysis completed.")
+        except Exception as e:
+            raise RuntimeError(f"ELDF Interval Analysis failed: {str(e)}")
 
     def _main_cluster_validation_and_msg(self):
         """

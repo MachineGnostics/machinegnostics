@@ -18,17 +18,12 @@ class BaseMarginalAnalysisEGDF:
 
     def __init__(self,
                 data: np.ndarray,
-                sample_bound_tolerance: float = 0.1,
-                max_iterations: int = 10000,
-                early_stopping_steps: int = 10,
-                estimating_rate: float = 0.1,
-                cluster_threshold: float = 0.05,
-                get_clusters: bool = True,
                 DLB: float = None,
                 DUB: float = None,
                 LB: float = None,
                 UB: float = None,
                 S = 'auto',
+                z0_optimize: bool = True,
                 tolerance: float = 1e-6,
                 data_form: str = 'a',
                 n_points: int = 1000,
@@ -39,7 +34,13 @@ class BaseMarginalAnalysisEGDF:
                 opt_method: str = 'L-BFGS-B',
                 verbose: bool = False,
                 max_data_size: int = 1000,
-                flush: bool = False):
+                flush: bool = False,
+                sample_bound_tolerance: float = 0.1,
+                max_iterations: int = 10000,
+                early_stopping_steps: int = 10,
+                estimating_rate: float = 0.1,
+                cluster_threshold: float = 0.05,
+                get_clusters: bool = True,):
 
         self.data = data
         self.sample_bound_tolerance = sample_bound_tolerance  # derivative sample bound tolerance
@@ -53,6 +54,7 @@ class BaseMarginalAnalysisEGDF:
         self.LB = LB  # lower bound for EGDF
         self.UB = UB  # upper bound for EGDF
         self.S = S  # scaling factor for EGDF
+        self.z0_optimize = z0_optimize # EGDF
         self.tolerance = tolerance  # tolerance for calculations
         self.data_form = data_form  # format of the data
         self.n_points = n_points  # number of points for calculations
@@ -136,7 +138,7 @@ class BaseMarginalAnalysisEGDF:
         #     if self.distribution not in ['eldf', 'qldf']:
         #         raise ValueError(f"Variable S (varS) can only be 'TRUE' for 'ELDF' and 'QLDF' distributions. Current distribution: {self.distribution}.")
     
-    def _get_initial_egdf(self):
+    def _get_initial_egdf(self, plot: bool = False):
         """Get initial EGDF based on the distribution."""
         
         # Initialize BaseEGDF with the provided parameters and base data
@@ -147,6 +149,7 @@ class BaseMarginalAnalysisEGDF:
             LB=self.LB,
             UB=self.UB,
             S=self.S,
+            z0_optimize=self.z0_optimize,
             tolerance=self.tolerance,
             data_form=self.data_form,
             n_points=self.n_points,
@@ -160,7 +163,7 @@ class BaseMarginalAnalysisEGDF:
             flush=self.flush
         )
         # fitting the initial EGDF
-        self.init_egdf.fit(plot=False)
+        self.init_egdf.fit(plot=plot)
 
         # saving bounds from initial EGDF
         self.LB = self.init_egdf.LB
@@ -254,6 +257,7 @@ class BaseMarginalAnalysisEGDF:
         
         egdf_extended = EGDF(
             data=data_extended,
+            z0_optimize=self.z0_optimize,
             tolerance=self.tolerance,
             data_form=self.data_form,
             n_points=self.n_points,
@@ -805,9 +809,8 @@ class BaseMarginalAnalysisEGDF:
                              verbose=self.verbose)
         is_homogeneous = self.ih.test_homogeneity(estimate_cluster_bounds=self.estimate_cluster_bounds) # NOTE set true as default because we want to get cluster bounds in marginal analysis
         # cluster bounds
-        if self.estimate_cluster_bounds:
-            self.CLB = self.ih.CLB
-            self.CUB = self.ih.CUB
+        self.CLB = self.ih.CLB
+        self.CUB = self.ih.CUB
 
         if self.catch:
             self.params.update(self.ih.params)
@@ -825,6 +828,28 @@ class BaseMarginalAnalysisEGDF:
             lower_cluster, main_cluster, upper_cluster = (None, None, None)
 
         return lower_cluster, main_cluster, upper_cluster
+    
+    def _get_global_cluster(self):
+        """
+        get data in range of LSB and USB if available, otherwise data as is
+
+        main cluster is determined by LSB and USB if available
+        lower cluster is data below LSB if available
+        upper cluster is data above USB if available
+        """
+        if self.get_clusters:
+            if self.verbose:
+                print("Getting clusters from data...")
+            if hasattr(self, 'LSB') and hasattr(self, 'USB') and self.LSB is not None and self.USB is not None:
+                main_cluster = self.init_egdf.data[(self.init_egdf.data >= self.LSB) & (self.init_egdf.data <= self.USB)]
+                lower_cluster = self.init_egdf.data[self.init_egdf.data < self.LSB]
+                upper_cluster = self.init_egdf.data[self.init_egdf.data > self.USB]
+            else:
+                main_cluster = self.init_egdf.data
+                lower_cluster = None
+                upper_cluster = None
+
+        return lower_cluster, main_cluster, upper_cluster
 
     def _fit_egdf(self, plot=True):
         try:
@@ -832,7 +857,7 @@ class BaseMarginalAnalysisEGDF:
                 print("\n\nFitting EGDF Marginal Analysis...")
 
             # get initial EGDF and z0
-            self._get_initial_egdf()
+            self._get_initial_egdf(plot=False)
 
             # homogeneous check
             self._is_homogeneous_data = self._is_homogeneous()
