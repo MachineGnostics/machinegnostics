@@ -46,6 +46,7 @@ class ELDF(BaseELDF):
         LB (float): Lower Probable Bound - practical lower limit for the distribution.
         UB (float): Upper Probable Bound - practical upper limit for the distribution.
         S (float or str): Scale parameter for the distribution. Set to 'auto' for automatic estimation. Consider using S value in range [0, 2].
+        varS (bool): Whether to allow variable scale parameter during optimization (default: False).
         z0_optimize (bool): Whether to use advanced optimization for Z0 point estimation (default: True).
         tolerance (float): Convergence tolerance for optimization (default: 1e-5).
         data_form (str): Form of the data processing:
@@ -67,6 +68,7 @@ class ELDF(BaseELDF):
         fit(plot=False): Fit the Estimating Local Distribution Function to the data.
         plot(plot_smooth=True, plot='both', bounds=True, extra_df=True, figsize=(12,8)): 
             Visualize the fitted local distribution with PDF and ELDF curves.
+        results(): Get the fitting results as a dictionary.
     
     Examples:
         Basic usage with default parameters:
@@ -569,3 +571,183 @@ class ELDF(BaseELDF):
                    bounds=bounds,
                    extra_df=extra_df,
                    figsize=figsize)
+    
+        """Return fitting results."""
+    
+    def results(self) -> dict:
+        """
+        Retrieve the fitted parameters and comprehensive results from the ELDF fitting process.
+
+        This method provides access to all key results obtained after fitting the Estimating Local Distribution Function (ELDF) to the data. 
+        It returns a comprehensive dictionary containing fitted parameters, distribution values, Z0 point estimation details, 
+        optimization results, and diagnostic information for local distribution analysis.
+
+        The ELDF results are specifically focused on local distribution characteristics and include detailed information
+        about the Z0 point (Gnostic Mean) where the PDF reaches its maximum, making it particularly valuable for
+        peak detection, modal analysis, and local density estimation applications.
+
+        The results include:
+            - Fitted distribution bounds (DLB, DUB, LB, UB)
+            - Optimal scale parameter (S_opt) and variable scale information if applicable
+            - Z0 point (Gnostic Mean) and detailed estimation metadata
+            - ELDF values and smooth curve points for local distribution function
+            - PDF values and points for probability density analysis around critical regions
+            - Interpolated evaluation points and their corresponding function values
+            - Weights applied during fitting process
+            - Z0 estimation method used and convergence information
+            - Optimization history and performance metrics
+            - Error and warning logs from the fitting process
+
+        Returns:
+            dict: A comprehensive dictionary containing fitted parameters and local distribution results.
+                Primary keys include:
+                
+                Core Parameters:
+                - 'DLB': Data Lower Bound used in fitting
+                - 'DUB': Data Upper Bound used in fitting
+                - 'LB': Lower Probable Bound for the distribution
+                - 'UB': Upper Probable Bound for the distribution
+                - 'S_opt': Optimal scale parameter estimated during fitting
+                - 'varS': Whether variable scale was used (for advanced ELDF variants)
+                
+                Z0 Analysis (Local Distribution Focus):
+                - 'z0': The Z0 point where PDF reaches maximum (Gnostic Mean)
+                - 'z0_method': Method used for Z0 estimation ('spline', 'polynomial', 'refined', etc.)
+                - 'z0_estimation_info': Detailed metadata about Z0 optimization process
+                - 'z0_convergence': Convergence status and iteration count for Z0 estimation
+                
+                Distribution Functions:
+                - 'eldf': ELDF values at evaluation points (local distribution characteristics)
+                - 'pdf': PDF values emphasizing local density around critical points
+                - 'eldf_points': Points at which ELDF is evaluated for smooth curves
+                - 'pdf_points': Points at which PDF is evaluated for density analysis
+                - 'zi': Transformed data points in standard domain
+                - 'zi_points': Corresponding points for zi values
+                
+                Data and Processing:
+                - 'data': Original sorted input data
+                - 'weights': Weights applied to data points during fitting
+                - 'data_form': Form used for data processing ('a' for additive, 'm' for multiplicative)
+                - 'n_points': Number of points used for smooth curve generation
+                
+                Quality and Diagnostics:
+                - 'fitted': Boolean indicating successful fitting completion
+                - 'tolerance': Convergence tolerance used in optimization
+                - 'opt_method': Optimization method employed
+                - 'warnings': List of warnings encountered during fitting
+                - 'errors': List of errors encountered during fitting (if any)
+                - 'optimization_history': Detailed optimization iteration history (if available)
+
+        Raises:
+            RuntimeError: If fit() has not been called before accessing results.
+                        The ELDF model must be successfully fitted before results can be retrieved.
+            AttributeError: If internal result structure is corrupted or missing due to fitting issues.
+            KeyError: If expected result keys are missing, possibly due to fitting failure or
+                    incomplete parameter estimation.
+            ValueError: If internal state is inconsistent or invalid for result retrieval,
+                    which may occur if the fitting process was interrupted.
+
+        Side Effects:
+            None. This method is read-only and does not modify the internal state of the ELDF object.
+            It safely accesses stored results without affecting future operations.
+
+        Examples:
+            Basic usage after fitting:
+            >>> eldf = ELDF(data, z0_optimize=True, verbose=True)
+            >>> eldf.fit()
+            >>> results = eldf.results()
+            >>> print(f"Z0 point: {results['z0']:.6f}")
+            >>> print(f"Z0 method: {results['z0_method']}")
+            
+            Accessing ELDF-specific local distribution parameters:
+            >>> S_opt = results['S_opt']
+            >>> z0_point = results['z0']
+            >>> z0_method = results['z0_method']
+            >>> eldf_values = results['eldf']
+            >>> pdf_values = results['pdf']
+            
+            Comprehensive analysis of local distribution:
+            >>> print(f"Fitted bounds: LB={results['LB']:.3f}, UB={results['UB']:.3f}")
+            >>> print(f"Z0 estimation: {results['z0']:.6f} using {results['z0_method']} method")
+            >>> print(f"Scale parameter: {results['S_opt']:.6f}")
+            >>> if results['warnings']:
+            ...     print(f"Warnings: {len(results['warnings'])} encountered")
+            
+            Advanced Z0 analysis:
+            >>> z0_info = results.get('z0_estimation_info', {})
+            >>> if z0_info:
+            ...     print(f"Z0 optimization iterations: {z0_info.get('iterations', 'N/A')}")
+            ...     print(f"Z0 convergence status: {z0_info.get('converged', 'Unknown')}")
+            
+            Quality assessment:
+            >>> if results.get('errors'):
+            ...     print(f"Errors during fitting: {len(results['errors'])}")
+            >>> if results.get('optimization_history'):
+            ...     print(f"Optimization steps: {len(results['optimization_history'])}")
+
+        Applications:
+            The ELDF results are particularly useful for:
+            - Peak detection and modal analysis (via Z0 point)
+            - Local density estimation around critical values
+            - Risk analysis focusing on maximum likelihood points
+            - Quality control around specification limits
+            - Process optimization near optimal operating points
+            - Anomaly detection based on local distribution characteristics
+            - Financial modeling with focus on peak probability regions
+            - Environmental monitoring around critical thresholds
+
+        Interpretation Guide:
+            Z0 Point Analysis:
+            - 'z0': The most probable value where PDF is maximum (local peak)
+            - 'z0_method': Indicates reliability of Z0 estimation (spline > polynomial > refined > simple)
+            - Values close to data median suggest symmetric local distribution
+            - Values far from median indicate skewed local characteristics
+            
+            Local Distribution Assessment:
+            - 'eldf': Shows cumulative local probability characteristics
+            - 'pdf': Reveals local density concentration and spread
+            - High PDF values around Z0 indicate strong local concentration
+            - Wide PDF spread suggests more distributed local probability
+            
+            Quality Indicators:
+            - Empty 'warnings' and 'errors' lists indicate clean fitting
+            - 'z0_convergence' status should show successful convergence
+            - Reasonable 'S_opt' values (typically 0.1 to 10) suggest good fit
+
+        Performance Considerations:
+            - Results access is immediate and does not trigger recomputation
+            - Large datasets may have extensive optimization history
+            - Z0 estimation information provides insights into computational complexity
+            - All arrays in results use minimal memory representation
+
+        Notes:
+            - The fit() method must be successfully called before accessing results
+            - Z0-related results are only available if z0_optimize=True was used
+            - If catch=False was set during initialization, some detailed results may be unavailable
+            - Variable scale results ('varS') are only present for advanced ELDF variants
+            - Smooth curve points ('eldf_points', 'pdf_points') depend on n_points parameter
+            - The results structure is consistent across different ELDF configurations
+            - Results can be saved/loaded for reproducible analysis and reporting
+            - Advanced interpolation results provide insights into estimation method selection
+            - Warning and error logs help diagnose fitting issues and data quality problems
+
+        Troubleshooting:
+            Missing Results:
+            - Ensure fit() completed without raising exceptions
+            - Check that catch=True was used if detailed results are needed
+            - Verify z0_optimize=True if Z0-related results are required
+            
+            Incomplete Results:
+            - May indicate fitting convergence issues
+            - Check 'warnings' and 'errors' in results for diagnostic information
+            - Consider adjusting tolerance or optimization method for problematic datasets
+            
+            Unexpected Values:
+            - Very large or small parameter values may indicate scaling issues
+            - Check data preprocessing and bounds specification
+            - Use verbose=True during fitting to monitor optimization progress
+        """
+        if not self._fitted:
+            raise RuntimeError("Must fit ELDF before getting results.")
+        
+        return self._get_results()

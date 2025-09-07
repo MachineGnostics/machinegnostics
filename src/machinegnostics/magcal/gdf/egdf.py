@@ -487,3 +487,207 @@ class EGDF(BaseEGDF):
                    bounds=bounds, 
                    extra_df=extra_df,
                    figsize=figsize)
+    
+    def results(self) -> dict:
+        """
+        Retrieve the fitted parameters and comprehensive results from the EGDF fitting process.
+    
+        This method provides access to all key results obtained after fitting the Estimating Global Distribution Function (EGDF) to the data. 
+        It returns a comprehensive dictionary containing fitted parameters, global distribution characteristics, optimization results, 
+        and diagnostic information for complete distribution analysis.
+    
+        The EGDF results focus on global distribution properties, providing a comprehensive view of the entire data distribution
+        rather than local characteristics. This makes it particularly valuable for reliability analysis, risk assessment, 
+        quality control, and understanding overall distribution behavior across the complete data range.
+    
+        The results include:
+            - Fitted global distribution bounds (DLB, DUB, LB, UB)
+            - Optimal scale parameter (S_opt) for global distribution fitting
+            - Location parameter (z0) if optimization was enabled
+            - EGDF values representing global distribution characteristics
+            - PDF values for overall probability density analysis
+            - Complete evaluation points covering the full distribution range
+            - Weights applied during global distribution fitting
+            - Optimization convergence information and performance metrics
+            - Error and warning logs from the fitting process
+    
+        Returns:
+            dict: A comprehensive dictionary containing fitted parameters and global distribution results.
+                  Primary keys include:
+                  
+                  Core Global Parameters:
+                  - 'DLB': Data Lower Bound used for global distribution fitting
+                  - 'DUB': Data Upper Bound used for global distribution fitting
+                  - 'LB': Lower Probable Bound for global distribution range
+                  - 'UB': Upper Probable Bound for global distribution range
+                  - 'S_opt': Optimal scale parameter estimated for global distribution
+                  - 'z0': Location parameter (if z0_optimize=True was used)
+                  
+                  Global Distribution Functions:
+                  - 'egdf': EGDF values representing global distribution characteristics
+                  - 'pdf': PDF values for comprehensive probability density analysis
+                  - 'cdf': Cumulative distribution function values (if computed)
+                  - 'egdf_points': Points covering full range for smooth EGDF curves
+                  - 'pdf_points': Points for complete PDF evaluation across distribution
+                  - 'zi': Transformed data points in standardized global domain
+                  - 'zi_points': Corresponding evaluation points for global analysis
+                  
+                  Data and Processing Information:
+                  - 'data': Original sorted input data used for global fitting
+                  - 'weights': Weights applied to data points (WEDF vs KS approach)
+                  - 'wedf': Boolean indicating if Weighted Empirical Distribution Function was used
+                  - 'data_form': Data processing form ('a' additive, 'm' multiplicative)
+                  - 'n_points': Number of points used for global distribution evaluation
+                  - 'homogeneous': Data homogeneity assumption used in fitting
+                  
+                  Optimization and Quality Metrics:
+                  - 'fitted': Boolean confirming successful global distribution fitting
+                  - 'tolerance': Convergence tolerance achieved in optimization
+                  - 'opt_method': Optimization method used for parameter estimation
+                  - 'max_data_size': Maximum data size limit applied during processing
+                  - 'flush': Whether memory flushing was used during computation
+                  
+                  Diagnostics and Quality Control:
+                  - 'warnings': List of warnings encountered during global fitting
+                  - 'errors': List of errors encountered during fitting (if any)
+                  - 'optimization_history': Detailed record of optimization iterations
+                  - 'convergence_info': Information about optimization convergence
+                  - 'goodness_of_fit': Metrics assessing global distribution fit quality
+    
+        Raises:
+            RuntimeError: If fit() has not been called before accessing results.
+                         The EGDF model must be successfully fitted before results can be retrieved.
+            AttributeError: If internal result structure is missing or corrupted due to fitting failure.
+            KeyError: If expected result keys are unavailable, possibly due to incomplete fitting
+                     or parameter estimation issues.
+            ValueError: If internal state is inconsistent for result retrieval, which may occur
+                       if the global distribution fitting process encountered numerical issues.
+            MemoryError: If results contain very large arrays that exceed available memory
+                        (relevant for large datasets with high n_points values).
+    
+        Side Effects:
+            None. This method provides read-only access to fitting results and does not modify
+            the internal state of the EGDF object or trigger any recomputation.
+    
+        Examples:
+            Basic usage after global distribution fitting:
+            >>> egdf = EGDF(data, verbose=True)
+            >>> egdf.fit()
+            >>> results = egdf.results()
+            >>> print(f"Global scale parameter: {results['S_opt']:.6f}")
+            >>> print(f"Distribution bounds: [{results['LB']:.3f}, {results['UB']:.3f}]")
+            
+            Accessing global distribution parameters:
+            >>> S_opt = results['S_opt']
+            >>> global_bounds = (results['LB'], results['UB'])
+            >>> egdf_values = results['egdf']
+            >>> pdf_values = results['pdf']
+            
+            Comprehensive global distribution analysis:
+            >>> print(f"Data bounds: DLB={results['DLB']:.3f}, DUB={results['DUB']:.3f}")
+            >>> print(f"Probable bounds: LB={results['LB']:.3f}, UB={results['UB']:.3f}")
+            >>> print(f"Global scale: {results['S_opt']:.6f}")
+            >>> print(f"Used WEDF: {results.get('wedf', False)}")
+            >>> if results['warnings']:
+            ...     print(f"Fitting warnings: {len(results['warnings'])}")
+            
+            Quality assessment of global fit:
+            >>> if 'goodness_of_fit' in results:
+            ...     print(f"Fit quality metrics: {results['goodness_of_fit']}")
+            >>> if 'convergence_info' in results:
+            ...     print(f"Convergence: {results['convergence_info']['status']}")
+            
+            Advanced optimization analysis:
+            >>> if results.get('optimization_history'):
+            ...     history = results['optimization_history']
+            ...     print(f"Optimization iterations: {len(history)}")
+            ...     if history:
+            ...         final_loss = history[-1].get('total_loss', 'N/A')
+            ...         print(f"Final optimization loss: {final_loss}")
+    
+        Applications:
+            EGDF results are particularly valuable for:
+            - Reliability engineering and failure analysis across entire operating ranges
+            - Risk assessment requiring complete distribution characterization
+            - Quality control with global specification limit analysis
+            - Financial modeling for portfolio-wide risk assessment
+            - Environmental monitoring across complete measurement ranges
+            - Process optimization considering full operational envelope
+            - Regulatory compliance requiring complete distribution documentation
+            - Business intelligence for comprehensive data understanding
+    
+        Interpretation Guide:
+            Global Distribution Parameters:
+            - 'S_opt': Scale parameter controls distribution spread (larger = more spread)
+            - 'LB', 'UB': Effective range containing majority of probability mass
+            - 'DLB', 'DUB': Hard limits representing absolute data boundaries
+            
+            Global Distribution Functions:
+            - 'egdf': Shows cumulative probability across entire data range
+            - 'pdf': Reveals probability density distribution across full spectrum
+            - Smooth transitions indicate well-fitted global distribution
+            - Sharp discontinuities may indicate fitting issues or data artifacts
+            
+            Quality Assessment:
+            - Empty 'warnings' and 'errors' indicate successful global fitting
+            - Reasonable parameter values suggest appropriate model selection
+            - Convergence information confirms optimization reliability
+            - Goodness-of-fit metrics quantify global distribution accuracy
+    
+        Performance Considerations:
+            - Results retrieval is immediate and cache-optimized
+            - Large n_points values increase result array sizes
+            - Global distribution evaluation covers broader ranges than local methods
+            - Memory usage scales with data size and evaluation point density
+            - Optimization history may be extensive for complex global fitting
+    
+        Comparison with ELDF:
+            EGDF Results Focus:
+            - Global distribution characteristics across entire data range
+            - Overall distribution parameters rather than local peaks
+            - Complete probability mass distribution
+            - Comprehensive reliability and risk metrics
+            
+            ELDF Results Focus:
+            - Local distribution characteristics around critical points
+            - Z0 point identification for maximum probability density
+            - Localized probability concentration analysis
+            - Peak detection and modal analysis
+    
+        Notes:
+            - fit() must complete successfully before accessing results
+            - Global distribution fitting may take longer than local methods
+            - Results structure is consistent regardless of optimization method used
+            - WEDF vs KS point selection affects empirical distribution comparison
+            - If catch=False was used, some detailed intermediate results may be unavailable
+            - Large datasets may have extensive optimization histories
+            - All numeric results use appropriate precision for global distribution analysis
+            - Results can be serialized for reproducible analysis and reporting
+            - Parameter bounds significantly influence global distribution characteristics
+    
+        Troubleshooting:
+            Incomplete Results:
+            - Verify fit() completed without exceptions
+            - Check 'errors' list for specific fitting issues
+            - Ensure adequate tolerance for global optimization convergence
+            
+            Unexpected Parameter Values:
+            - Very large S_opt may indicate scaling issues or inappropriate bounds
+            - Check data preprocessing and bound specification
+            - Consider different optimization methods for difficult global distributions
+            
+            Poor Fit Quality:
+            - Examine 'warnings' for insights into fitting challenges
+            - Consider adjusting bounds or using different data_form
+            - Increase n_points for better global distribution resolution
+            - Use verbose=True during fitting to monitor global optimization progress
+            
+            Memory Issues:
+            - Reduce n_points for large datasets
+            - Use flush=True for memory-constrained environments
+            - Consider catch=False if detailed results are not needed
+        """
+        if not self._fitted:
+            raise RuntimeError("Must fit EGDF before getting results.")
+        
+        return self._get_results()
