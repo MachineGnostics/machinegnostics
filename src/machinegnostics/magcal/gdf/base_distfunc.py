@@ -15,6 +15,7 @@ from machinegnostics.magcal.data_conversion import DataConversion
 from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.mg_weights import GnosticsWeights
 from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
+from machinegnostics.magcal.gdf.distfunc_engine import DistFuncEngine
 
 class BaseDistFuncCompute(BaseDistFunc):
     '''Base Distribution Function class
@@ -653,242 +654,47 @@ class BaseDistFuncCompute(BaseDistFunc):
         return ks_points
     
     def _determine_optimization_strategy(self):
-        """Determine which parameters to optimize based on inputs."""
-        if self.verbose:
-            print("Determining optimization strategy...")
-        s_is_auto = isinstance(self.S, str) and self.S.lower() == 'auto'
-        lb_provided = self.LB is not None
-        ub_provided = self.UB is not None
-        
-        if s_is_auto and not lb_provided and not ub_provided:
-            # Optimize all parameters
-            self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
-        elif lb_provided and ub_provided and s_is_auto:
-            # Optimize only S
-            self.LB_opt = self.LB_init
-            self.UB_opt = self.UB_init
-            self.S_opt = self._optimize_s_parameter(self.LB_opt, self.UB_opt)
-        elif not s_is_auto and (not lb_provided or not ub_provided):
-            # Optimize bounds only
-            self.S_opt = self.S
-            _, self.LB_opt, self.UB_opt = self._optimize_bounds_parameters(self.S_opt)
-        else:
-            # Use provided parameters
-            self.S_opt = self.S if not s_is_auto else 1.0
-            self.LB_opt = self.LB_init
-            self.UB_opt = self.UB_init
-
-        if self.verbose:
-            print(f"Optimized parameters: S={self.S_opt:.6f}, LB={self.LB_opt:.6f}, UB={self.UB_opt:.6f}")
-
-    def _optimize_all_parameters(self):
-        """Optimize all parameters using normalized parameter space."""
-        if self.verbose:
-            print("Optimizing all parameters (S, LB, UB)...")
-        bounds = self._OPTIMIZATION_BOUNDS
-        
-        def normalize_params(s, lb, ub):
-            s_norm = (s - bounds['S_MIN']) / (bounds['S_MAX'] - bounds['S_MIN'])
-            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return s_norm, lb_norm, ub_norm
-        
-        def denormalize_params(s_norm, lb_norm, ub_norm):
-            s = bounds['S_MIN'] + s_norm * (bounds['S_MAX'] - bounds['S_MIN'])
-            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return s, lb, ub
-        
-        def objective_function(norm_params):
-            try:
-                s, lb, ub = denormalize_params(*norm_params)
-                
-                if s <= 0 or ub <= lb:
-                    return 1e6
-                
-                egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                
-                # Regularization
-                reg = np.sum(np.array(norm_params)**2)
-                
-                total_loss = diff + reg
-                
-                if self.verbose:
-                    print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
-                
-                return total_loss
-            except:
-                error_msg = f"Objective function computation failed: {str(e)}"
-                self.params['errors'].append({
-                    'method': '_optimize_all_parameters.objective_function',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__,
-                    'norm_params': norm_params.tolist() if hasattr(norm_params, 'tolist') else list(norm_params)
-                })
-                return 1e6
-        
-        # Initial values
-        s_init = 0.05
-        lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
-        ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MAX']
-        
-        initial_params = normalize_params(s_init, lb_init, ub_init)
-        norm_bounds = [(0.0, 1.0)]
-        
         try:
-            result = minimize(
-                objective_function,
-                initial_params,
-                method=self.opt_method,
-                bounds=norm_bounds,
-                options={'maxiter': 10000, 'ftol': self.tolerance},
-                tol=self.tolerance  
+            if self.verbose:
+                print("Initializing optimization Engine...")
+                
+            # For EGDF and QGDF optimization
+            engine = DistFuncEngine(
+                compute_func=self._compute_egdf_core,
+                target_values=self.df_values,
+                weights=self.weights,
+                S=self.S,
+                LB=self.LB,
+                UB=self.UB,
+                LB_init=self.LB_init,
+                UB_init=self.UB_init,
+                tolerance=self.tolerance,
+                opt_method=self.opt_method,
+                max_iterations=10000, # Engine will set default
+                regularization_weight=None, # Engine will set default
+                verbose=self.verbose,
+                catch_errors=self.catch
             )
-            
-            s_opt, lb_opt, ub_opt = denormalize_params(*result.x)
-            
-            if lb_opt >= ub_opt:
-                if self.verbose:
-                    print("Warning: Optimized LB >= UB, using initial values")
-                return s_init, lb_init, ub_init
-            
-            return s_opt, lb_opt, ub_opt
+
+            results = engine.optimize()
+            self.S_opt = results['S']
+            self.LB_opt = results['LB']
+            self.UB_opt = results['UB']
+
         except Exception as e:
-            # error handling
-            error_msg = f"Optimization failed: {str(e)}"
+            error_msg = f"Optimization strategy determination failed: {str(e)}"
             self.params['errors'].append({
-                'method': '_optimize_all_parameters',
+                'method': '_determine_optimization_strategy',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
             if self.verbose:
-                print(f"Optimization failed: {e}")
-            return s_init, lb_init, ub_init
+                print(f"Error: {error_msg}")
+            # Fallback to initial values
+            self.S_opt = self.S if isinstance(self.S, (int, float)) else 1.0
+            self.LB_opt = self.LB_init
+            self.UB_opt = self.UB_init
 
-    def _optimize_s_parameter(self, lb, ub):
-        """Optimize only S parameter."""
-        if self.verbose:
-            print("Optimizing S parameter...")
-
-        def objective_function(s):
-            try:
-                egdf_values, _, _ = self._compute_egdf_core(s[0], lb, ub)
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                if self.verbose:
-                    print(f"S optimization - Loss: {diff:.6f}, S: {s[0]:.3f}")
-                return diff
-            except Exception as e:
-                error_msg = f"S optimization objective function failed: {str(e)}"
-                self.params['errors'].append({
-                    'method': '_optimize_s_parameter',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__
-                })
-                return 1e6
-        
-        try:
-            result = minimize(
-                objective_function,
-                [1.0],
-                bounds=[(self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX'])],
-                method=self.opt_method,
-                options={'maxiter': 1000}
-            )
-            return result.x[0]
-        except Exception as e:
-            error_msg = f"S optimization failed: {str(e)}"
-            self.params['errors'].append({
-                'method': '_optimize_s_parameter',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            return 1.0
-
-    def _optimize_bounds_parameters(self, s):
-        """Optimize only LB and UB parameters."""
-        if self.verbose:
-            print("Optimizing LB and UB parameters...")
-            
-        bounds = self._OPTIMIZATION_BOUNDS
-        
-        def normalize_bounds(lb, ub):
-            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return lb_norm, ub_norm
-        
-        def denormalize_bounds(lb_norm, ub_norm):
-            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return lb, ub
-        
-        def objective_function(norm_params):
-            try:
-                lb, ub = denormalize_bounds(*norm_params)
-                
-                if lb <= 0 or ub <= lb:
-                    return 1e6
-                
-                egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
-                diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
-                
-                # Regularization
-                reg = np.sum(np.array(norm_params)**2)
-                total_loss = diff + reg
-                
-                if self.verbose:
-                    print(f"Bounds optimization - Loss: {diff:.6f}, Total: {total_loss:.6f}, LB: {lb:.6f}, UB: {ub:.3f}")
-            except Exception as e:
-                error_msg = f"Bounds optimization objective function failed: {str(e)}"
-                self.params['errors'].append({
-                    'method': '_optimize_bounds_parameters',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__
-                })
-                return 1e6
-        
-        # Initial values
-        lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
-        ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MIN']
-        
-        lb_init = np.clip(lb_init, bounds['LB_MIN'], bounds['LB_MAX'])
-        ub_init = np.clip(ub_init, bounds['UB_MIN'], bounds['UB_MAX'])
-        
-        if lb_init >= ub_init:
-            lb_init = bounds['LB_MIN']
-            ub_init = bounds['UB_MIN']
-        
-        initial_params = normalize_bounds(lb_init, ub_init)
-        norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
-        
-        try:
-            result = minimize(
-                objective_function,
-                initial_params,
-                method=self.opt_method,
-                bounds=norm_bounds,
-                options={'maxiter': 10000, 'ftol': self.tolerance},
-                tol=self.tolerance
-            )
-            
-            lb_opt, ub_opt = denormalize_bounds(*result.x)
-            
-            if lb_opt >= ub_opt:
-                if self.verbose:
-                    print("Warning: Optimized LB >= UB, using initial values")
-                return s, lb_init, ub_init
-            
-            return s, lb_opt, ub_opt
-        except Exception as e:
-            error_msg = f"Bounds optimization failed: {str(e)}"
-            self.params['errors'].append({
-                'method': '_optimize_bounds_parameters',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            if self.verbose:
-                print(f"Bounds optimization failed: {e}")
-            return s, self.LB, self.UB
 
     def _transform_bounds_to_original_domain(self):
         """Transform optimized bounds back to original domain."""
@@ -1073,3 +879,242 @@ class BaseDistFuncCompute(BaseDistFunc):
         z0_estimator.plot_z0_analysis(figsize=figsize)
         
         return analysis_info
+    
+# NOTE: The following commented-out methods represent an earlier approach to optimization strategy determination. They have been replaced by the DistFuncEngine class for better modularity and maintainability.
+    # def _determine_optimization_strategy(self):
+    #     """Determine which parameters to optimize based on inputs."""
+    #     if self.verbose:
+    #         print("Determining optimization strategy...")
+    #     s_is_auto = isinstance(self.S, str) and self.S.lower() == 'auto'
+    #     lb_provided = self.LB is not None
+    #     ub_provided = self.UB is not None
+        
+    #     if s_is_auto and not lb_provided and not ub_provided:
+    #         # Optimize all parameters
+    #         self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
+    #     elif lb_provided and ub_provided and s_is_auto:
+    #         # Optimize only S
+    #         self.LB_opt = self.LB_init
+    #         self.UB_opt = self.UB_init
+    #         self.S_opt = self._optimize_s_parameter(self.LB_opt, self.UB_opt)
+    #     elif not s_is_auto and (not lb_provided or not ub_provided):
+    #         # Optimize bounds only
+    #         self.S_opt = self.S
+    #         _, self.LB_opt, self.UB_opt = self._optimize_bounds_parameters(self.S_opt)
+    #     else:
+    #         # Use provided parameters
+    #         self.S_opt = self.S if not s_is_auto else 1.0
+    #         self.LB_opt = self.LB_init
+    #         self.UB_opt = self.UB_init
+
+    #     if self.verbose:
+    #         print(f"Optimized parameters: S={self.S_opt:.6f}, LB={self.LB_opt:.6f}, UB={self.UB_opt:.6f}")
+
+    # def _optimize_all_parameters(self):
+    #     """Optimize all parameters using normalized parameter space."""
+    #     if self.verbose:
+    #         print("Optimizing all parameters (S, LB, UB)...")
+    #     bounds = self._OPTIMIZATION_BOUNDS
+        
+    #     def normalize_params(s, lb, ub):
+    #         s_norm = (s - bounds['S_MIN']) / (bounds['S_MAX'] - bounds['S_MIN'])
+    #         lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
+    #         ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
+    #         return s_norm, lb_norm, ub_norm
+        
+    #     def denormalize_params(s_norm, lb_norm, ub_norm):
+    #         s = bounds['S_MIN'] + s_norm * (bounds['S_MAX'] - bounds['S_MIN'])
+    #         lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
+    #         ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
+    #         return s, lb, ub
+        
+    #     def objective_function(norm_params):
+    #         try:
+    #             s, lb, ub = denormalize_params(*norm_params)
+                
+    #             if s <= 0 or ub <= lb:
+    #                 return 1e6
+                
+    #             egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+    #             # Regularization
+    #             reg = np.sum(np.array(norm_params)**2)
+                
+    #             total_loss = diff + reg
+                
+    #             if self.verbose:
+    #                 print(f"Loss: {diff:.6f}, Total: {total_loss:.6f}, S: {s:.3f}, LB: {lb:.6f}, UB: {ub:.3f}")
+                
+    #             return total_loss
+    #         except:
+    #             error_msg = f"Objective function computation failed: {str(e)}"
+    #             self.params['errors'].append({
+    #                 'method': '_optimize_all_parameters.objective_function',
+    #                 'error': error_msg,
+    #                 'exception_type': type(e).__name__,
+    #                 'norm_params': norm_params.tolist() if hasattr(norm_params, 'tolist') else list(norm_params)
+    #             })
+    #             return 1e6
+        
+    #     # Initial values
+    #     s_init = 0.05
+    #     lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
+    #     ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MAX']
+        
+    #     initial_params = normalize_params(s_init, lb_init, ub_init)
+    #     norm_bounds = [(0.0, 1.0)]
+        
+    #     try:
+    #         result = minimize(
+    #             objective_function,
+    #             initial_params,
+    #             method=self.opt_method,
+    #             bounds=norm_bounds,
+    #             options={'maxiter': 10000, 'ftol': self.tolerance},
+    #             tol=self.tolerance  
+    #         )
+            
+    #         s_opt, lb_opt, ub_opt = denormalize_params(*result.x)
+            
+    #         if lb_opt >= ub_opt:
+    #             if self.verbose:
+    #                 print("Warning: Optimized LB >= UB, using initial values")
+    #             return s_init, lb_init, ub_init
+            
+    #         return s_opt, lb_opt, ub_opt
+    #     except Exception as e:
+    #         # error handling
+    #         error_msg = f"Optimization failed: {str(e)}"
+    #         self.params['errors'].append({
+    #             'method': '_optimize_all_parameters',
+    #             'error': error_msg,
+    #             'exception_type': type(e).__name__
+    #         })
+    #         if self.verbose:
+    #             print(f"Optimization failed: {e}")
+    #         return s_init, lb_init, ub_init
+
+    # def _optimize_s_parameter(self, lb, ub):
+    #     """Optimize only S parameter."""
+    #     if self.verbose:
+    #         print("Optimizing S parameter...")
+
+    #     def objective_function(s):
+    #         try:
+    #             egdf_values, _, _ = self._compute_egdf_core(s[0], lb, ub)
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+    #             if self.verbose:
+    #                 print(f"S optimization - Loss: {diff:.6f}, S: {s[0]:.3f}")
+    #             return diff
+    #         except Exception as e:
+    #             error_msg = f"S optimization objective function failed: {str(e)}"
+    #             self.params['errors'].append({
+    #                 'method': '_optimize_s_parameter',
+    #                 'error': error_msg,
+    #                 'exception_type': type(e).__name__
+    #             })
+    #             return 1e6
+        
+    #     try:
+    #         result = minimize(
+    #             objective_function,
+    #             [1.0],
+    #             bounds=[(self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX'])],
+    #             method=self.opt_method,
+    #             options={'maxiter': 1000}
+    #         )
+    #         return result.x[0]
+    #     except Exception as e:
+    #         error_msg = f"S optimization failed: {str(e)}"
+    #         self.params['errors'].append({
+    #             'method': '_optimize_s_parameter',
+    #             'error': error_msg,
+    #             'exception_type': type(e).__name__
+    #         })
+    #         return 1.0
+
+    # def _optimize_bounds_parameters(self, s):
+    #     """Optimize only LB and UB parameters."""
+    #     if self.verbose:
+    #         print("Optimizing LB and UB parameters...")
+            
+    #     bounds = self._OPTIMIZATION_BOUNDS
+        
+    #     def normalize_bounds(lb, ub):
+    #         lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
+    #         ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
+    #         return lb_norm, ub_norm
+        
+    #     def denormalize_bounds(lb_norm, ub_norm):
+    #         lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
+    #         ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
+    #         return lb, ub
+        
+    #     def objective_function(norm_params):
+    #         try:
+    #             lb, ub = denormalize_bounds(*norm_params)
+                
+    #             if lb <= 0 or ub <= lb:
+    #                 return 1e6
+                
+    #             egdf_values, _, _ = self._compute_egdf_core(s, lb, ub)
+    #             diff = np.mean(np.abs(egdf_values - self.df_values) * self.weights)
+                
+    #             # Regularization
+    #             reg = np.sum(np.array(norm_params)**2)
+    #             total_loss = diff + reg
+                
+    #             if self.verbose:
+    #                 print(f"Bounds optimization - Loss: {diff:.6f}, Total: {total_loss:.6f}, LB: {lb:.6f}, UB: {ub:.3f}")
+    #         except Exception as e:
+    #             error_msg = f"Bounds optimization objective function failed: {str(e)}"
+    #             self.params['errors'].append({
+    #                 'method': '_optimize_bounds_parameters',
+    #                 'error': error_msg,
+    #                 'exception_type': type(e).__name__
+    #             })
+    #             return 1e6
+        
+    #     # Initial values
+    #     lb_init = self.LB_init if hasattr(self, 'LB_init') and self.LB_init is not None else bounds['LB_MIN']
+    #     ub_init = self.UB_init if hasattr(self, 'UB_init') and self.UB_init is not None else bounds['UB_MIN']
+        
+    #     lb_init = np.clip(lb_init, bounds['LB_MIN'], bounds['LB_MAX'])
+    #     ub_init = np.clip(ub_init, bounds['UB_MIN'], bounds['UB_MAX'])
+        
+    #     if lb_init >= ub_init:
+    #         lb_init = bounds['LB_MIN']
+    #         ub_init = bounds['UB_MIN']
+        
+    #     initial_params = normalize_bounds(lb_init, ub_init)
+    #     norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
+        
+    #     try:
+    #         result = minimize(
+    #             objective_function,
+    #             initial_params,
+    #             method=self.opt_method,
+    #             bounds=norm_bounds,
+    #             options={'maxiter': 10000, 'ftol': self.tolerance},
+    #             tol=self.tolerance
+    #         )
+            
+    #         lb_opt, ub_opt = denormalize_bounds(*result.x)
+            
+    #         if lb_opt >= ub_opt:
+    #             if self.verbose:
+    #                 print("Warning: Optimized LB >= UB, using initial values")
+    #             return s, lb_init, ub_init
+            
+    #         return s, lb_opt, ub_opt
+    #     except Exception as e:
+    #         error_msg = f"Bounds optimization failed: {str(e)}"
+    #         self.params['errors'].append({
+    #             'method': '_optimize_bounds_parameters',
+    #             'error': error_msg,
+    #             'exception_type': type(e).__name__
+    #         })
+    #         if self.verbose:
+    #             print(f"Bounds optimization failed: {e}")
+    #         return s, self.LB, self.UB
