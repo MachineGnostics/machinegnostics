@@ -253,6 +253,13 @@ class BaseEGDF(BaseDistFuncCompute):
                 print(f"Generated smooth curves with {self.n_points} points.")
                 
         except Exception as e:
+            # Log the error
+            error_msg = f"Could not generate smooth curves: {e}"
+            self.params['errors'].append({
+                'method': '_generate_smooth_curves',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
             if self.verbose:
                 print(f"Warning: Could not generate smooth curves: {e}")
             # Create fallback points using original data
@@ -627,6 +634,13 @@ class BaseEGDF(BaseDistFuncCompute):
                 self._cleanup_computation_cache()
                 
         except Exception as e:
+            error_msg = f"EGDF fitting failed: {e}"
+            self.params['errors'].append({
+                'method': '_fit_egdf',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+            
             if self.verbose:
                 print(f"Error during EGDF fitting: {e}")
             raise e
