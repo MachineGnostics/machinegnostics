@@ -95,115 +95,377 @@ class BaseDistFuncCompute(BaseDistFunc):
             'weights_normalized': None,
             'smooth_curves_generated': False
         }
+
+        # params
+        self._store_initial_params()
         
     # =============================================================================
     # VALIDATION AND INITIALIZATION
     # =============================================================================
     
     def _validate_inputs(self):
-        """Comprehensive input validation."""
-        # Data validation
-        if not isinstance(self.data, np.ndarray):
-            raise ValueError("Data must be a numpy array.")
-        if self.data.size == 0:
-            raise ValueError("Data array cannot be empty.")
-        if not np.isfinite(self.data).all():
-            raise ValueError("Data must contain only finite values.")
-        
-        # Bounds validation
-        for bound, name in [(self.DLB, 'DLB'), (self.DUB, 'DUB'), (self.LB, 'LB'), (self.UB, 'UB')]:
-            if bound is not None and (not isinstance(bound, (int, float)) or not np.isfinite(bound)):
-                raise ValueError(f"{name} must be a finite numeric value or None.")
-        
-        # Parameter validation
-        if not isinstance(self.S, (int, float, str)):
-            raise ValueError("S must be a numeric positive value or 'auto'.")
-        if isinstance(self.S, (int, float)) and self.S <= 0:
-            raise ValueError("S must be positive when specified as a number.")
-        if not isinstance(self.varS, bool):
-            raise ValueError("varS must be a boolean value. VarS can be only true for 'ELDF' and 'QLDF'.")
-        # varS can be only true with S = 'auto'
-        if self.varS and self.S != 'auto':
-            raise ValueError("varS can only be true when S is set to 'auto'.")
-    
-        if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
-            raise ValueError("Tolerance must be a positive numeric value.")
-        
-        if self.data_form not in ['a', 'm']:
-            raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
-        
-        if not isinstance(self.n_points, int) or self.n_points <= 0:
-            raise ValueError("n_points must be a positive integer.")
-        
-        # Weights validation
-        if self.weights is not None:
-            if not isinstance(self.weights, np.ndarray):
-                raise ValueError("weights must be a numpy array.")
-            if len(self.weights) != len(self.data):
-                raise ValueError("Weights must have the same length as data.")
-            if not np.all(self.weights >= 0):
-                raise ValueError("All weights must be non-negative.")
-        
-        # flush parameter validation
-        if not isinstance(self.flush, bool):
-            raise ValueError("flush must be a boolean value.")
-        # if length of data exceeds max_data_size, set flush to True
-        if len(self.data) > self.max_data_size and not self.flush:
-            warnings.warn(f"Data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). "
-                          "For optimal compute performance, set 'flush=True' or increase 'max_data_size'.")
-            self.flush = True
-    
-        # Boolean parameters
-        for param, name in [(self.homogeneous, 'homogeneous'), (self.catch, 'catch'), 
-                           (self.wedf, 'wedf'), (self.verbose, 'verbose')]:
-            if not isinstance(param, bool):
-                raise ValueError(f"{name} must be a boolean value.")
-    
-        # Missing validations:
-        
-        # 1. z0_optimize validation
-        if not isinstance(self.z0_optimize, bool):
-            raise ValueError("z0_optimize must be a boolean value.")
-        
-        # 2. opt_method validation
-        valid_methods = ['L-BFGS-B', 'SLSQP', 'TNC', 'trust-constr', 'Powell', 'COBYLA']
-        if not isinstance(self.opt_method, str):
-            raise ValueError("opt_method must be a string.")
-        if self.opt_method not in valid_methods:
-            raise ValueError(f"opt_method must be one of {valid_methods}.")
-        
-        # 3. max_data_size validation
-        if not isinstance(self.max_data_size, int) or self.max_data_size <= 0:
-            raise ValueError("max_data_size must be a positive integer.")
-        
-        # 4. Data dimensional validation
-        if self.data.ndim != 1:
-            raise ValueError("Data must be a 1-dimensional array.")
-        
-        # 5. Bounds logical validation
-        if self.DLB is not None and self.DUB is not None and self.DLB >= self.DUB:
-            raise ValueError("DLB must be less than DUB when both are provided.")
-        if self.LB is not None and self.UB is not None and self.LB >= self.UB:
-            raise ValueError("LB must be less than UB when both are provided.")
-        
-        # 6. S string validation when it's a string
-        if isinstance(self.S, str) and self.S.lower() != 'auto':
-            raise ValueError("When S is a string, it must be 'auto'.")
-        
-        # 7. Weights finite values validation
-        if self.weights is not None and not np.isfinite(self.weights).all():
-            raise ValueError("All weights must be finite values.")
-        
-        # 8. n_points reasonable range validation
-        if self.n_points > 10000:
-            warnings.warn(f"n_points ({self.n_points}) is very large and may impact performance.")
-        
-        # 9. tolerance range validation
-        if self.tolerance > 1.0:
-            warnings.warn(f"tolerance ({self.tolerance}) is unusually large.")
-        if self.tolerance < 1e-10:
-            warnings.warn(f"tolerance ({self.tolerance}) is very small and may cause numerical issues.")
+        """Comprehensive input validation with error and warning logging."""
+        try:
+            # Data validation
+            if not isinstance(self.data, np.ndarray):
+                error_msg = "Data must be a numpy array."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'data_type_received': type(self.data).__name__
+                })
+                raise TypeError(error_msg)
+                
+            if self.data.size == 0:
+                error_msg = "Data array cannot be empty."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'data_size': self.data.size
+                })
+                raise ValueError(error_msg)
+                
+            if not np.isfinite(self.data).all():
+                non_finite_count = np.sum(~np.isfinite(self.data))
+                error_msg = f"Data must contain only finite values. Found {non_finite_count} non-finite values."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'non_finite_count': int(non_finite_count),
+                    'total_data_points': len(self.data)
+                })
+                raise ValueError(error_msg)
             
+            # Data dimensional validation
+            if self.data.ndim != 1:
+                error_msg = f"Data must be a 1-dimensional array. Got {self.data.ndim}-dimensional array."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'data_shape': self.data.shape
+                })
+                raise ValueError(error_msg)
+            
+            # Bounds validation
+            for bound, name in [(self.DLB, 'DLB'), (self.DUB, 'DUB'), (self.LB, 'LB'), (self.UB, 'UB')]:
+                if bound is not None and (not isinstance(bound, (int, float)) or not np.isfinite(bound)):
+                    error_msg = f"{name} must be a finite numeric value or None."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'ValueError',
+                        'parameter': name,
+                        'value': bound,
+                        'value_type': type(bound).__name__
+                    })
+                    raise ValueError(error_msg)
+            
+            # Bounds logical validation
+            if self.DLB is not None and self.DUB is not None and self.DLB >= self.DUB:
+                error_msg = f"DLB ({self.DLB}) must be less than DUB ({self.DUB}) when both are provided."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'DLB': float(self.DLB),
+                    'DUB': float(self.DUB)
+                })
+                raise ValueError(error_msg)
+                
+            if self.LB is not None and self.UB is not None and self.LB >= self.UB:
+                error_msg = f"LB ({self.LB}) must be less than UB ({self.UB}) when both are provided."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'LB': float(self.LB),
+                    'UB': float(self.UB)
+                })
+                raise ValueError(error_msg)
+            
+            # S parameter validation
+            if not isinstance(self.S, (int, float, str)):
+                error_msg = "S must be a numeric positive value or 'auto'."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'S_type': type(self.S).__name__,
+                    'S_value': self.S
+                })
+                raise TypeError(error_msg)
+                
+            if isinstance(self.S, (int, float)) and self.S <= 0:
+                error_msg = f"S must be positive when specified as a number. Got {self.S}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'S_value': float(self.S)
+                })
+                raise ValueError(error_msg)
+                
+            # S string validation when it's a string
+            if isinstance(self.S, str) and self.S.lower() != 'auto':
+                error_msg = f"When S is a string, it must be 'auto'. Got '{self.S}'."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'S_value': self.S
+                })
+                raise ValueError(error_msg)
+            
+            # varS parameter validation
+            if not isinstance(self.varS, bool):
+                error_msg = "varS must be a boolean value. VarS can be only true for 'ELDF' and 'QLDF'."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'varS_type': type(self.varS).__name__,
+                    'varS_value': self.varS
+                })
+                raise TypeError(error_msg)
+                
+            # varS can be only true with S = 'auto'
+            if self.varS and self.S != 'auto':
+                error_msg = f"varS can only be true when S is set to 'auto'. Got S='{self.S}', varS={self.varS}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'S_value': self.S,
+                    'varS_value': self.varS
+                })
+                raise ValueError(error_msg)
+        
+            # Tolerance validation
+            if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
+                error_msg = f"Tolerance must be a positive numeric value. Got {self.tolerance}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'tolerance_value': self.tolerance,
+                    'tolerance_type': type(self.tolerance).__name__
+                })
+                raise ValueError(error_msg)
+            
+            # Tolerance range validation with warnings
+            if self.tolerance > 1.0:
+                warning_msg = f"tolerance ({self.tolerance}) is unusually large."
+                self.params['warnings'].append({
+                    'method': '_validate_inputs',
+                    'message': warning_msg,
+                    'severity': 'medium',
+                    'tolerance_value': float(self.tolerance)
+                })
+                if self.verbose:
+                    print(f"Warning: {warning_msg}")
+                    
+            if self.tolerance < 1e-10:
+                warning_msg = f"tolerance ({self.tolerance}) is very small and may cause numerical issues."
+                self.params['warnings'].append({
+                    'method': '_validate_inputs',
+                    'message': warning_msg,
+                    'severity': 'high',
+                    'tolerance_value': float(self.tolerance)
+                })
+                if self.verbose:
+                    print(f"Warning: {warning_msg}")
+            
+            # data_form validation
+            if self.data_form not in ['a', 'm']:
+                error_msg = f"data_form must be 'a' for additive or 'm' for multiplicative. Got '{self.data_form}'."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'data_form_value': self.data_form
+                })
+                raise ValueError(error_msg)
+            
+            # n_points validation
+            if not isinstance(self.n_points, int) or self.n_points <= 0:
+                error_msg = f"n_points must be a positive integer. Got {self.n_points}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'n_points_value': self.n_points,
+                    'n_points_type': type(self.n_points).__name__
+                })
+                raise ValueError(error_msg)
+            
+            # n_points reasonable range validation with warning
+            if self.n_points > 10000:
+                warning_msg = f"n_points ({self.n_points}) is very large and may impact performance."
+                self.params['warnings'].append({
+                    'method': '_validate_inputs',
+                    'message': warning_msg,
+                    'severity': 'medium',
+                    'n_points_value': self.n_points
+                })
+                if self.verbose:
+                    print(f"Warning: {warning_msg}")
+            
+            # Weights validation
+            if self.weights is not None:
+                if not isinstance(self.weights, np.ndarray):
+                    error_msg = "weights must be a numpy array."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'TypeError',
+                        'weights_type': type(self.weights).__name__
+                    })
+                    raise TypeError(error_msg)
+                    
+                if len(self.weights) != len(self.data):
+                    error_msg = f"Weights must have the same length as data. Got weights length {len(self.weights)}, data length {len(self.data)}."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'ValueError',
+                        'weights_length': len(self.weights),
+                        'data_length': len(self.data)
+                    })
+                    raise ValueError(error_msg)
+                    
+                if not np.all(self.weights >= 0):
+                    negative_count = np.sum(self.weights < 0)
+                    error_msg = f"All weights must be non-negative. Found {negative_count} negative weights."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'ValueError',
+                        'negative_weights_count': int(negative_count)
+                    })
+                    raise ValueError(error_msg)
+                    
+                # Weights finite values validation
+                if not np.isfinite(self.weights).all():
+                    non_finite_weights = np.sum(~np.isfinite(self.weights))
+                    error_msg = f"All weights must be finite values. Found {non_finite_weights} non-finite weights."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'ValueError',
+                        'non_finite_weights_count': int(non_finite_weights)
+                    })
+                    raise ValueError(error_msg)
+            
+            # z0_optimize validation
+            if not isinstance(self.z0_optimize, bool):
+                error_msg = f"z0_optimize must be a boolean value. Got {type(self.z0_optimize).__name__}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'z0_optimize_type': type(self.z0_optimize).__name__,
+                    'z0_optimize_value': self.z0_optimize
+                })
+                raise TypeError(error_msg)
+            
+            # opt_method validation
+            valid_methods = ['L-BFGS-B', 'SLSQP', 'TNC', 'trust-constr', 'Powell', 'COBYLA']
+            if not isinstance(self.opt_method, str):
+                error_msg = f"opt_method must be a string. Got {type(self.opt_method).__name__}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'opt_method_type': type(self.opt_method).__name__,
+                    'opt_method_value': self.opt_method
+                })
+                raise TypeError(error_msg)
+                
+            if self.opt_method not in valid_methods:
+                error_msg = f"opt_method must be one of {valid_methods}. Got '{self.opt_method}'."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'opt_method_value': self.opt_method,
+                    'valid_methods': valid_methods
+                })
+                raise ValueError(error_msg)
+            
+            # max_data_size validation
+            if not isinstance(self.max_data_size, int) or self.max_data_size <= 0:
+                error_msg = f"max_data_size must be a positive integer. Got {self.max_data_size}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'ValueError',
+                    'max_data_size_value': self.max_data_size,
+                    'max_data_size_type': type(self.max_data_size).__name__
+                })
+                raise ValueError(error_msg)
+            
+            # flush parameter validation
+            if not isinstance(self.flush, bool):
+                error_msg = f"flush must be a boolean value. Got {type(self.flush).__name__}."
+                self.params['errors'].append({
+                    'method': '_validate_inputs',
+                    'error': error_msg,
+                    'exception_type': 'TypeError',
+                    'flush_type': type(self.flush).__name__,
+                    'flush_value': self.flush
+                })
+                raise TypeError(error_msg)
+                
+            # if length of data exceeds max_data_size, set flush to True with warning
+            if len(self.data) > self.max_data_size and not self.flush:
+                warning_msg = f"Data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, setting 'flush=True'."
+                self.params['warnings'].append({
+                    'method': '_validate_inputs',
+                    'message': warning_msg,
+                    'severity': 'medium',
+                    'data_size': len(self.data),
+                    'max_data_size': self.max_data_size,
+                    'action_taken': 'flush_set_to_true'
+                })
+                self.flush = True
+                if self.verbose:
+                    print(f"Warning: {warning_msg}")
+            
+            # Boolean parameters validation
+            boolean_params = [
+                (self.homogeneous, 'homogeneous'),
+                (self.catch, 'catch'), 
+                (self.wedf, 'wedf'),
+                (self.verbose, 'verbose')
+            ]
+            
+            for param, name in boolean_params:
+                if not isinstance(param, bool):
+                    error_msg = f"{name} must be a boolean value. Got {type(param).__name__}."
+                    self.params['errors'].append({
+                        'method': '_validate_inputs',
+                        'error': error_msg,
+                        'exception_type': 'TypeError',
+                        'parameter': name,
+                        'parameter_type': type(param).__name__,
+                        'parameter_value': param
+                    })
+                    raise TypeError(error_msg)
+            
+            if self.verbose:
+                print("Input validation completed successfully.")
+                if self.params['warnings']:
+                    print(f"Generated {len(self.params['warnings'])} warnings during validation.")
+        
+        except Exception as e:
+            if self.verbose:
+                print(f"Input validation failed: {str(e)}")
+            raise
+        
     def _store_initial_params(self):
         """Store initial parameters for reference."""
         self.params.update({
@@ -213,18 +475,19 @@ class BaseDistFuncCompute(BaseDistFunc):
             'LB': self.LB,
             'UB': self.UB,
             'S': self.S,
+            'z0_optimize': self.z0_optimize,
+            'varS': self.varS,
             'tolerance': self.tolerance,
             'data_form': self.data_form,
             'n_points': self.n_points,
             'homogeneous': self.homogeneous,
+            'catch': self.catch,
             'weights': self.weights.copy() if self.weights is not None else None,
-            'wedf': None,
+            'compute_wedf': self.wedf,
             'opt_method': self.opt_method,
-            'varS': self.varS,
-            'z0_optimize': self.z0_optimize,
+            'verbose': self.verbose,
             'max_data_size': self.max_data_size,
             'flush': self.flush,
-            'verbose': self.verbose,
             'warnings': [],
             'errors': [],
             })
@@ -458,6 +721,13 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
                 return total_loss
             except:
+                error_msg = f"Objective function computation failed: {str(e)}"
+                self.params['errors'].append({
+                    'method': '_optimize_all_parameters.objective_function',
+                    'error': error_msg,
+                    'exception_type': type(e).__name__,
+                    'norm_params': norm_params.tolist() if hasattr(norm_params, 'tolist') else list(norm_params)
+                })
                 return 1e6
         
         # Initial values
@@ -487,6 +757,13 @@ class BaseDistFuncCompute(BaseDistFunc):
             
             return s_opt, lb_opt, ub_opt
         except Exception as e:
+            # error handling
+            error_msg = f"Optimization failed: {str(e)}"
+            self.params['errors'].append({
+                'method': '_optimize_all_parameters',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
             if self.verbose:
                 print(f"Optimization failed: {e}")
             return s_init, lb_init, ub_init
@@ -503,7 +780,13 @@ class BaseDistFuncCompute(BaseDistFunc):
                 if self.verbose:
                     print(f"S optimization - Loss: {diff:.6f}, S: {s[0]:.3f}")
                 return diff
-            except:
+            except Exception as e:
+                error_msg = f"S optimization objective function failed: {str(e)}"
+                self.params['errors'].append({
+                    'method': '_optimize_s_parameter',
+                    'error': error_msg,
+                    'exception_type': type(e).__name__
+                })
                 return 1e6
         
         try:
@@ -515,7 +798,13 @@ class BaseDistFuncCompute(BaseDistFunc):
                 options={'maxiter': 1000}
             )
             return result.x[0]
-        except:
+        except Exception as e:
+            error_msg = f"S optimization failed: {str(e)}"
+            self.params['errors'].append({
+                'method': '_optimize_s_parameter',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
             return 1.0
 
     def _optimize_bounds_parameters(self, s):
@@ -551,9 +840,13 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
                 if self.verbose:
                     print(f"Bounds optimization - Loss: {diff:.6f}, Total: {total_loss:.6f}, LB: {lb:.6f}, UB: {ub:.3f}")
-                
-                return total_loss
-            except:
+            except Exception as e:
+                error_msg = f"Bounds optimization objective function failed: {str(e)}"
+                self.params['errors'].append({
+                    'method': '_optimize_bounds_parameters',
+                    'error': error_msg,
+                    'exception_type': type(e).__name__
+                })
                 return 1e6
         
         # Initial values
@@ -589,6 +882,12 @@ class BaseDistFuncCompute(BaseDistFunc):
             
             return s, lb_opt, ub_opt
         except Exception as e:
+            error_msg = f"Bounds optimization failed: {str(e)}"
+            self.params['errors'].append({
+                'method': '_optimize_bounds_parameters',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
             if self.verbose:
                 print(f"Bounds optimization failed: {e}")
             return s, self.LB, self.UB
@@ -622,30 +921,14 @@ class BaseDistFuncCompute(BaseDistFunc):
             if hasattr(self, attr):
                 delattr(self, attr)
 
-        # # delet di_points_n, z_points_n, egdf_points, pdf_points, zi_n if they exist
-        # if hasattr(self, 'egdf_points'):
-        #     del self.egdf_points
-        # if hasattr(self, 'pdf_points'):
-        #     del self.pdf_points
-        # if hasattr(self, 'di_points_n'):
-        #     del self.di_points_n
-        # if hasattr(self, 'z_points_n'):
-        #     del self.z_points_n
-        # if hasattr(self, 'zi_n'):
-        #     del self.zi_n
-        # if self.catch:
-        #     self.params.update({
-        #         'egdf_points': None,
-        #         'pdf_points': None,
-        #         'di_points_n': None,
-        #         'z_points_n': None,
-        #         'zi_n': None
-        #     })
-        # deleting long arrays from params like z_points, di_points
-        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points']
+        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points', 'qldf_points', 'qgdf_points']
+
         for param in long_array_params:
             if param in self.params:
                 self.params[param] = None
+        
+        if self.catch:
+            self.params['computation_cache_cleared'] = True
 
         if self.verbose:
             print("Computation cache cleaned up.")
@@ -719,6 +1002,14 @@ class BaseDistFuncCompute(BaseDistFunc):
                 print(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
                 
         except Exception as e:
+            # Log the error
+            error_msg = f"Z0 estimation failed: {str(e)}"
+            self.params['errors'].append({
+                'method': '_compute_z0',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+
             if self.verbose:
                 print(f"Warning: Z0Estimator failed with error: {e}")
                 print("Falling back to simple maximum finding...")
@@ -741,7 +1032,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
         
         if self.verbose:
-            print('ELDF: Using fallback method for Z0 point...')
+            print('Using fallback method for Z0 point...')
         
         # Find index with maximum PDF
         max_idx = np.argmax(self.pdf_points)
