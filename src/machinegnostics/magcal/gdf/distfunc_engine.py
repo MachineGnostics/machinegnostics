@@ -460,7 +460,7 @@ class DistFuncEngine:
                 diff = np.mean(np.abs(dist_values - self.target_values) * self.weights)
                 
                 # Add regularization
-                regularization = np.sum(norm_params**2)
+                regularization = np.sum(norm_params)
                 total_loss = diff + regularization
                 
                 if self.verbose and hasattr(self, '_opt_iteration'):
