@@ -652,15 +652,16 @@ class BaseDistFuncCompute(BaseDistFunc):
             self.params['ks_points'] = ks_points.copy()
         
         return ks_points
-    
-    def _determine_optimization_strategy(self):
+
+    def _determine_optimization_strategy(self, egdf: bool = True):
+        """Determine optimization strategy for S, LB, and UB."""
         try:
             if self.verbose:
                 print("Initializing optimization Engine...")
                 
             # For EGDF and QGDF optimization
             engine = DistFuncEngine(
-                compute_func=self._compute_egdf_core,
+                compute_func=self._compute_egdf_core if egdf else self._compute_qgdf_core, # NOTE switch between egdf and qgdf
                 target_values=self.df_values,
                 weights=self.weights,
                 S=self.S,
