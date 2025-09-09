@@ -345,41 +345,49 @@ class BaseQGDF(BaseDistFuncCompute):
         
         return qgdf_values.flatten()
     
-    def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
-        """Main QGDF estimation method with complex number fallback."""
-        try:
-            # First try the complex number approach
-            return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
-        except Exception as e:
-            # log error
-            error_msg = f"Exception in complex QGDF estimation: {e}"
-            if self.verbose:
-                print(f"Complex method failed: {e}. Using fallback approach.")
-            self.params['errors'].append({
-                'method': '_estimate_qgdf_from_moments',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
+    # def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
+    #     """Main QGDF estimation method with complex number fallback."""
+    #     try:
+    #         # First try the complex number approach
+    #         return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
+    #     except Exception as e:
+    #         # log error
+    #         error_msg = f"Exception in complex QGDF estimation: {e}"
+    #         if self.verbose:
+    #             print(f"Complex method failed: {e}. Using fallback approach.")
+    #         self.params['errors'].append({
+    #             'method': '_estimate_qgdf_from_moments',
+    #             'error': error_msg,
+    #             'exception_type': type(e).__name__
+    #         })
 
-            # Fallback to the robust real-number approach
-            return self._estimate_qgdf_from_moments_fallback(fidelities, irrelevances)
+    #         # Fallback to the robust real-number approach
+    #         return self._estimate_qgdf_from_moments_fallback(fidelities, irrelevances)
     
-    def _estimate_qgdf_from_moments_fallback(self, fidelities, irrelevances):
+    def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
         """Fallback method using real numbers only."""
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         # Calculate weighted means
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
         mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
-        
+                
         # Direct ratio approach (always mathematically valid)
         mean_fidelity_safe = np.where(np.abs(mean_fidelity) < self._NUMERICAL_EPS,
                                      np.sign(mean_fidelity) * self._NUMERICAL_EPS, mean_fidelity)
         
         ratio = mean_irrelevance / mean_fidelity_safe
         ratio_limited = np.where(np.abs(ratio) > 5, 5 * np.tanh(ratio / 5), ratio)
+
+        # hzj NOTE for QGDF book eq not working properly
+        # hzj = mean_irrelevance / (np.sqrt(mean_fidelity_safe**2 + mean_irrelevance**2))
+
+        # # hgq
+        # h_gq = hzj / (np.sqrt(1 + hzj**2))
+
+        # qgdf_values = (1 + h_gq/mean_fidelity_safe) / 2
         
-        qgdf_values = (1 - ratio_limited) / 2
+        qgdf_values = (1 - ratio_limited) / 2     
         qgdf_values = np.clip(qgdf_values, 0, 1)
         qgdf_values = np.maximum.accumulate(qgdf_values)
         
