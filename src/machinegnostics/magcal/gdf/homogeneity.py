@@ -322,7 +322,7 @@ class DataHomogeneity:
             gdf_params.update(self.gdf.params)
         
         # Extract direct attributes
-        direct_attrs = ['S', 'S_opt', 'z0', 'data', 'pdf_points', 'di_points_n']
+        direct_attrs = ['S', 'S_opt', 'z0', 'data', 'pdf_points', 'di_points_n'] #NOTE good to have fallback logic hre, if pdf_points or di_points_n missing we can use pdf and use it with data.
         for attr in direct_attrs:
             if hasattr(self.gdf, attr):
                 value = getattr(self.gdf, attr)

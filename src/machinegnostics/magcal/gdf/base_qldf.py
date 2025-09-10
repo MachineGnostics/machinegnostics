@@ -242,7 +242,7 @@ class BaseQLDF(BaseQGDF):
         eps = np.finfo(float).eps
         denominator = np.where(denominator == 0, eps, denominator)
         
-        pdf_values = (1 / self.S_opt) * fQ_mean / denominator
+        pdf_values = (1 / self.S_opt) * 1 / denominator
         
         return pdf_values.flatten()
 
