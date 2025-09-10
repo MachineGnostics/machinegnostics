@@ -933,7 +933,7 @@ class DataHomogeneity:
                               label=f'Original Z0={self.z0:.3f}')
             
             # Add homogeneity status text
-            status_text = "✅ Homogeneous" if self.is_homogeneous else "❌ Not Homogeneous"
+            status_text = "Homogeneous" if self.is_homogeneous else "Not Homogeneous"
             status_color = 'green' if self.is_homogeneous else 'red'
             
             ax.text(0.02, 0.98, status_text, transform=ax.transAxes, 
