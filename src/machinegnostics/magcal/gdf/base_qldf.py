@@ -125,9 +125,9 @@ class BaseQLDF(BaseQGDF):
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
-            # self._compute_z0(optimize=self.z0_optimize) 
+            self._compute_z0(optimize=self.z0_optimize) 
             # derivatives
-            self._calculate_all_derivatives()
+            # self._calculate_all_derivatives()
             
             # # Step 8: Z0 estimate with Z0Estimator
             # self._compute_z0(optimize=self.z0_optimize)         
