@@ -374,12 +374,12 @@ class DataHomogeneity:
             if hasattr(self.gdf, 'di_points_n'):
                 self.gdf.di_points_n = None
                 if self.verbose:
-                    print("Flushed di_points_n from GDF object to save memory.")
+                    print("DataHomogeneity: Flushed di_points_n from GDF object to save memory.")
             
             if hasattr(self.gdf, 'pdf_points'):
                 self.gdf.pdf_points = None
                 if self.verbose:
-                    print("Flushed pdf_points from GDF object to save memory.")
+                    print("DataHomogeneity: Flushed pdf_points from GDF object to save memory.")
             
             # Remove from params as well if present
             if hasattr(self.gdf, 'params') and self.gdf.params:
@@ -514,7 +514,7 @@ class DataHomogeneity:
         """
         try:
             if self.verbose:
-                print(f"Starting homogeneity analysis for {self.gdf_type.upper()} data...")
+                print(f"DataHomogeneity: Starting homogeneity analysis for {self.gdf_type.upper()} data...")
             
             # Prepare parameters from GDF
             gdf_params = self._prepare_params_from_gdf()
@@ -559,7 +559,7 @@ class DataHomogeneity:
                 })
                 
                 if self.verbose:
-                    print(f"Homogeneity results written to {self.gdf_type.upper()} params dictionary.")
+                    print(f"DataHomogeneity: Homogeneity results written to {self.gdf_type.upper()} params dictionary.")
             
             # Flush memory if requested
             self._flush_memory()
@@ -567,17 +567,17 @@ class DataHomogeneity:
             self._fitted = True
             
             if self.verbose:
-                print(f"Homogeneity analysis completed for {self.gdf_type.upper()}.")
-                print(f"Data is {'homogeneous' if self.is_homogeneous else 'not homogeneous'}")
-                print(f"Number of {('maxima' if self.gdf_type == 'egdf' else 'minima')} detected: {len(self.picks)}")
+                print(f"DataHomogeneity: Homogeneity analysis completed for {self.gdf_type.upper()}.")
+                print(f"DataHomogeneity: Data is {'homogeneous' if self.is_homogeneous else 'not homogeneous'}")
+                print(f"DataHomogeneity: Number of {('maxima' if self.gdf_type == 'egdf' else 'minima')} detected: {len(self.picks)}")
             
             return self.is_homogeneous
-            
+    
         except Exception as e:
             error_msg = f"Error during homogeneity analysis: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
             if self.verbose:
-                print(f"Error: {error_msg}")
+                print(f"DataHomogeneity: Error: {error_msg}")
             raise
 
     def _test_homogeneity(self):
@@ -617,10 +617,10 @@ class DataHomogeneity:
                     elif num_extrema == 0:
                         reasons.append(f"no significant {extrema_type} detected")
                         self._append_warning(f"No significant {extrema_type} detected - check smoothing parameters")
-                    print(f"{self.gdf_type.upper()} data is not homogeneous: {', '.join(reasons)}.")
+                    print(f"DataHomogeneity: {self.gdf_type.upper()} data is not homogeneous: {', '.join(reasons)}.")
                 else:
-                    print(f"{self.gdf_type.upper()} data is homogeneous: PDF has no negative values "
-                          f"and exactly one {extrema_type[:-1]} detected.")
+                    print(f"DataHomogeneity: {self.gdf_type.upper()} data is homogeneous: PDF has no negative values "
+                        f"and exactly one {extrema_type[:-1]} detected.")
             
             # Store additional info in params
             if self.catch:
@@ -920,7 +920,7 @@ class DataHomogeneity:
                 if is_global:
                     ax.axvline(pos, color='red', linestyle='-', linewidth=2, alpha=0.8)
                     ax.plot(pos, pdf_val, 'o', color='red', markersize=10, 
-                           label=f'Global {extrema_type} (Z0={pos:.3f})')
+                        label=f'Global {extrema_type} (Z0={pos:.3f})')
                 else:
                     ax.axvline(pos, color='grey', linestyle='-', linewidth=1, alpha=0.6)
                     ax.plot(pos, pdf_val, 'o', color='grey', markersize=6, alpha=0.7)
@@ -930,7 +930,7 @@ class DataHomogeneity:
                 global_extremum_pos = data_points[self.global_extremum_idx]
                 if abs(self.z0 - global_extremum_pos) > 0.001:
                     ax.axvline(self.z0, color='cyan', linestyle=':', linewidth=2, alpha=0.8,
-                              label=f'Original Z0={self.z0:.3f}')
+                            label=f'Original Z0={self.z0:.3f}')
             
             # Add homogeneity status text
             status_text = "Homogeneous" if self.is_homogeneous else "Not Homogeneous"
@@ -969,7 +969,7 @@ class DataHomogeneity:
             error_msg = f"Error creating plot: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
             if self.verbose:
-                print(f"Error: {error_msg}")
+                print(f"DataHomogeneity: Error: {error_msg}")
             raise
 
     def results(self) -> Dict[str, Any]:
