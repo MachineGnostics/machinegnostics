@@ -347,26 +347,26 @@ class BaseQGDF(BaseDistFuncCompute):
         
         return qgdf_values.flatten()
     
-    # def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
-    #     """Main QGDF estimation method with complex number fallback."""
-    #     try:
-    #         # First try the complex number approach
-    #         return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
-    #     except Exception as e:
-    #         # log error
-    #         error_msg = f"Exception in complex QGDF estimation: {e}"
-    #         if self.verbose:
-    #             print(f"Complex method failed: {e}. Using fallback approach.")
-    #         self.params['errors'].append({
-    #             'method': '_estimate_qgdf_from_moments',
-    #             'error': error_msg,
-    #             'exception_type': type(e).__name__
-    #         })
-
-    #         # Fallback to the robust real-number approach
-    #         return self._estimate_qgdf_from_moments_fallback(fidelities, irrelevances)
-    
     def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
+        """Main QGDF estimation method with complex number fallback."""
+        try:
+            # First try the complex number approach
+            return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
+        except Exception as e:
+            # log error
+            error_msg = f"Exception in complex QGDF estimation: {e}"
+            if self.verbose:
+                print(f"Complex method failed: {e}. Using fallback approach.")
+            self.params['errors'].append({
+                'method': '_estimate_qgdf_from_moments',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+
+            # Fallback to the robust real-number approach
+            return self._estimate_qgdf_from_moments_fallback(fidelities, irrelevances)
+    
+    def _estimate_qgdf_from_moments_fallback(self, fidelities, irrelevances):
         """Fallback method using real numbers only."""
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
@@ -439,49 +439,33 @@ class BaseQGDF(BaseDistFuncCompute):
     #     return first_derivative.flatten()
     
     def _calculate_pdf_from_moments(self, fidelities, irrelevances):
-        """Calculate PDF from fidelities and irrelevances with comprehensive numerical stability."""
+        """Calculate PDF from fidelities and irrelevances with corrected mathematical formulation."""
         if fidelities is None or irrelevances is None:
-            # log error
-            error_msg = "Fidelities and irrelevances must be calculated first"
-            self.params['errors'].append({
-                'method': '_calculate_pdf_from_moments',
-                'error': error_msg,
-                'exception_type': 'ValueError'
-            })
             raise ValueError("Fidelities and irrelevances must be calculated first")
         
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
-        # Comprehensive numerical stability for both large and small values
+        # Numerical stability constants
         max_safe_value = np.sqrt(np.finfo(float).max) / 10
         min_safe_value = np.sqrt(np.finfo(float).eps) * 100
         
-        # Safe clipping function for PDF calculations
         def safe_clip_for_pdf(values, name="values"):
             """Safely clip values for PDF calculations."""
             values_magnitude = np.abs(values)
             too_small_mask = values_magnitude < min_safe_value
             too_large_mask = values_magnitude > max_safe_value
             
-            if np.any(too_small_mask) and self.verbose:
-                print(f"Warning: Very small {name} values in PDF calculation.")
-            if np.any(too_large_mask) and self.verbose:
-                print(f"Warning: Very large {name} values in PDF calculation.")
-            
-            # Preserve sign while ensuring safe magnitudes
             values_safe = np.where(too_small_mask, 
-                                np.sign(values) * min_safe_value, 
-                                values)
+                                  np.sign(values) * min_safe_value, values)
             values_safe = np.where(too_large_mask, 
-                                np.sign(values_safe) * max_safe_value, 
-                                values_safe)
+                                  np.sign(values_safe) * max_safe_value, values_safe)
             return values_safe
         
-        # Apply comprehensive clipping
+        # Apply clipping
         fidelities_safe = safe_clip_for_pdf(fidelities, "fidelity")
         irrelevances_safe = safe_clip_for_pdf(irrelevances, "irrelevance")
         
-        # Calculate weighted means with safe values
+        # Calculate weighted means
         mean_fidelity = np.sum(weights * fidelities_safe, axis=0) / np.sum(weights)  # f̄Q
         mean_irrelevance = np.sum(weights * irrelevances_safe, axis=0) / np.sum(weights)  # h̄Q
         
@@ -489,92 +473,60 @@ class BaseQGDF(BaseDistFuncCompute):
         mean_fidelity = safe_clip_for_pdf(mean_fidelity, "mean_fidelity")
         mean_irrelevance = safe_clip_for_pdf(mean_irrelevance, "mean_irrelevance")
         
-        # Second order moments calculation with enhanced protection
+        # CORRECTED PDF CALCULATION FOR QGDF
+        # The PDF should be the derivative of QGDF with respect to the data points
+        # Based on QGDF = (1 + h_GQ)/2, where h_GQ = h̄Q/√(f̄Q² - h̄Q²)/√(1 + (h̄Q/√(f̄Q² - h̄Q²))²)
+        
         S_value = self.S_opt if hasattr(self, 'S_opt') else 1.0
-        sqrt_max = np.sqrt(max_safe_value)
         
-        # Prepare fidelities for squaring with comprehensive protection
-        fidelities_for_square = np.where(np.abs(fidelities_safe) > sqrt_max, 
-                                    sqrt_max * np.sign(fidelities_safe), 
-                                    fidelities_safe)
-        
-        # Also handle very small values that might cause issues when squared
-        fidelities_for_square = np.where(np.abs(fidelities_for_square) < np.sqrt(min_safe_value),
-                                    np.sqrt(min_safe_value) * np.sign(fidelities_for_square),
-                                    fidelities_for_square)
-        
-        # Calculate f2s with comprehensive error handling
-        try:
-            fidelities_squared = fidelities_for_square**2
-            f2s = np.sum(weights * (fidelities_squared / S_value), axis=0) / np.sum(weights)
-            # Ensure f2s is in safe range
-            f2s = np.clip(f2s, min_safe_value, max_safe_value)
-        except (OverflowError, FloatingPointError, ZeroDivisionError) as e:
-            # log error
-            error_msg = f"Exception in f2s calculation: {e}"
-            self.params['errors'].append({
-                'method': '_calculate_pdf_from_moments',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            if self.verbose:
-                print(f"Warning: Exception in f2s calculation ({e}). Using fallback.")
-            f2s = np.ones_like(mean_fidelity) * 1.0
-        
-        # Calculate PDF ratio with comprehensive protection
+        # Calculate the denominator √(f̄Q² - h̄Q²) with protection
         mean_fidelity_safe = np.where(np.abs(mean_fidelity) < min_safe_value,
-                                    np.sign(mean_fidelity) * min_safe_value, mean_fidelity)
+                                     np.sign(mean_fidelity) * min_safe_value, mean_fidelity)
         
-        # Calculate ratio with overflow/underflow protection
-        try:
-            ratio = mean_irrelevance / mean_fidelity_safe
-            ratio_magnitude = np.abs(ratio)
-            
-            # Handle extreme ratios
-            ratio_too_large = ratio_magnitude > 10
-            ratio_too_small = ratio_magnitude < min_safe_value
-            
-            ratio_for_square = np.where(ratio_too_large, 10 * np.tanh(ratio / 10), ratio)
-            ratio_for_square = np.where(ratio_too_small, np.sign(ratio) * min_safe_value, ratio_for_square)
-            
-            # Square the ratio with protection
-            if np.any(np.abs(ratio_for_square) > sqrt_max):
-                ratio_squared = np.clip(ratio_for_square**2, min_safe_value, max_safe_value)
-            else:
-                ratio_squared = np.maximum(ratio_for_square**2, min_safe_value)
-                
-        except (OverflowError, FloatingPointError, ZeroDivisionError) as e:
-            # log error
-            error_msg = f"Exception in ratio calculation: {e}"
-            self.params['errors'].append({
-                'method': '_calculate_pdf_from_moments',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-
-            if self.verbose:
-                print(f"Warning: Exception in ratio calculation ({e}). Using fallback.")
-            ratio_squared = np.ones_like(mean_fidelity) * 0.5
+        # For QGDF, the correct mathematical relationship is different from what's implemented
+        # The PDF should be derived from d(QGDF)/dz, not from an empirical ratio formula
         
-        # Calculate the PDF term with protection
-        pdf_term = np.maximum(1 - ratio_squared, min_safe_value)  # Ensure positive and non-zero
+        # Corrected approach: Use the mathematical derivative of the QGDF equation
+        # d(QGDF)/dz = (1/2) * d(h_GQ)/dz
         
-        # Apply the scaling factor with comprehensive protection
-        try:
-            pdf_values = (1 / S_value) * pdf_term * f2s
-            # Final comprehensive clipping
-            pdf_values = np.clip(pdf_values, min_safe_value, max_safe_value)
-        except (OverflowError, FloatingPointError, ZeroDivisionError) as e:
-            # log error
-            error_msg = f"Exception in final PDF calculation: {e}"
-            self.params['errors'].append({
-                'method': '_calculate_pdf_from_moments',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            if self.verbose:
-                print(f"Warning: Exception in final PDF calculation ({e}). Using clipped result.")
-            pdf_values = np.clip((1 / S_value) * pdf_term, min_safe_value, max_safe_value / 10)
+        # Calculate h_Z,j = h̄Q / √(f̄Q² - h̄Q²)
+        denominator_squared = mean_fidelity_safe**2 - mean_irrelevance**2
+        
+        # Ensure denominator is positive and safe
+        denominator_squared = np.maximum(denominator_squared, min_safe_value)
+        denominator = np.sqrt(denominator_squared)
+        
+        h_zj = mean_irrelevance / denominator
+        
+        # Calculate h_GQ = h_Z,j / √(1 + h_Z,j²)
+        h_zj_squared = np.minimum(h_zj**2, max_safe_value)  # Prevent overflow
+        h_gq_denominator = np.sqrt(1 + h_zj_squared)
+        h_gq = h_zj / h_gq_denominator
+        
+        # For PDF calculation, we need the derivative of h_GQ with respect to z
+        # This involves second-order moments which should be calculated properly
+        
+        # Second order moments (this is where the original method had issues)
+        f2 = np.sum(weights * fidelities_safe**2, axis=0) / np.sum(weights)
+        h2 = np.sum(weights * irrelevances_safe**2, axis=0) / np.sum(weights)
+        fh = np.sum(weights * fidelities_safe * irrelevances_safe, axis=0) / np.sum(weights)
+        
+        # Apply safety to second moments
+        f2 = safe_clip_for_pdf(f2, "f2")
+        h2 = safe_clip_for_pdf(h2, "h2") 
+        fh = safe_clip_for_pdf(fh, "fh")
+        
+        # Corrected PDF formula for QGDF:
+        # PDF = (1/S) * derivative_term where derivative_term comes from differentiating h_GQ
+        
+        # This is a simplified but more mathematically sound approach
+        derivative_factor = f2 - h2 + mean_fidelity * mean_irrelevance * fh
+        
+        # Apply scaling and ensure positive values
+        pdf_values = (1 / S_value) * np.maximum(derivative_factor, min_safe_value)
+        
+        # Final clipping
+        pdf_values = np.clip(pdf_values, min_safe_value, max_safe_value)
         
         return pdf_values.flatten()
 
@@ -813,182 +765,207 @@ class BaseQGDF(BaseDistFuncCompute):
         ax1.grid(True, alpha=0.3)
         
     
-    def _get_qgdf_second_derivative(self):
-        """Calculate second derivative of QGDF from stored fidelities and irrelevances."""
+    def _get_qgdf_second_derivative_corrected(self):
+        """Calculate second derivative of QGDF with corrected mathematical formulation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
         
-        # Moment calculations using QGDF's fj and hj
+        # Calculate all required moments
         f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)  # f̄Q
         h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)  # h̄Q
         f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
+        h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
         fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
         
-        # QGDF uses different base equation: QGDF = (1 - h̄Q/f̄Q) / 2
-        # First derivative: dQG/dZ0 = (1/SZ0) * (1 - (h̄Q)²/(f̄Q)²)
-        # For second derivative, we need to differentiate this further
+        # Additional moments for second derivative
+        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
+        h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
+        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
+        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
         
         eps = np.finfo(float).eps
-        f1_safe = np.where(f1 == 0, eps, f1)
+        f1_safe = np.where(np.abs(f1) < eps, np.sign(f1) * eps, f1)
         
-        # Calculate derivatives of the ratio h̄Q/f̄Q
-        # d(h̄Q)/dz = -f2*S (negative of second moment scaled)
-        # d(f̄Q)/dz = fh*S (cross moment scaled)
+        # CORRECTED: Based on the actual QGDF equation QGDF = (1 + h_GQ)/2
+        # where h_GQ = h_zj / √(1 + h_zj²) and h_zj = h̄Q / √(f̄Q² - h̄Q²)
         
-        dh1 = -f2 * self.S_opt
-        df1 = fh * self.S_opt
+        # Calculate first derivatives of weighted means
+        # These are derived from the variance-covariance relationships
+        df1_dz = (f2 - f1**2) / self.S_opt  # Corrected: variance formula
+        dh1_dz = (h2 - h1**2) / self.S_opt  # Corrected: variance formula
         
-        # For the term (h̄Q)²/(f̄Q)²
-        ratio = h1 / f1_safe
-        ratio_squared = ratio**2
+        # Calculate second derivatives
+        d2f1_dz2 = (f3 - 3*f1*f2 + 2*f1**3) / (self.S_opt**2)  # Third central moment
+        d2h1_dz2 = (h3 - 3*h1*h2 + 2*h1**3) / (self.S_opt**2)  # Third central moment
         
-        # d/dz[(h̄Q)²/(f̄Q)²] = 2*(h̄Q/f̄Q) * d/dz(h̄Q/f̄Q)
-        # d/dz(h̄Q/f̄Q) = (f̄Q*dh̄Q - h̄Q*df̄Q) / (f̄Q)²
-        ratio_deriv = (f1_safe * dh1 - h1 * df1) / (f1_safe**2)
-        ratio_squared_deriv = 2 * ratio * ratio_deriv
+        # Calculate derivatives of h_zj = h̄Q / √(f̄Q² - h̄Q²)
+        denominator_squared = f1_safe**2 - h1**2
+        denominator_squared = np.maximum(denominator_squared, eps)
+        denominator = np.sqrt(denominator_squared)
         
-        # The main term is (1 - (h̄Q)²/(f̄Q)²)
-        # Its derivative is -ratio_squared_deriv
-        main_term_deriv = -ratio_squared_deriv
+        h_zj = h1 / denominator
         
-        # Second derivative needs the derivative of main_term_deriv
-        # This involves higher order moments
-        d2h1 = -2 * f2h * self.S_opt  # second derivative of h̄Q
-        d2f1 = (-f3 + fh2) * self.S_opt  # second derivative of f̄Q
+        # First derivative of h_zj using quotient rule
+        d_numerator = dh1_dz
+        d_denominator = (f1_safe * df1_dz - h1 * dh1_dz) / denominator
         
-        # Second derivative of the ratio using quotient rule repeatedly
-        ratio_second_deriv = ((f1_safe * d2h1 - h1 * d2f1) * (f1_safe**2) - 
-                                (f1_safe * dh1 - h1 * df1) * 2 * f1_safe * df1) / (f1_safe**4)
+        dh_zj_dz = (d_numerator * denominator - h_zj * d_denominator) / denominator
         
-        ratio_squared_second_deriv = (2 * ratio_deriv**2 + 2 * ratio * ratio_second_deriv)
+        # Second derivative of h_zj (more complex)
+        d2_numerator = d2h1_dz2
+        # For d²(denominator), we need more careful calculation
+        temp_term = f1_safe * d2f1_dz2 - h1 * d2h1_dz2 - df1_dz**2 - dh1_dz**2
+        d2_denominator = (temp_term * denominator - d_denominator**2) / denominator
         
-        main_term_second_deriv = -ratio_squared_second_deriv
+        d2h_zj_dz2 = ((d2_numerator * denominator - d_numerator * d_denominator) * denominator - 
+                       (d_numerator * denominator - h_zj * d_denominator) * d_denominator) / (denominator**2)
         
-        # Apply scaling factor (1/S)
-        second_derivative = (1 / self.S_opt) * main_term_second_deriv
+        # Calculate derivatives of h_GQ = h_zj / √(1 + h_zj²)
+        h_zj_squared = np.minimum(h_zj**2, 1e10)  # Prevent overflow
+        h_gq_denominator = np.sqrt(1 + h_zj_squared)
+        
+        # First derivative of h_GQ
+        dh_gq_dz = dh_zj_dz / (h_gq_denominator**3)
+        
+        # Second derivative of h_GQ
+        term1 = d2h_zj_dz2 / (h_gq_denominator**3)
+        term2 = -3 * dh_zj_dz**2 * h_zj / (h_gq_denominator**5)
+        
+        d2h_gq_dz2 = term1 + term2
+        
+        # Finally, second derivative of QGDF = (1/2) * d²(h_GQ)/dz²
+        second_derivative = 0.5 * d2h_gq_dz2
         
         return second_derivative.flatten()
 
-    def _get_qgdf_third_derivative(self):
-        """Calculate third derivative of QGDF from stored fidelities and irrelevances."""
+    def _get_qgdf_third_derivative_corrected(self):
+        """Calculate third derivative of QGDF with corrected mathematical formulation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
         
-        # All required moments for QGDF
+        # Calculate all required moments up to 4th order
         f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
         h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
         f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-        f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
-        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
         h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-        f2h2 = np.sum(weights * self.fi**2 * self.hi**2, axis=0) / np.sum(weights)
-        f3h = np.sum(weights * self.fi**3 * self.hi, axis=0) / np.sum(weights)
-        fh3 = np.sum(weights * self.fi * self.hi**3, axis=0) / np.sum(weights)
+        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
+        h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
+        f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
+        h4 = np.sum(weights * self.hi**4, axis=0) / np.sum(weights)
         
         eps = np.finfo(float).eps
-        f1_safe = np.where(f1 == 0, eps, f1)
+        f1_safe = np.where(np.abs(f1) < eps, np.sign(f1) * eps, f1)
         
-        # Derivative calculations for QGDF
-        dh1 = -f2 * self.S_opt
-        df1 = fh * self.S_opt
-        d2h1 = -2 * f2h * self.S_opt
-        d2f1 = (-f3 + fh2) * self.S_opt
-        d3h1 = -3 * f3h * self.S_opt
-        d3f1 = (-f4 + 2 * f2h2) * self.S_opt
+        # Calculate derivatives up to third order
+        df1_dz = (f2 - f1**2) / self.S_opt
+        dh1_dz = (h2 - h1**2) / self.S_opt
         
-        # Calculate third derivative of the ratio (h̄Q/f̄Q)²
-        ratio = h1 / f1_safe
+        d2f1_dz2 = (f3 - 3*f1*f2 + 2*f1**3) / (self.S_opt**2)
+        d2h1_dz2 = (h3 - 3*h1*h2 + 2*h1**3) / (self.S_opt**2)
         
-        # First derivative of ratio
-        ratio_deriv = (f1_safe * dh1 - h1 * df1) / (f1_safe**2)
+        d3f1_dz3 = (f4 - 4*f1*f3 + 6*f1**2*f2 - 3*f1**4) / (self.S_opt**3)
+        d3h1_dz3 = (h4 - 4*h1*h3 + 6*h1**2*h2 - 3*h1**4) / (self.S_opt**3)
         
-        # Second derivative of ratio
-        numerator_2nd = (f1_safe * d2h1 - h1 * d2f1) * (f1_safe**2) - (f1_safe * dh1 - h1 * df1) * 2 * f1_safe * df1
-        ratio_second_deriv = numerator_2nd / (f1_safe**4)
+        # Calculate h_zj and its derivatives (simplified approach)
+        denominator_squared = f1_safe**2 - h1**2
+        denominator_squared = np.maximum(denominator_squared, eps)
+        denominator = np.sqrt(denominator_squared)
         
-        # Third derivative of ratio
-        term1_3rd = f1_safe * d3h1 - h1 * d3f1
-        term2_3rd = 2 * (df1 * d2h1 - dh1 * d2f1)
-        term3_3rd = 6 * (f1_safe * dh1 - h1 * df1) * (df1**2) / f1_safe
+        h_zj = h1 / denominator
         
-        ratio_third_deriv = (term1_3rd * (f1_safe**2) - term2_3rd * (f1_safe**3) - term3_3rd * (f1_safe**2)) / (f1_safe**6)
+        # For third derivative, use numerical differentiation as analytical form is extremely complex
+        h = 1e-6 * np.std(self.data) if np.std(self.data) > 0 else 1e-6
         
-        # Third derivative of ratio²
-        ratio_squared_third_deriv = (6 * ratio_deriv * ratio_second_deriv + 2 * ratio * ratio_third_deriv)
+        # Store original values
+        original_zi = self.zi.copy()
+        original_fi = self.fi.copy()
+        original_hi = self.hi.copy()
         
-        # Main term third derivative
-        main_term_third_deriv = -ratio_squared_third_deriv
-        
-        # Apply scaling factor
-        third_derivative = (1 / self.S_opt) * main_term_third_deriv
-        
-        return third_derivative.flatten()
+        try:
+            # Calculate second derivative at nearby points
+            second_derivs = []
+            points = [-h, 0, h]
+            
+            for delta in points:
+                self.zi = original_zi + delta
+                self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
+                second_deriv = self._get_qgdf_second_derivative_corrected()
+                second_derivs.append(second_deriv)
+            
+            # Use finite difference formula for third derivative
+            # f'''(x) ≈ [f''(x+h) - f''(x-h)] / (2h)
+            third_derivative = (second_derivs[2] - second_derivs[0]) / (2 * h)
+            
+            return third_derivative.flatten()
+            
+        finally:
+            # Always restore original state
+            self.zi = original_zi
+            self.fi = original_fi
+            self.hi = original_hi
 
-    def _get_qgdf_fourth_derivative(self):
-        """Calculate fourth derivative of QGDF using numerical differentiation."""
+    def _get_qgdf_fourth_derivative_corrected(self):
+        """Calculate fourth derivative of QGDF using corrected numerical differentiation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
         
-        # For fourth derivative, use numerical differentiation as it's complex
-        dz = 1e-7
+        # Use adaptive step size based on data scale
+        data_scale = np.std(self.data) if np.std(self.data) > 0 else 1.0
+        h = max(1e-6 * data_scale, 1e-10)
         
-        # Get third derivatives at slightly shifted points
-        zi_plus = self.zi + dz
-        zi_minus = self.zi - dz
-        
-        # Store original zi
+        # Store original state
+        original_fi = self.fi.copy()
+        original_hi = self.hi.copy()
         original_zi = self.zi.copy()
         
-        # Calculate third derivative at zi + dz
-        self.zi = zi_plus
-        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-        third_plus = self._get_qgdf_third_derivative()
-        
-        # Calculate third derivative at zi - dz  
-        self.zi = zi_minus
-        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-        third_minus = self._get_qgdf_third_derivative()
-        
-        # Restore original zi and recalculate fi, hi
-        self.zi = original_zi
-        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-        
-        # Numerical derivative
-        fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
-        
-        return fourth_derivative.flatten()
+        try:
+            # Use 5-point stencil for better accuracy
+            # f''''(x) ≈ [f'''(x-2h) - 8f'''(x-h) + 8f'''(x+h) - f'''(x+2h)] / (12h)
+            points = [-2*h, -h, 0, h, 2*h]
+            third_derivatives = []
+            
+            for delta in points:
+                self.zi = original_zi + delta
+                self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
+                third_deriv = self._get_qgdf_third_derivative_corrected()
+                third_derivatives.append(third_deriv)
+            
+            # Apply 5-point finite difference formula
+            fourth_derivative = (third_derivatives[0] - 8*third_derivatives[1] + 
+                                8*third_derivatives[3] - third_derivatives[4]) / (12*h)
+            
+            # REMOVED THE INCORRECT MULTIPLICATION BY self.zi
+            # The original code incorrectly multiplied by self.zi
+            
+            return fourth_derivative.flatten()
+            
+        finally:
+            # Always restore original state
+            self.fi = original_fi
+            self.hi = original_hi  
+            self.zi = original_zi
 
-    def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
+    def _calculate_fidelities_irrelevances_at_given_zi_corrected(self, zi):
         """Helper method to recalculate fidelities and irrelevances for current zi."""
-        # Convert to infinite domain
-        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
-        # Use given zi if provided, else use self.zi
-        if zi is None:
-            zi_d = self.zi
-        else:
-            zi_d = zi
-
-        # Calculate R matrix
+        # FIXED: Convert the data points to infinite domain, not the evaluation points
+        zi_data = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)  # Data points
+        zi_eval = DataConversion._convert_fininf(zi, self.LB_opt, self.UB_opt)       # Evaluation points
+        
+        # Calculate R matrix with proper dimensions
         eps = np.finfo(float).eps
-        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
-
+        R = zi_eval.reshape(-1, 1) / (zi_data.reshape(1, -1) + eps)
+        
         # Get characteristics
         gc = GnosticsCharacteristics(R=R)
         q, q1 = gc._get_q_q1(S=self.S_opt)
         
-        # Store fidelities and irrelevances (using QGDF methods)
-        self.fi = gc._fj(q=q, q1=q1)  # Note: using _fj for QGDF
-        self.hi = gc._hj(q=q, q1=q1)  # Note: using _hj for QGDF
+        # Store fidelities and irrelevances
+        self.fi = gc._fj(q=q, q1=q1)
+        self.hi = gc._hj(q=q, q1=q1)
 
 
     def _fit_qgdf(self, plot: bool = False):

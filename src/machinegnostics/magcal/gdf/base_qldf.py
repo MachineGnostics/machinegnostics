@@ -232,7 +232,7 @@ class BaseQLDF(BaseQGDF):
         hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
 
         # hQL
-        hQL = fQ_mean / (np.sqrt(1 + hQ_mean**2) + self._NUMERICAL_EPS)
+        hQL = hQ_mean / (np.sqrt(1 + hQ_mean**2) + self._NUMERICAL_EPS)
 
         # Apply equation (15.34): dQL/dZ₀ = (1/SZ₀) * f̄Q/((1 + (h̄Q)²)^(3/2))
         # Note: We use S instead of SZ₀ for the scaling factor
@@ -241,9 +241,9 @@ class BaseQLDF(BaseQGDF):
         # Handle division by zero
         eps = np.finfo(float).eps
         denominator = np.where(denominator == 0, eps, denominator)
-        
-        pdf_values = (1 / self.S_opt) * 1 / denominator
-        
+
+        pdf_values = (1 / self.S_opt) * fQ_mean / denominator
+
         return pdf_values.flatten()
 
     def _generate_smooth_curves(self):
@@ -466,7 +466,13 @@ class BaseQLDF(BaseQGDF):
         ax1.grid(True, alpha=0.3)
 
     def _get_qldf_second_derivative(self, fj=None, hj=None):
-        """Calculate second derivative of QLDF from stored quantifying fidelities and irrelevances."""
+        """
+        Calculate second derivative of QLDF using mathematical derivation.
+        
+        Starting from: dQL/dZ₀ = (1/S) * f̄Q/((1 + (h̄Q)²)^(3/2))
+        
+        Second derivative: d²QL/dZ₀² = (1/S) * d/dZ₀[f̄Q/((1 + (h̄Q)²)^(3/2))]
+        """
         if fj is None or hj is None:
             fj = self.fj
             hj = self.hj
@@ -476,30 +482,34 @@ class BaseQLDF(BaseQGDF):
         
         weights = self.weights.reshape(-1, 1)
         
-        # Calculate weighted means
+        # Calculate weighted means and their derivatives
         fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)  # f̄Q
         hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
         
-        # Calculate second moments for derivative
-        fQ2 = np.sum(weights * fj**2, axis=0) / np.sum(weights)
-        hQ2 = np.sum(weights * hj**2, axis=0) / np.sum(weights)
-        fQhQ = np.sum(weights * fj * hj, axis=0) / np.sum(weights)
+        # For derivatives, we need: d(f̄Q)/dZ₀ and d(h̄Q)/dZ₀
+        # These are approximated by the variance-like terms
+        dfQ_dz = np.sum(weights * (fj - fQ_mean) * self.zi.reshape(-1, 1), axis=0) / np.sum(weights)
+        dhQ_dz = np.sum(weights * (hj - hQ_mean) * self.zi.reshape(-1, 1), axis=0) / np.sum(weights)
         
-        # Second derivative formula for QLDF based on equation (15.34)
-        # This is derived from differentiating the PDF equation
-        denominator = (1 + hQ_mean**2)**(5/2)
-        numerator = fQ2 * (1 + hQ_mean**2) - 3 * fQ_mean * hQ_mean * fQhQ
+        # Apply quotient rule: d/dx[u/v] = (v*du - u*dv)/v²
+        # where u = f̄Q and v = (1 + (h̄Q)²)^(3/2)
         
-        # Handle division by zero
-        eps = np.finfo(float).eps
-        denominator = np.where(denominator == 0, eps, denominator)
+        u = fQ_mean
+        v = (1 + hQ_mean**2)**(3/2)
+        du_dz = dfQ_dz
+        dv_dz = (3/2) * (1 + hQ_mean**2)**(1/2) * 2 * hQ_mean * dhQ_dz
         
-        second_derivative = (1 / self.S_opt**2) * numerator / denominator
+        # Second derivative using quotient rule
+        second_derivative = (1 / self.S_opt) * (v * du_dz - u * dv_dz) / (v**2)
         
         return second_derivative.flatten()
-    
+
     def _get_qldf_third_derivative(self, fj=None, hj=None):
-        """Calculate third derivative of QLDF from stored quantifying fidelities and irrelevances."""
+        """
+        Calculate third derivative of QLDF using mathematical derivation.
+        
+        This involves differentiating the second derivative expression.
+        """
         if fj is None or hj is None:
             fj = self.fj
             hj = self.hj
@@ -509,31 +519,28 @@ class BaseQLDF(BaseQGDF):
         
         weights = self.weights.reshape(-1, 1)
         
-        # Calculate weighted means up to third moments
-        fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)  # f̄Q
-        hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
+        # Calculate weighted means and derivatives
+        fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)
+        hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)
         
-        fQ3 = np.sum(weights * fj**3, axis=0) / np.sum(weights)
-        hQ3 = np.sum(weights * hj**3, axis=0) / np.sum(weights)
-        fQ2hQ = np.sum(weights * fj**2 * hj, axis=0) / np.sum(weights)
-        fQhQ2 = np.sum(weights * fj * hj**2, axis=0) / np.sum(weights)
+        # First derivatives
+        dfQ_dz = np.sum(weights * (fj - fQ_mean) * self.zi.reshape(-1, 1), axis=0) / np.sum(weights)
+        dhQ_dz = np.sum(weights * (hj - hQ_mean) * self.zi.reshape(-1, 1), axis=0) / np.sum(weights)
         
-        # Third derivative formula for QLDF - complex expression
-        denominator = (1 + hQ_mean**2)**(7/2)
+        # Second derivatives (approximated)
+        d2fQ_dz2 = np.sum(weights * (fj - fQ_mean) * (self.zi.reshape(-1, 1))**2, axis=0) / np.sum(weights)
+        d2hQ_dz2 = np.sum(weights * (hj - hQ_mean) * (self.zi.reshape(-1, 1))**2, axis=0) / np.sum(weights)
         
-        # Numerator components (simplified version of the complex derivative)
-        term1 = fQ3 * (1 + hQ_mean**2)**2
-        term2 = -6 * fQ2hQ * hQ_mean * (1 + hQ_mean**2)
-        term3 = 15 * fQ_mean * hQ_mean**2 * fQhQ2
-        term4 = -3 * fQ_mean * fQhQ2
+        # Complex expression for third derivative - this is a simplified approximation
+        # Full derivation would be extremely complex
         
-        numerator = term1 + term2 + term3 + term4
+        # Terms for the third derivative calculation
+        term1 = d2fQ_dz2 / (1 + hQ_mean**2)**(3/2)
+        term2 = -3 * dfQ_dz * hQ_mean * dhQ_dz / (1 + hQ_mean**2)**(5/2)
+        term3 = -3 * fQ_mean * d2hQ_dz2 * hQ_mean / (1 + hQ_mean**2)**(5/2)
+        term4 = 15 * fQ_mean * hQ_mean**2 * (dhQ_dz)**2 / (1 + hQ_mean**2)**(7/2)
         
-        # Handle division by zero
-        eps = np.finfo(float).eps
-        denominator = np.where(denominator == 0, eps, denominator)
-        
-        third_derivative = (1 / self.S_opt**3) * numerator / denominator
+        third_derivative = (1 / self.S_opt) * (term1 + term2 + term3 + term4)
         
         return third_derivative.flatten()
     
@@ -574,6 +581,44 @@ class BaseQLDF(BaseQGDF):
         fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
         
         return fourth_derivative.flatten()
+    
+    def _get_qldf_derivatives_numerical(self, order=2, h=1e-6):
+        """
+        Calculate QLDF derivatives using numerical differentiation.
+        This is more reliable for higher-order derivatives.
+        
+        Parameters:
+        -----------
+        order : int
+            Order of derivative (2, 3, or 4)
+        h : float
+            Step size for numerical differentiation
+        """
+        if not hasattr(self, 'pdf_points') or self.pdf_points is None:
+            raise ValueError("PDF must be calculated before derivative estimation.")
+        
+        from scipy.misc import derivative
+        
+        # Create interpolation function for PDF
+        from scipy.interpolate import interp1d
+        pdf_interp = interp1d(self.di_points_n, self.pdf_points, 
+                            kind='cubic', bounds_error=False, fill_value=0)
+        
+        # Calculate derivatives at data points
+        derivatives = []
+        for z_val in self.data:
+            if order == 2:
+                deriv = derivative(pdf_interp, z_val, dx=h, n=1, order=3)
+            elif order == 3:
+                deriv = derivative(pdf_interp, z_val, dx=h, n=2, order=5)
+            elif order == 4:
+                deriv = derivative(pdf_interp, z_val, dx=h, n=3, order=7)
+            else:
+                raise ValueError("Order must be 2, 3, or 4")
+            
+            derivatives.append(deriv)
+        
+        return np.array(derivatives)
 
     def _calculate_quantifying_fidelities_irrelevances_at_given_zi(self, zi):
         """Helper method to recalculate quantifying fidelities and irrelevances for current zi."""
