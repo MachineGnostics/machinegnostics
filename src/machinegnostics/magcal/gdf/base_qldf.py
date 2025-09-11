@@ -125,7 +125,9 @@ class BaseQLDF(BaseQGDF):
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
-            self._compute_z0(optimize=self.z0_optimize) 
+            # self._compute_z0(optimize=self.z0_optimize) 
+            # derivatives
+            self._calculate_all_derivatives()
             
             # # Step 8: Z0 estimate with Z0Estimator
             # self._compute_z0(optimize=self.z0_optimize)         
@@ -772,3 +774,65 @@ class BaseQLDF(BaseQGDF):
         z0_estimator.plot_z0_analysis(figsize=figsize)
         
         return analysis_info
+    
+    def _calculate_all_derivatives(self):
+        """Calculate all derivatives and store in params."""
+        if not self._fitted:
+            raise RuntimeError("Must fit QLDF before calculating derivatives.")
+        
+        try:
+            # Calculate derivatives using analytical methods
+            second_deriv = self._get_qldf_second_derivative()
+            third_deriv = self._get_qldf_third_derivative()
+            fourth_deriv = self._get_qldf_fourth_derivative()
+            
+            # Store in params
+            if self.catch:
+                self.params.update({
+                    'second_derivative': second_deriv.copy(),
+                    'third_derivative': third_deriv.copy(),
+                    'fourth_derivative': fourth_deriv.copy()
+                })
+            
+            if self.verbose:
+                print("QLDF derivatives calculated and stored successfully.")
+                
+        except Exception as e:
+            # Log error
+            error_msg = f"Derivative calculation failed: {e}"
+            self.params['errors'].append({
+                'method': '_calculate_all_derivatives',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+            
+            if self.verbose:
+                print(f"Warning: Could not calculate derivatives: {e}")
+            
+            # Fallback to numerical differentiation
+            try:
+                second_deriv_num = self._get_qldf_derivatives_numerical(order=2)
+                third_deriv_num = self._get_qldf_derivatives_numerical(order=3)
+                fourth_deriv_num = self._get_qldf_derivatives_numerical(order=4)
+                
+                if self.catch:
+                    self.params.update({
+                        'second_derivative': second_deriv_num.copy(),
+                        'third_derivative': third_deriv_num.copy(),
+                        'fourth_derivative': fourth_deriv_num.copy()
+                    })
+                
+                if self.verbose:
+                    print("QLDF derivatives calculated using numerical differentiation and stored successfully.")
+                    
+            except Exception as ne:
+                # Log numerical differentiation error
+                num_error_msg = f"Numerical derivative calculation failed: {ne}"
+                self.params['errors'].append({
+                    'method': '_calculate_all_derivatives_numerical',
+                    'error': num_error_msg,
+                    'exception_type': type(ne).__name__
+                })
+                
+                if self.verbose:
+                    print(f"Warning: Could not calculate numerical derivatives: {ne}")

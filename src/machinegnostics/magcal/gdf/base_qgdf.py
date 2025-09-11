@@ -765,7 +765,7 @@ class BaseQGDF(BaseDistFuncCompute):
         ax1.grid(True, alpha=0.3)
         
     
-    def _get_qgdf_second_derivative_corrected(self):
+    def _get_qgdf_second_derivative(self):
         """Calculate second derivative of QGDF with corrected mathematical formulation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
@@ -840,7 +840,7 @@ class BaseQGDF(BaseDistFuncCompute):
         
         return second_derivative.flatten()
 
-    def _get_qgdf_third_derivative_corrected(self):
+    def _get_qgdf_third_derivative(self):
         """Calculate third derivative of QGDF with corrected mathematical formulation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
@@ -893,7 +893,7 @@ class BaseQGDF(BaseDistFuncCompute):
             for delta in points:
                 self.zi = original_zi + delta
                 self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-                second_deriv = self._get_qgdf_second_derivative_corrected()
+                second_deriv = self._get_qgdf_second_derivative()
                 second_derivs.append(second_deriv)
             
             # Use finite difference formula for third derivative
@@ -908,7 +908,7 @@ class BaseQGDF(BaseDistFuncCompute):
             self.fi = original_fi
             self.hi = original_hi
 
-    def _get_qgdf_fourth_derivative_corrected(self):
+    def _get_qgdf_fourth_derivative(self):
         """Calculate fourth derivative of QGDF using corrected numerical differentiation."""
         if self.fi is None or self.hi is None:
             raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
@@ -931,7 +931,7 @@ class BaseQGDF(BaseDistFuncCompute):
             for delta in points:
                 self.zi = original_zi + delta
                 self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-                third_deriv = self._get_qgdf_third_derivative_corrected()
+                third_deriv = self._get_qgdf_third_derivative()
                 third_derivatives.append(third_deriv)
             
             # Apply 5-point finite difference formula
@@ -1001,7 +1001,9 @@ class BaseQGDF(BaseDistFuncCompute):
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
-            self._compute_z0(optimize=self.z0_optimize) 
+            # self._compute_z0(optimize=self.z0_optimize) 
+            # derivatives calculation
+            self._calculate_all_derivatives()
                         
             if self.verbose:
                 print("QGDF fitting completed successfully.")
@@ -1145,167 +1147,36 @@ class BaseQGDF(BaseDistFuncCompute):
         
         return analysis_info
     
+    def _calculate_all_derivatives(self):
+        """Calculate all derivatives and store in params."""
+        if not self._fitted:
+            raise RuntimeError("Must fit QLDF before calculating derivatives.")
+        
+        try:
+            # Calculate derivatives using analytical methods
+            second_deriv = self._get_qgdf_second_derivative()
+            third_deriv = self._get_qgdf_third_derivative()
+            fourth_deriv = self._get_qgdf_fourth_derivative()
 
-# NOTE
-# PDF calculated from fi and hi derivative base logic
-# this below are higher derivatives from the same logic
-
-    # def _get_qgdf_second_derivative(self):
-    #     """Calculate second derivative of QGDF from stored fidelities and irrelevances."""
-    #     if self.fi is None or self.hi is None:
-    #         raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
-        
-    #     weights = self.weights.reshape(-1, 1)
-        
-    #     # Moment calculations using QGDF's fj and hj
-    #     f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)  # f̄Q
-    #     h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)  # h̄Q
-    #     f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-    #     f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-    #     h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-    #     h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
-    #     fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-    #     fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-    #     f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-        
-    #     # Calculate Nj and its derivatives
-    #     eps = np.finfo(float).eps
-    #     f_safe = np.where(np.abs(self.fi) < eps, eps, self.fi)
-    #     f_inv_squared = np.sum(weights * (1 / f_safe**2), axis=0) / np.sum(weights)
-    #     Nj = f_inv_squared + h2
-    #     Nj = np.where(Nj == 0, eps, Nj)
-        
-    #     # QGDF second derivative components
-    #     # d²(f̄Q)/dz² = 2*f2h*S (second derivative of mean fidelity)
-    #     d2f1 = 2 * f2h * self.S_opt
-    #     # d²(h̄Q)/dz² = 2*fh2*S (second derivative of mean irrelevance) 
-    #     d2h1 = 2 * fh2 * self.S_opt
-        
-    #     # Second derivative of F2, H2, FH terms
-    #     d2f2s = 2 * f3 * self.S_opt  # d²F2/dz²
-    #     d2h2s = 2 * h3 * self.S_opt  # d²H2/dz²
-    #     d2fhs = (f3 + fh2) * self.S_opt  # d²FH/dz²
-        
-    #     # Second derivative of Nj
-    #     d2Nj = -4 * f_inv_squared / f1 * f2h * self.S_opt + 2 * h3 * self.S_opt
-        
-    #     # Calculate the main numerator and its second derivative
-    #     numerator = f2 - h2 + f1 * h1 * fh
-    #     d2_numerator = d2f2s - d2h2s + d2f1 * h1 * fh + f1 * d2h1 * fh + f1 * h1 * d2fhs
-        
-    #     # Second derivative formula for QGDF
-    #     term1 = d2_numerator / (2 * Nj**2)
-    #     term2 = -2 * numerator * d2Nj / (2 * Nj**3)
-        
-    #     second_derivative = (1 / self.S_opt**2) * (term1 + term2)
-        
-    #     return second_derivative.flatten()
-
-    # def _get_qgdf_third_derivative(self):
-    #     """Calculate third derivative of QGDF from stored fidelities and irrelevances."""
-    #     if self.fi is None or self.hi is None:
-    #         raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
-        
-    #     weights = self.weights.reshape(-1, 1)
-        
-    #     # All required moments for QGDF
-    #     f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
-    #     h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
-    #     f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-    #     f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-    #     f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
-    #     h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-    #     h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
-    #     h4 = np.sum(weights * self.hi**4, axis=0) / np.sum(weights)
-    #     fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
-    #     fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
-    #     f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-    #     f2h2 = np.sum(weights * self.fi**2 * self.hi**2, axis=0) / np.sum(weights)
-    #     f3h = np.sum(weights * self.fi**3 * self.hi, axis=0) / np.sum(weights)
-    #     fh3 = np.sum(weights * self.fi * self.hi**3, axis=0) / np.sum(weights)
-        
-    #     eps = np.finfo(float).eps
-    #     f_safe = np.where(np.abs(self.fi) < eps, eps, self.fi)
-    #     f_inv_squared = np.sum(weights * (1 / f_safe**2), axis=0) / np.sum(weights)
-    #     Nj = f_inv_squared + h2
-    #     Nj = np.where(Nj == 0, eps, Nj)
-        
-    #     # Third order derivative calculations for QGDF
-    #     d3f1 = 3 * f3h * self.S_opt  # third derivative of f̄Q
-    #     d3h1 = 3 * fh3 * self.S_opt  # third derivative of h̄Q
-        
-    #     # Third derivatives of second moments
-    #     d3f2s = 3 * f4 * self.S_opt
-    #     d3h2s = 3 * h4 * self.S_opt  
-    #     d3fhs = (f4 + 2 * f2h2) * self.S_opt
-        
-    #     # Third derivative of Nj (complex calculation)
-    #     d3Nj = -6 * f_inv_squared / f1**2 * (f2h * self.S_opt)**2 + 3 * h4 * self.S_opt
-        
-    #     # Main numerator and its derivatives
-    #     numerator = f2 - h2 + f1 * h1 * fh
-    #     d3_numerator = d3f2s - d3h2s + d3f1 * h1 * fh + f1 * d3h1 * fh + f1 * h1 * d3fhs
-        
-    #     # Third derivative formula for QGDF
-    #     term1 = d3_numerator / (2 * Nj**2)
-    #     term2 = -6 * numerator * d3Nj / (2 * Nj**4)
-        
-    #     third_derivative = (1 / self.S_opt**3) * (term1 + term2)
-        
-    #     return third_derivative.flatten()
-
-    # def _get_qgdf_fourth_derivative(self):
-    #     """Calculate fourth derivative of QGDF using numerical differentiation."""
-    #     if self.fi is None or self.hi is None:
-    #         raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
-        
-    #     # For fourth derivative, use numerical differentiation as it's complex
-    #     dz = 1e-7
-        
-    #     # Get third derivatives at slightly shifted points
-    #     zi_plus = self.zi + dz
-    #     zi_minus = self.zi - dz
-        
-    #     # Store original zi
-    #     original_zi = self.zi.copy()
-        
-    #     # Calculate third derivative at zi + dz
-    #     self.zi = zi_plus
-    #     self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-    #     third_plus = self._get_qgdf_third_derivative()
-        
-    #     # Calculate third derivative at zi - dz  
-    #     self.zi = zi_minus
-    #     self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-    #     third_minus = self._get_qgdf_third_derivative()
-        
-    #     # Restore original zi and recalculate fi, hi
-    #     self.zi = original_zi
-    #     self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
-        
-    #     # Numerical derivative
-    #     fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
-        
-    #     return fourth_derivative.flatten()
-
-    # def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
-    #     """Helper method to recalculate fidelities and irrelevances for current zi."""
-    #     # Convert to infinite domain
-    #     zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
-    #     # Use given zi if provided, else use self.zi
-    #     if zi is None:
-    #         zi_d = self.zi
-    #     else:
-    #         zi_d = zi
-
-    #     # Calculate R matrix
-    #     eps = np.finfo(float).eps
-    #     R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
-
-    #     # Get characteristics
-    #     gc = GnosticsCharacteristics(R=R)
-    #     q, q1 = gc._get_q_q1(S=self.S_opt)
-        
-    #     # Store fidelities and irrelevances (using QGDF methods)
-    #     self.fi = gc._fj(q=q, q1=q1)  # Note: using _fj for QGDF
-    #     self.hi = gc._hj(q=q, q1=q1)  # Note: using _hj for QGDF
+            # Store in params
+            if self.catch:
+                self.params.update({
+                    'second_derivative': second_deriv.copy(),
+                    'third_derivative': third_deriv.copy(),
+                    'fourth_derivative': fourth_deriv.copy()
+                })
+            
+            if self.verbose:
+                print("QGDF derivatives calculated and stored successfully.")
+                
+        except Exception as e:
+            # Log error
+            error_msg = f"Derivative calculation failed: {e}"
+            self.params['errors'].append({
+                'method': '_calculate_all_derivatives',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+            
+            if self.verbose:
+                print(f"Warning: Could not calculate derivatives: {e}")
