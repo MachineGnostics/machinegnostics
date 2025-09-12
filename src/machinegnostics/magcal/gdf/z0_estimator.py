@@ -1,8 +1,9 @@
 """
 Z0 Estimator - Universal class for estimating Z0 point for GDF distributions
 
-Z0 is the point where PDF reaches its global extremum (maximum for EGDF/ELDF, minimum for QLDF/QGDF),
-using advanced interpolation and optimization methods.
+Z0 is the point where:
+- For EGDF/ELDF: PDF reaches its global maximum
+- For QLDF/QGDF: Distribution function equals 0.5 (median/50th percentile)
 
 Author: Nirmal Parmar
 Machine Gnostics
@@ -17,54 +18,157 @@ class Z0Estimator:
     
     This class automatically detects the distribution type and finds the appropriate Z0 point:
     - For EGDF/ELDF: Finds the point where PDF reaches its global maximum
-    - For QLDF/QGDF: Finds the point where PDF reaches its global minimum
+    - For QLDF/QGDF: Finds the point where the distribution function equals 0.5 (median)
     
     The estimator uses multiple advanced methods including spline optimization, polynomial fitting,
     refined interpolation, and parabolic interpolation to achieve high accuracy.
+    
+    Key Features:
+        - Automatic distribution type detection (EGDF, ELDF, QLDF, QGDF)
+        - Multiple estimation strategies (simple discrete vs advanced optimization)
+        - Robust handling of flat regions and edge cases
+        - Comprehensive diagnostic information
+        - Built-in visualization capabilities
+        - Automatic Z0 assignment back to GDF object
     
     Attributes:
         gdf: The fitted GDF object (EGDF, ELDF, QLDF, or QGDF)
         gdf_type (str): Detected distribution type ('egdf', 'eldf', 'qldf', 'qgdf')
         optimize (bool): Whether to use advanced optimization methods
         verbose (bool): Whether to print detailed progress information
-        find_minimum (bool): True for QLDF/QGDF, False for EGDF/ELDF
+        find_median (bool): True for QLDF/QGDF (find 0.5 point), False for EGDF/ELDF (find PDF max)
         z0 (float): Estimated Z0 value (None until fit() is called)
         estimation_info (dict): Detailed information about the estimation process
     
-    Examples:
-        Basic usage with EGDF (finds maximum):
-        >>> from machinegnostics.magcal import EGDF
-        >>> egdf = EGDF(data=data)
-        >>> egdf.fit()
-        >>> estimator = Z0Estimator(egdf, verbose=True)
-        >>> z0 = estimator.fit()
-        >>> print(f"Z0 at PDF maximum: {z0}")
+    Usage Patterns:
         
-        Usage with QLDF (finds minimum):
-        >>> from machinegnostics.magcal.gdf.qldf import QLDF
-        >>> qldf = QLDF(data=data)
-        >>> qldf.fit()
-        >>> estimator = Z0Estimator(qldf, optimize=True, verbose=True)
-        >>> z0 = estimator.fit()
-        >>> print(f"Z0 at PDF minimum: {z0}")
+        1. Basic Usage (E-distributions - finds PDF maximum):
+        ```python
+        from machinegnostics.magcal import EGDF
+        from machinegnostics.magcal import Z0Estimator
         
-        Simple discrete estimation (faster):
-        >>> estimator = Z0Estimator(gdf_object, optimize=False)
-        >>> z0 = estimator.fit()
+        # Fit your distribution
+        egdf = EGDF(data=your_data)
+        egdf.fit()
         
-        Get detailed estimation information:
-        >>> info = estimator.get_estimation_info()
-        >>> print(f"Method used: {info['z0_method']}")
-        >>> print(f"Extremum type: {info['extremum_type']}")
+        # Estimate Z0
+        estimator = Z0Estimator(egdf, verbose=True)
+        z0 = estimator.fit()
+        print(f"Z0 at PDF maximum: {z0}")
+        ```
         
-        Visualize results:
-        >>> estimator.plot_z0_analysis()
+        2. Q-distributions Usage (finds median - 0.5 point):
+        ```python
+        from machinegnostics.magcal import QLDF
+        from machinegnostics.magcal import Z0Estimator
+        
+        # Fit your Q-distribution
+        qldf = QLDF(data=your_data)
+        qldf.fit()
+        
+        # Estimate Z0 at median (0.5)
+        estimator = Z0Estimator(qldf, optimize=True, verbose=True)
+        z0 = estimator.fit()
+        print(f"Z0 at median (0.5): {z0}")
+        ```
+        
+        3. Simple vs Advanced Estimation:
+        ```python
+        # Fast discrete estimation (good for quick analysis)
+        estimator_simple = Z0Estimator(gdf_object, optimize=False)
+        z0_simple = estimator_simple.fit()
+        
+        # Advanced optimization (higher accuracy, slower)
+        estimator_advanced = Z0Estimator(gdf_object, optimize=True, verbose=True)
+        z0_advanced = estimator_advanced.fit()
+        ```
+        
+        4. Getting Detailed Information:
+        ```python
+        # Get estimation details
+        info = estimator.get_estimation_info()
+        print(f"Method used: {info['z0_method']}")
+        print(f"Target type: {info['target_type']}")
+        print(f"Distribution type: {info['gdf_type']}")
+        
+        # Check what the estimator is looking for
+        if estimator.find_median:
+            print("Looking for median (0.5 point)")
+        else:
+            print("Looking for PDF maximum")
+        ```
+        
+        5. Visualization:
+        ```python
+        # Create diagnostic plots
+        estimator.plot_z0_analysis()
+        # Shows PDF with Z0 point + distribution function/CDF
+        ```
+    
+    Advanced Methods (when optimize=True):
+        
+        For Q-distributions (median finding):
+        - Spline interpolation with root finding
+        - Linear interpolation between bracketing points
+        - Polynomial fitting with root solving
+        
+        For E-distributions (PDF maximum finding):
+        - Spline optimization over entire domain
+        - Polynomial fitting with critical point analysis
+        - Refined interpolation with fine grid search
+        - Parabolic interpolation using three-point method
+    
+    Error Handling:
+        - Validates GDF object is properly fitted
+        - Checks for required data based on distribution type
+        - Graceful fallback to discrete methods if advanced methods fail
+        - Clear error messages for common issues
+    
+    Performance Notes:
+        - Simple mode (optimize=False): Very fast, good accuracy for most cases
+        - Advanced mode (optimize=True): Higher accuracy, ~2-10x slower depending on data size
+        - Memory usage scales linearly with number of evaluation points
+        - Recommended to use verbose=True for diagnostic purposes
     
     Notes:
         - The GDF object must be fitted before passing to Z0Estimator
-        - For flat extremum regions, the estimator finds the middle point
+        - For Q-distributions: finds where distribution function = 0.5 (median/50th percentile)
+        - For E-distributions: finds where PDF reaches its global maximum
         - Advanced methods are tried in order of sophistication and reliability
         - The estimated Z0 is automatically assigned back to the GDF object
+        - All methods handle flat regions by finding the middle point
+        - Works with any GDF subclass that follows the standard interface
+    
+    Examples:
+        
+        Complete workflow example:
+        ```python
+        import numpy as np
+        from machinegnostics.magcal import EGDF
+        from machinegnostics.magcal import Z0Estimator
+        
+        # Generate some sample data
+        data = np.random.normal(0, 1, 1000)
+        
+        # Fit EGDF
+        egdf = EGDF(data=data)
+        egdf.fit()
+        
+        # Estimate Z0 with detailed output
+        estimator = Z0Estimator(egdf, optimize=True, verbose=True)
+        z0 = estimator.fit()
+        
+        # Check results
+        print(f"\\nEstimated Z0: {z0:.6f}")
+        print(f"Original GDF Z0: {egdf.z0:.6f}")  # Automatically updated
+        
+        # Get detailed info
+        info = estimator.get_estimation_info()
+        print(f"Method used: {info['z0_method']}")
+        
+        # Visualize results
+        estimator.plot_z0_analysis()
+        ```
     """
     
     def __init__(self,
@@ -79,13 +183,13 @@ class Z0Estimator:
                        Must have been fitted (gdf_object.fit() called) before passing here.
             optimize (bool, optional): Whether to use advanced optimization methods.
                                      If True, uses spline optimization, polynomial fitting, etc.
-                                     If False, uses simple discrete extremum finding.
+                                     If False, uses simple discrete search.
                                      Defaults to True.
             verbose (bool, optional): Whether to print detailed progress information
                                     during the estimation process. Defaults to False.
         
         Raises:
-            ValueError: If gdf_object is not fitted or doesn't contain required PDF data
+            ValueError: If gdf_object is not fitted or doesn't contain required data
             
         Examples:
             >>> # With advanced optimization (recommended)
@@ -102,8 +206,8 @@ class Z0Estimator:
         self.optimize = optimize
         self.verbose = verbose
         
-        # Determine if we need to find minimum or maximum
-        self.find_minimum = self.gdf_type.lower() in ['qldf', 'qgdf']
+        # Determine what we're looking for
+        self.find_median = self.gdf_type.lower() in ['qldf', 'qgdf']
         
         # Results storage
         self.z0 = None
@@ -111,19 +215,16 @@ class Z0Estimator:
         
     def fit(self) -> float:
         """
-        Estimate the Z0 point where PDF reaches its global extremum.
+        Estimate the Z0 point.
         
         For EGDF/ELDF distributions, finds the point where PDF reaches its global maximum.
-        For QLDF/QGDF distributions, finds the point where PDF reaches its global minimum.
-        
-        The method first identifies the discrete extremum, then optionally applies advanced
-        interpolation techniques for higher accuracy.
+        For QLDF/QGDF distributions, finds the point where the distribution function equals 0.5.
         
         Returns:
             float: The estimated Z0 value
             
         Raises:
-            ValueError: If no PDF data is available for estimation
+            ValueError: If required data is not available for estimation
             
         Examples:
             >>> z0 = estimator.fit()
@@ -133,15 +234,72 @@ class Z0Estimator:
             >>> print(f"GDF Z0: {estimator.gdf.z0:.6f}")
         
         Notes:
-            - For flat extremum regions, finds the middle point of the flat region
-            - Advanced methods are tried in order: spline optimization, polynomial fitting,
-              refined interpolation, parabolic interpolation
-            - If all advanced methods fail, falls back to discrete extremum
+            - For Q-distributions: finds closest point to 0.5 in distribution function
+            - For E-distributions: finds PDF maximum (existing logic)
+            - Advanced methods adapt to the target type automatically
             - The estimated Z0 is automatically assigned to the original GDF object
         """
+        if self.find_median:
+            return self._fit_median()
+        else:
+            return self._fit_pdf_maximum()
+    
+    def _fit_median(self) -> float:
+        """Find Z0 where Q-distribution equals 0.5 (median)."""
         if self.verbose:
-            operation = "minimum" if self.find_minimum else "maximum"
-            print(f"Z0Estimator: Starting Z0 estimation for {self.gdf_type.upper()} (finding global {operation})")
+            print(f"Z0Estimator: Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
+        
+        # Get distribution function points and data points
+        dist_points = self._get_distribution_points()
+        di_points = self._get_di_points()
+        
+        if len(dist_points) == 0:
+            raise ValueError("No distribution function data available for Z0 estimation")
+        
+        # Find the point closest to 0.5
+        target_value = 0.5
+        diff_from_target = np.abs(dist_points - target_value)
+        closest_idx = np.argmin(diff_from_target)
+        closest_value = dist_points[closest_idx]
+        closest_location = di_points[closest_idx]
+        
+        if self.verbose:
+            print(f"Z0Estimator: Discrete closest to 0.5: {self.gdf_type.upper()}={closest_value:.6f} at x={closest_location:.6f} (index {closest_idx})")
+        
+        if self.optimize:
+            self.z0 = self._find_z0_advanced_median(closest_idx, di_points, dist_points, target_value)
+            
+            if self.verbose:
+                method_used = self._get_last_method_used()
+                print(f"Z0Estimator: Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
+        else:
+            self.z0 = closest_location
+            
+            # Store simple estimation info
+            self.estimation_info = {
+                'z0': self.z0,
+                'z0_method': 'discrete_closest_to_median',
+                'z0_target_value': target_value,
+                'z0_actual_value': closest_value,
+                'z0_target_index': closest_idx,
+                'gdf_type': self.gdf_type,
+                'target_type': 'median (0.5)'
+            }
+            
+            if self.verbose:
+                print(f"Z0Estimator: Simple estimation: Using discrete closest to 0.5 at Z0={self.z0:.6f}")
+        
+        # Update GDF object with Z0
+        self.gdf.z0 = self.z0
+        if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
+            self.gdf.params['z0'] = float(self.z0)
+        
+        return self.z0
+    
+    def _fit_pdf_maximum(self) -> float:
+        """Find Z0 where PDF reaches maximum (existing logic for EGDF/ELDF)."""
+        if self.verbose:
+            print(f"Z0Estimator: Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")
         
         # Get PDF and data points
         pdf_points = self._get_pdf_points()
@@ -150,45 +308,38 @@ class Z0Estimator:
         if len(pdf_points) == 0:
             raise ValueError("No PDF data available for Z0 estimation")
         
-        # Find the global extremum in the discrete data
-        if self.find_minimum:
-            global_extremum_idx = np.argmin(pdf_points)
-            # Handle flat bottom case - find middle of minimum region
-            global_extremum_idx = self._find_middle_of_flat_region(pdf_points, global_extremum_idx, find_min=True)
-        else:
-            global_extremum_idx = np.argmax(pdf_points)
-            # Handle flat top case - find middle of maximum region
-            global_extremum_idx = self._find_middle_of_flat_region(pdf_points, global_extremum_idx, find_min=False)
+        # Find the global maximum in the discrete data
+        global_max_idx = np.argmax(pdf_points)
+        # Handle flat top case - find middle of maximum region
+        global_max_idx = self._find_middle_of_flat_region(pdf_points, global_max_idx, find_min=False)
         
-        global_extremum_value = pdf_points[global_extremum_idx]
-        global_extremum_location = di_points[global_extremum_idx]
+        global_max_value = pdf_points[global_max_idx]
+        global_max_location = di_points[global_max_idx]
         
         if self.verbose:
-            operation = "minimum" if self.find_minimum else "maximum"
-            print(f"Discrete global {operation}: PDF={global_extremum_value:.6f} at x={global_extremum_location:.6f} (index {global_extremum_idx})")
+            print(f"Z0Estimator: Discrete global maximum: PDF={global_max_value:.6f} at x={global_max_location:.6f} (index {global_max_idx})")
         
         if self.optimize:
-            self.z0 = self._find_z0_advanced(global_extremum_idx, di_points, pdf_points)
+            self.z0 = self._find_z0_advanced_pdf_max(global_max_idx, di_points, pdf_points)
             
             if self.verbose:
                 method_used = self._get_last_method_used()
-                print(f"Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
+                print(f"Z0Estimator: Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
         else:
-            self.z0 = global_extremum_location
+            self.z0 = global_max_location
             
             # Store simple estimation info
             self.estimation_info = {
                 'z0': self.z0,
-                'z0_method': 'discrete_extremum',
-                'z0_extremum_pdf_value': global_extremum_value,
-                'z0_extremum_pdf_index': global_extremum_idx,
+                'z0_method': 'discrete_pdf_maximum',
+                'z0_extremum_pdf_value': global_max_value,
+                'z0_extremum_pdf_index': global_max_idx,
                 'gdf_type': self.gdf_type,
-                'extremum_type': 'minimum' if self.find_minimum else 'maximum'
+                'target_type': 'pdf_maximum'
             }
             
             if self.verbose:
-                operation = "minimum" if self.find_minimum else "maximum"
-                print(f"Simple estimation: Using discrete global {operation} at Z0={self.z0:.6f}")
+                print(f"Z0Estimator: Simple estimation: Using discrete PDF maximum at Z0={self.z0:.6f}")
         
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
@@ -202,36 +353,22 @@ class Z0Estimator:
         Get detailed information about the Z0 estimation process.
         
         Returns comprehensive information about how the Z0 value was estimated,
-        including the method used, extremum type, and various diagnostic values.
+        including the method used, target type, and various diagnostic values.
         
         Returns:
             Dict[str, Any]: Dictionary containing estimation details:
                 - z0 (float): The estimated Z0 value
                 - z0_method (str): Method used for estimation
-                - z0_extremum_pdf_value (float): PDF value at the extremum
-                - z0_extremum_pdf_index (int): Array index of the extremum
                 - gdf_type (str): Type of distribution ('egdf', 'eldf', 'qldf', 'qgdf')
-                - extremum_type (str): Either 'minimum' or 'maximum'
-                - global_extremum_idx (int): Index of the global extremum (if available)
-                - global_extremum_location (float): Location of discrete extremum (if available)
-                - z0_interpolation_points (int): Number of points used in interpolation (if available)
+                - target_type (str): What was being optimized ('median (0.5)' or 'pdf_maximum')
+                - Additional fields depending on the target type
         
         Examples:
             >>> estimator.fit()
             >>> info = estimator.get_estimation_info()
             >>> print(f"Z0: {info['z0']:.6f}")
             >>> print(f"Method: {info['z0_method']}")
-            >>> print(f"Extremum type: {info['extremum_type']}")
-            >>> print(f"PDF value at extremum: {info['z0_extremum_pdf_value']:.6f}")
-            
-            >>> # Check if advanced method was used
-            >>> if info['z0_method'] != 'discrete_extremum':
-            >>>     print("Advanced interpolation method was successful")
-        
-        Notes:
-            - Returns error message if fit() hasn't been called yet
-            - Information varies depending on whether optimization was used
-            - Useful for understanding estimation quality and method selection
+            >>> print(f"Target: {info['target_type']}")
         """
         if not self.estimation_info:
             return {"error": "No estimation performed yet. Call fit() first."}
@@ -243,39 +380,20 @@ class Z0Estimator:
         
         Generates a two-panel plot showing:
         1. PDF curve with the estimated Z0 point marked
-        2. CDF curve (if available) or estimation information panel
+        2. Distribution function curve (for Q-distributions) or CDF (for E-distributions)
         
         Args:
             figsize (tuple, optional): Figure size as (width, height) in inches.
                                      Defaults to (12, 6).
-        
-        Examples:
-            >>> # Basic plot
-            >>> estimator.fit()
-            >>> estimator.plot_z0_analysis()
-            
-            >>> # Custom figure size
-            >>> estimator.plot_z0_analysis(figsize=(15, 8))
-        
-        Notes:
-            - Requires matplotlib to be installed
-            - Must call fit() before plotting
-            - Shows extremum type (minimum/maximum) in the legend
-            - Red vertical line and dot mark the estimated Z0 location
-            - Grid is enabled for better readability
-        
-        Raises:
-            ImportError: If matplotlib is not available
-            ValueError: If fit() hasn't been called yet
         """
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            print("Matplotlib not available. Cannot create plots.")
+            print("Z0Estimator: Matplotlib not available. Cannot create plots.")
             return
             
         if self.z0 is None:
-            print("No Z0 estimation available. Call fit() first.")
+            print("Z0Estimator: No Z0 estimation available. Call fit() first.")
             return
         
         pdf_points = self._get_pdf_points()
@@ -285,9 +403,9 @@ class Z0Estimator:
         
         # Plot 1: PDF with Z0 point
         ax1.plot(di_points, pdf_points, 'b-', linewidth=2, label='PDF')
-        extremum_type = "Minimum" if self.find_minimum else "Maximum"
+        target_desc = "Median (0.5)" if self.find_median else "PDF Maximum"
         ax1.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
-                   label=f'Z0 ({extremum_type}): {self.z0:.4f}')
+                   label=f'Z0 ({target_desc}): {self.z0:.4f}')
         ax1.scatter([self.z0], [np.interp(self.z0, di_points, pdf_points)], 
                    color='red', s=100, zorder=5)
         ax1.set_xlabel('Value')
@@ -296,47 +414,65 @@ class Z0Estimator:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
-        # Plot 2: CDF if available
-        if hasattr(self.gdf, 'cdf_points') and self.gdf.cdf_points is not None:
-            ax2.plot(di_points, self.gdf.cdf_points, 'g-', linewidth=2, label='CDF')
-            ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
-                       label=f'Z0: {self.z0:.4f}')
-            ax2.set_xlabel('Value')
-            ax2.set_ylabel('CDF')
-            ax2.set_title(f'{self.gdf_type.upper()} CDF with Z0 Point')
-            ax2.legend()
-            ax2.grid(True, alpha=0.3)
+        # Plot 2: Distribution function or CDF
+        if self.find_median:
+            # Plot Q-distribution function
+            dist_points = self._get_distribution_points()
+            if len(dist_points) > 0:
+                ax2.plot(di_points, dist_points, 'g-', linewidth=2, label=f'{self.gdf_type.upper()}')
+                ax2.axhline(0.5, color='orange', linestyle=':', linewidth=2, label='Target (0.5)')
+                ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
+                           label=f'Z0: {self.z0:.4f}')
+                ax2.scatter([self.z0], [0.5], color='red', s=100, zorder=5)
+                ax2.set_xlabel('Value')
+                ax2.set_ylabel(f'{self.gdf_type.upper()}')
+                ax2.set_title(f'{self.gdf_type.upper()} with Z0 at Median')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+            else:
+                self._plot_info_panel(ax2)
         else:
-            # Show estimation info instead
-            info_text = f"Z0 Estimation Info:\n"
-            info_text += f"Value: {self.z0:.6f}\n"
-            info_text += f"Method: {self.estimation_info.get('z0_method', 'unknown')}\n"
-            info_text += f"Type: {extremum_type}\n"
-            info_text += f"Distribution: {self.gdf_type.upper()}"
-            ax2.text(0.1, 0.5, info_text, transform=ax2.transAxes, fontsize=12,
-                    verticalalignment='center', bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
-            ax2.set_xlim([0, 1])
-            ax2.set_ylim([0, 1])
-            ax2.set_title('Z0 Estimation Information')
+            # Plot CDF if available for E-distributions
+            if hasattr(self.gdf, 'cdf_points') and self.gdf.cdf_points is not None:
+                ax2.plot(di_points, self.gdf.cdf_points, 'g-', linewidth=2, label='CDF')
+                ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
+                           label=f'Z0: {self.z0:.4f}')
+                ax2.set_xlabel('Value')
+                ax2.set_ylabel('CDF')
+                ax2.set_title(f'{self.gdf_type.upper()} CDF with Z0 Point')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+            else:
+                self._plot_info_panel(ax2)
         
         plt.tight_layout()
         plt.show()
     
-    def _find_middle_of_flat_region(self, pdf_points, extremum_idx, find_min=True):
-        """Find the middle point of a flat extremum region."""
-        n_points = len(pdf_points)
-        extremum_value = pdf_points[extremum_idx]
+    def _plot_info_panel(self, ax):
+        """Plot estimation information panel."""
+        target_desc = "Median (0.5)" if self.find_median else "PDF Maximum"
+        info_text = f"Z0 Estimation Info:\n"
+        info_text += f"Value: {self.z0:.6f}\n"
+        info_text += f"Method: {self.estimation_info.get('z0_method', 'unknown')}\n"
+        info_text += f"Target: {target_desc}\n"
+        info_text += f"Distribution: {self.gdf_type.upper()}"
+        ax.text(0.1, 0.5, info_text, transform=ax.transAxes, fontsize=12,
+                verticalalignment='center', bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+        ax.set_xlim([0, 1])
+        ax.set_ylim([0, 1])
+        ax.set_title('Z0 Estimation Information')
+    
+    def _find_middle_of_flat_region(self, values, extremum_idx, find_min=True):
+        """Find the middle point of a flat region (for PDF maximum finding)."""
+        n_points = len(values)
+        extremum_value = values[extremum_idx]
         
         # Define tolerance for "flatness"
-        tolerance = np.std(pdf_points) * 0.01  # 1% of standard deviation
+        tolerance = np.std(values) * 0.01  # 1% of standard deviation
         tolerance = max(tolerance, 1e-10)  # Minimum tolerance
         
-        # Find the range of indices with similar extremum values
-        if find_min:
-            similar_mask = np.abs(pdf_points - extremum_value) <= tolerance
-        else:
-            similar_mask = np.abs(pdf_points - extremum_value) <= tolerance
-        
+        # Find the range of indices with similar values
+        similar_mask = np.abs(values - extremum_value) <= tolerance
         similar_indices = np.where(similar_mask)[0]
         
         if len(similar_indices) > 1:
@@ -349,7 +485,7 @@ class Z0Estimator:
                 middle_idx = similar_indices[len(similar_indices) // 2]
                 if self.verbose:
                     region_type = "minimum" if find_min else "maximum"
-                    print(f"Flat {region_type} region detected. Using middle point at index {middle_idx}")
+                    print(f"Z0Estimator: Flat {region_type} region detected. Using middle point at index {middle_idx}")
                 return middle_idx
             else:
                 # Multiple regions - find the one containing original extremum_idx
@@ -377,12 +513,22 @@ class Z0Estimator:
         if not gdf_object._fitted:
             raise ValueError("GDF object must be fitted before Z0 estimation")
         
-        # Check for required PDF data
-        has_pdf_points = hasattr(gdf_object, 'pdf_points') and gdf_object.pdf_points is not None
-        has_pdf = hasattr(gdf_object, 'pdf') and gdf_object.pdf is not None
+        # Check for required data based on distribution type
+        temp_gdf_type = self._detect_gdf_type_from_object(gdf_object)
         
-        if not (has_pdf_points or has_pdf):
-            raise ValueError("GDF object must contain PDF data (pdf_points or pdf attribute)")
+        if temp_gdf_type.lower() in ['qldf', 'qgdf']:
+            # For Q-distributions, need distribution function data
+            has_dist_data = (hasattr(gdf_object, 'cdf_points') and gdf_object.cdf_points is not None) or \
+                           (hasattr(gdf_object, 'qgdf_points') and gdf_object.qgdf_points is not None) or \
+                           (hasattr(gdf_object, 'qldf_points') and gdf_object.qldf_points is not None)
+            if not has_dist_data:
+                raise ValueError("Q-distribution object must contain distribution function data")
+        else:
+            # For E-distributions, need PDF data
+            has_pdf_points = hasattr(gdf_object, 'pdf_points') and gdf_object.pdf_points is not None
+            has_pdf = hasattr(gdf_object, 'pdf') and gdf_object.pdf is not None
+            if not (has_pdf_points or has_pdf):
+                raise ValueError("E-distribution object must contain PDF data")
         
         # Check for data points
         has_di_points = hasattr(gdf_object, 'di_points_n') and gdf_object.di_points_n is not None
@@ -392,7 +538,10 @@ class Z0Estimator:
             raise ValueError("GDF object must contain data points (di_points_n or data attribute)")
     
     def _detect_gdf_type(self):
-        class_name = self.gdf.__class__.__name__.lower()
+        return self._detect_gdf_type_from_object(self.gdf)
+    
+    def _detect_gdf_type_from_object(self, gdf_object):
+        class_name = gdf_object.__class__.__name__.lower()
         
         if 'egdf' in class_name:
             return 'egdf'
@@ -403,71 +552,238 @@ class Z0Estimator:
         elif 'qldf' in class_name:
             return 'qldf'
         else:
-            # Fallback - assume maximum finding for unknown types
+            # Fallback - assume E-distribution for unknown types
             return 'unknown'
     
-    def _find_z0_advanced(self, global_extremum_idx, di_points, pdf_points):
-        """Find Z0 using advanced methods for either minimum or maximum."""
+    def _find_z0_advanced_median(self, closest_idx, di_points, dist_points, target_value):
+        """Find Z0 using advanced methods to locate where distribution = 0.5."""
         
         # Store basic info for all methods
-        extremum_value = pdf_points[global_extremum_idx]
-        extremum_location = di_points[global_extremum_idx]
+        closest_dist_value = dist_points[closest_idx]
+        closest_location = di_points[closest_idx]
         
         self.estimation_info = {
             'z0': None,  # Will be updated
-            'z0_method': 'discrete_extremum',  # Will be updated if advanced method succeeds
-            'z0_extremum_pdf_value': extremum_value,
+            'z0_method': 'discrete_closest_to_median',  # Will be updated if advanced method succeeds
+            'z0_target_value': target_value,
+            'z0_actual_value': closest_dist_value,
             'gdf_type': self.gdf_type,
-            'extremum_type': 'minimum' if self.find_minimum else 'maximum',
-            'global_extremum_idx': global_extremum_idx,
-            'global_extremum_location': extremum_location,
+            'target_type': 'median (0.5)',
+            'closest_idx': closest_idx,
+            'closest_location': closest_location,
             'z0_interpolation_points': len(di_points)
         }
         
         # Try advanced methods in order of preference
         advanced_methods = [
-            self._try_spline_optimization,
-            self._try_polynomial_fitting,
-            self._try_refined_interpolation,
-            self._try_parabolic_interpolation
+            self._try_spline_median_finding,
+            self._try_linear_interpolation_median,
+            self._try_polynomial_median_finding
         ]
         
         for method in advanced_methods:
             try:
-                result = method(di_points, pdf_points, global_extremum_idx)
+                result = method(di_points, dist_points, target_value)
                 if result is not None:
                     self.estimation_info['z0'] = result
                     return result
             except Exception as e:
                 if self.verbose:
-                    print(f"Method {method.__name__} failed: {e}")
+                    print(f"Z0Estimator: Method {method.__name__} failed: {e}")
                 continue
         
-        # All advanced methods failed - use discrete extremum
+        # All advanced methods failed - use discrete closest
         if self.verbose:
-            print("All advanced methods failed. Using discrete extremum.")
+            print("Z0Estimator: All advanced methods failed. Using discrete closest to 0.5.")
         
-        self.estimation_info['z0'] = extremum_location
-        return extremum_location
+        self.estimation_info['z0'] = closest_location
+        return closest_location
     
-    def _try_spline_optimization(self, di_points, pdf_points, global_extremum_idx):
+    def _find_z0_advanced_pdf_max(self, global_max_idx, di_points, pdf_points):
+        """Find Z0 using advanced methods for PDF maximum (existing logic)."""
+        
+        # Store basic info for all methods
+        max_value = pdf_points[global_max_idx]
+        max_location = di_points[global_max_idx]
+        
+        self.estimation_info = {
+            'z0': None,  # Will be updated
+            'z0_method': 'discrete_pdf_maximum',  # Will be updated if advanced method succeeds
+            'z0_extremum_pdf_value': max_value,
+            'gdf_type': self.gdf_type,
+            'target_type': 'pdf_maximum',
+            'global_extremum_idx': global_max_idx,
+            'global_extremum_location': max_location,
+            'z0_interpolation_points': len(di_points)
+        }
+        
+        # Try advanced methods in order of preference (existing logic)
+        advanced_methods = [
+            self._try_spline_optimization_pdf,
+            self._try_polynomial_fitting_pdf,
+            self._try_refined_interpolation_pdf,
+            self._try_parabolic_interpolation_pdf
+        ]
+        
+        for method in advanced_methods:
+            try:
+                result = method(di_points, pdf_points, global_max_idx)
+                if result is not None:
+                    self.estimation_info['z0'] = result
+                    return result
+            except Exception as e:
+                if self.verbose:
+                    print(f"Z0Estimator: Method {method.__name__} failed: {e}")
+                continue
+        
+        # All advanced methods failed - use discrete maximum
+        if self.verbose:
+            print("Z0Estimator: All advanced methods failed. Using discrete PDF maximum.")
+        
+        self.estimation_info['z0'] = max_location
+        return max_location
+    
+    def _try_spline_median_finding(self, di_points, dist_points, target_value):
+        """Use spline interpolation to find where distribution = target_value."""
+        try:
+            from scipy.interpolate import UnivariateSpline
+            from scipy.optimize import brentq
+        except ImportError:
+            if self.verbose:
+                print("Z0Estimator: SciPy not available for spline median finding")
+            return None
+        
+        try:
+            # Create spline interpolation
+            spline = UnivariateSpline(di_points, dist_points, s=0, k=3)
+            
+            # Define function to find root of (spline(x) - target_value)
+            def target_function(x):
+                return spline(x) - target_value
+            
+            # Find domain where we cross the target value
+            domain_min, domain_max = np.min(di_points), np.max(di_points)
+            
+            # Check if target value is within the range
+            spline_min, spline_max = np.min(dist_points), np.max(dist_points)
+            if not (spline_min <= target_value <= spline_max):
+                return None
+            
+            # Use root finding to locate exact crossing
+            try:
+                z0_candidate = brentq(target_function, domain_min, domain_max)
+                
+                if domain_min <= z0_candidate <= domain_max:
+                    self.estimation_info['z0_method'] = 'spline_median_finding'
+                    if self.verbose:
+                        print(f"Z0Estimator: Spline median finding successful: Z0={z0_candidate:.8f} (target={target_value})")
+                    return z0_candidate
+            except ValueError:
+                # Try linear search if brentq fails
+                fine_x = np.linspace(domain_min, domain_max, 10000)
+                fine_y = spline(fine_x)
+                closest_idx = np.argmin(np.abs(fine_y - target_value))
+                z0_candidate = fine_x[closest_idx]
+                
+                self.estimation_info['z0_method'] = 'spline_median_search'
+                if self.verbose:
+                    print(f"Z0Estimator: Spline median search successful: Z0={z0_candidate:.8f} (target={target_value})")
+                return z0_candidate
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"Z0Estimator: Spline median finding failed: {e}")
+        
+        return None
+    
+    def _try_linear_interpolation_median(self, di_points, dist_points, target_value):
+        """Use linear interpolation to find where distribution = target_value."""
+        try:
+            # Find the interval containing the target value
+            for i in range(len(dist_points) - 1):
+                y1, y2 = dist_points[i], dist_points[i + 1]
+                
+                # Check if target is between these two points
+                if (y1 <= target_value <= y2) or (y2 <= target_value <= y1):
+                    x1, x2 = di_points[i], di_points[i + 1]
+                    
+                    # Linear interpolation
+                    if abs(y2 - y1) < 1e-15:  # Avoid division by zero
+                        z0_candidate = (x1 + x2) / 2  # Take midpoint if flat
+                    else:
+                        # Linear interpolation formula
+                        t = (target_value - y1) / (y2 - y1)
+                        z0_candidate = x1 + t * (x2 - x1)
+                    
+                    self.estimation_info['z0_method'] = 'linear_interpolation_median'
+                    if self.verbose:
+                        print(f"Z0Estimator: Linear interpolation median successful: Z0={z0_candidate:.8f} (target={target_value})")
+                    return z0_candidate
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"Z0Estimator: Linear interpolation median failed: {e}")
+        
+        return None
+    
+    def _try_polynomial_median_finding(self, di_points, dist_points, target_value):
+        """Use polynomial fitting to find where distribution = target_value."""
+        try:
+            # Try different polynomial degrees
+            for degree in [3, 2]:
+                if len(di_points) > degree + 1:
+                    try:
+                        coeffs = np.polyfit(di_points, dist_points, degree)
+                        poly = np.poly1d(coeffs)
+                        
+                        # Create target function
+                        target_poly = poly - target_value
+                        roots = np.roots(target_poly)
+                        
+                        # Filter real roots within domain
+                        real_roots = roots[np.isreal(roots)].real
+                        domain_min, domain_max = np.min(di_points), np.max(di_points)
+                        valid_roots = real_roots[(real_roots >= domain_min) & (real_roots <= domain_max)]
+                        
+                        if len(valid_roots) > 0:
+                            # Choose the root closest to the discrete solution
+                            closest_idx = np.argmin(np.abs(dist_points - target_value))
+                            discrete_location = di_points[closest_idx]
+                            
+                            root_distances = np.abs(valid_roots - discrete_location)
+                            best_root_idx = np.argmin(root_distances)
+                            z0_candidate = valid_roots[best_root_idx]
+                            
+                            self.estimation_info['z0_method'] = f'polynomial_median_degree_{degree}'
+                            if self.verbose:
+                                print(f"Z0Estimator: Polynomial median finding (degree {degree}) successful: Z0={z0_candidate:.8f} (target={target_value})")
+                            return z0_candidate
+                    
+                    except (np.linalg.LinAlgError, ValueError):
+                        continue
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"Z0Estimator: Polynomial median finding failed: {e}")
+        
+        return None
+    
+    # Keep existing PDF optimization methods for E-distributions
+    def _try_spline_optimization_pdf(self, di_points, pdf_points, global_extremum_idx):
         try:
             from scipy.interpolate import UnivariateSpline
             from scipy.optimize import minimize_scalar
         except ImportError:
             if self.verbose:
-                print("SciPy not available for spline optimization")
+                print("Z0Estimator: SciPy not available for spline optimization")
             return None
         
         try:
             # Create spline interpolation
             spline = UnivariateSpline(di_points, pdf_points, s=0, k=3)
             
-            # Define objective function
-            if self.find_minimum:
-                objective = lambda x: spline(x)
-            else:
-                objective = lambda x: -spline(x)
+            # Define objective function (maximize PDF)
+            objective = lambda x: -spline(x)
             
             # Optimize over entire domain
             domain_min, domain_max = np.min(di_points), np.max(di_points)
@@ -480,18 +796,17 @@ class Z0Estimator:
                 if domain_min <= z0_candidate <= domain_max:
                     self.estimation_info['z0_method'] = 'global_spline_optimization'
                     if self.verbose:
-                        operation = "minimum" if self.find_minimum else "maximum"
-                        print(f"Spline optimization successful: Z0={z0_candidate:.8f} (global {operation})")
+                        print(f"Z0Estimator: Spline optimization successful: Z0={z0_candidate:.8f} (PDF maximum)")
                     return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Spline optimization failed: {e}")
+                print(f"Z0Estimator: Spline optimization failed: {e}")
         
         return None
     
-    def _try_polynomial_fitting(self, di_points, pdf_points, global_extremum_idx):
-        """Try polynomial fitting around the extremum region."""
+    def _try_polynomial_fitting_pdf(self, di_points, pdf_points, global_extremum_idx):
+        """Try polynomial fitting around the PDF maximum region."""
         n_points = len(di_points)
         
         # Define window around extremum (larger for polynomial fitting)
@@ -527,39 +842,31 @@ class Z0Estimator:
                             # Evaluate polynomial at critical points
                             critical_values = poly(valid_criticals)
                             
-                            # Find the extremum
-                            if self.find_minimum:
-                                best_idx = np.argmin(critical_values)
-                            else:
-                                best_idx = np.argmax(critical_values)
-                            
+                            # Find the maximum
+                            best_idx = np.argmax(critical_values)
                             z0_candidate = valid_criticals[best_idx]
                             
                             # Validate using second derivative test
                             poly_second_deriv = np.polyder(poly_deriv)
                             second_deriv_value = poly_second_deriv(z0_candidate)
                             
-                            # Check if it's the right type of extremum
-                            is_minimum = second_deriv_value > 0
-                            is_maximum = second_deriv_value < 0
-                            
-                            if (self.find_minimum and is_minimum) or (not self.find_minimum and is_maximum):
+                            # Check if it's a maximum
+                            if second_deriv_value < 0:
                                 self.estimation_info['z0_method'] = f'global_polynomial_fitting_degree_{degree}'
                                 if self.verbose:
-                                    extremum_type = "minimum" if self.find_minimum else "maximum"
-                                    print(f"Polynomial fitting (degree {degree}) successful: Z0={z0_candidate:.8f} ({extremum_type})")
+                                    print(f"Z0Estimator: Polynomial fitting (degree {degree}) successful: Z0={z0_candidate:.8f} (PDF maximum)")
                                 return z0_candidate
                     
-                    except (np.linalg.LinAlgError, ValueError) as e:
+                    except (np.linalg.LinAlgError, ValueError):
                         continue
             
         except Exception as e:
             if self.verbose:
-                print(f"Polynomial fitting failed: {e}")
+                print(f"Z0Estimator: Polynomial fitting failed: {e}")
         
         return None
     
-    def _try_refined_interpolation(self, di_points, pdf_points, global_extremum_idx):
+    def _try_refined_interpolation_pdf(self, di_points, pdf_points, global_extremum_idx):
         try:
             from scipy.interpolate import interp1d
         except ImportError:
@@ -587,27 +894,22 @@ class Z0Estimator:
             fine_x = np.linspace(window_x[0], window_x[-1], len(window_x) * 50)
             fine_y = interp_func(fine_x)
             
-            # Find extremum in fine grid
-            if self.find_minimum:
-                fine_extremum_idx = np.argmin(fine_y)
-            else:
-                fine_extremum_idx = np.argmax(fine_y)
-            
-            z0_candidate = fine_x[fine_extremum_idx]
+            # Find maximum in fine grid
+            fine_max_idx = np.argmax(fine_y)
+            z0_candidate = fine_x[fine_max_idx]
             
             self.estimation_info['z0_method'] = 'global_refined_interpolation'
             if self.verbose:
-                extremum_type = "minimum" if self.find_minimum else "maximum"
-                print(f"Refined interpolation successful: Z0={z0_candidate:.8f} ({extremum_type})")
+                print(f"Z0Estimator: Refined interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
             return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Refined interpolation failed: {e}")
+                print(f"Z0Estimator: Refined interpolation failed: {e}")
         
         return None
     
-    def _try_parabolic_interpolation(self, di_points, pdf_points, global_extremum_idx):
+    def _try_parabolic_interpolation_pdf(self, di_points, pdf_points, global_extremum_idx):
         n_points = len(di_points)
         
         if global_extremum_idx == 0 or global_extremum_idx == n_points - 1:
@@ -632,33 +934,40 @@ class Z0Estimator:
             # Find vertex of parabola
             z0_candidate = -B / (2 * A)
             
-            # Validate that it's the right type of extremum and within bounds
-            is_minimum = A > 0
+            # Validate that it's a maximum and within bounds
             is_maximum = A < 0
             
-            if ((self.find_minimum and is_minimum) or (not self.find_minimum and is_maximum)) and \
-               x1 <= z0_candidate <= x3:
-                
+            if is_maximum and x1 <= z0_candidate <= x3:
                 self.estimation_info['z0_method'] = 'global_parabolic_interpolation'
                 if self.verbose:
-                    extremum_type = "minimum" if self.find_minimum else "maximum"
-                    print(f"Parabolic interpolation successful: Z0={z0_candidate:.8f} ({extremum_type})")
+                    print(f"Z0Estimator: Parabolic interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
                 return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Parabolic interpolation failed: {e}")
+                print(f"Z0Estimator: Parabolic interpolation failed: {e}")
         
         return None
     
     def _get_last_method_used(self):
-        return self.estimation_info.get('z0_method', 'discrete_extremum')
+        return self.estimation_info.get('z0_method', 'discrete_fallback')
     
     def _get_pdf_points(self):
         if hasattr(self.gdf, 'pdf_points') and self.gdf.pdf_points is not None:
             return np.array(self.gdf.pdf_points)
         elif hasattr(self.gdf, 'pdf') and self.gdf.pdf is not None:
             return np.array(self.gdf.pdf)
+        else:
+            return np.array([])
+    
+    def _get_distribution_points(self):
+        """Get distribution function points for Q-distributions."""
+        if hasattr(self.gdf, 'cdf_points') and self.gdf.cdf_points is not None:
+            return np.array(self.gdf.cdf_points)
+        elif hasattr(self.gdf, 'qgdf_points') and self.gdf.qgdf_points is not None:
+            return np.array(self.gdf.qgdf_points)
+        elif hasattr(self.gdf, 'qldf_points') and self.gdf.qldf_points is not None:
+            return np.array(self.gdf.qldf_points)
         else:
             return np.array([])
     
@@ -672,6 +981,6 @@ class Z0Estimator:
             return np.array([])
     
     def __repr__(self):
-        extremum_type = "minimum" if self.find_minimum else "maximum"
+        target_type = "median (0.5)" if self.find_median else "PDF maximum"
         status = f"fitted (Z0={self.z0:.6f})" if self.z0 is not None else "not fitted"
-        return f"Z0Estimator(gdf_type='{self.gdf_type}', extremum_type='{extremum_type}', {status})"
+        return f"Z0Estimator(gdf_type='{self.gdf_type}', target='{target_type}', {status})"
