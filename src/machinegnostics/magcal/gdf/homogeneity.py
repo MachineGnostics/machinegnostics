@@ -4,31 +4,49 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 from typing import Union, Dict, Any, Optional, Tuple, List
-from machinegnostics.magcal import EGDF, QGDF
+from machinegnostics.magcal import EGDF
 
 class DataHomogeneity:
     """
-    Analyze data homogeneity for EGDF and QGDF objects using probability density function analysis.
+    Analyze data homogeneity for EGDF objects using probability density function analysis.
     
-    This class provides comprehensive homogeneity analysis for Global Distribution Functions (GDF)
+    This class provides comprehensive homogeneity analysis for Estimating Global Distribution Functions (EGDF)
     by examining the shape and characteristics of their probability density functions (PDF). The
-    homogeneity criterion differs between EGDF and QGDF objects based on their mathematical
-    properties and expected PDF behavior.
+    homogeneity criterion is based on the mathematical properties and expected PDF behavior of EGDF
+    according to gnostic theory principles.
+    
+    **Gnostic Theory Foundation:**
+    
+    The EGDF is uniquely determined by the data sample and finds the optimal scale parameter automatically.
+    Unlike local distribution functions, EGDF has limited flexibility and provides a unique representation
+    for each homogeneous data sample. The key principle is that homogeneous data should produce a 
+    distribution with a single density maximum, while non-homogeneous data will exhibit multiple maxima
+    or negative density values.
     
     **Homogeneity Criteria:**
     
     - **EGDF (Estimating Global Distribution Function)**: Data is considered homogeneous if:
       1. PDF has exactly one global maximum (single peak)
       2. PDF contains no negative values
-      
-    - **QGDF (Quantification Global Distribution Function)**: Data is considered homogeneous if:
-      1. PDF has exactly one global minimum (single valley)
-      2. PDF contains no negative values
+    
+    **EGDF Characteristics:**
+    
+    - **Uniqueness**: EGDF finds the best scale parameter automatically, providing a unique model
+    - **Robustness**: EGDF is robust with respect to outliers
+    - **Homogeneity Testing**: Particularly suitable for reliable data homogeneity testing
+    - **Global Nature**: Uses normalized weights resulting in limited flexibility controlled by optimal scale
+    - **Data-Driven**: Primary parameters are the data themselves, following gnostic "let data speak" principle
+    
+    **Non-Homogeneity Detection:**
+    
+    EGDF can sensitively detect two main causes of non-homogeneity:
+    1. **Outliers**: Individual data points significantly different from others, creating local maxima
+    2. **Clusters**: Separate groups in the data, resulting in multiple density peaks
     
     **Key Features:**
     
-    - Automatic GDF type detection and validation
-    - Robust peak/minima detection with configurable smoothing
+    - Automatic EGDF validation
+    - Robust peak detection with configurable smoothing
     - Comprehensive error and warning tracking
     - Memory management with optional data flushing
     - Detailed visualization of analysis results
@@ -36,21 +54,22 @@ class DataHomogeneity:
     
     **Analysis Pipeline:**
     
-    1. **Validation**: Ensures input is EGDF or QGDF (rejects ELDF/QLDF)
-    2. **PDF Extraction**: Retrieves PDF points from fitted GDF object
+    1. **Validation**: Ensures input is EGDF only (rejects QGDF/ELDF/QLDF)
+    2. **PDF Extraction**: Retrieves PDF points from fitted EGDF object
     3. **Smoothing**: Applies Gaussian filtering for noise reduction
-    4. **Extrema Detection**: Identifies peaks (EGDF) or minima (QGDF)
-    5. **Homogeneity Assessment**: Evaluates based on extrema count and PDF negativity
+    4. **Maxima Detection**: Identifies peaks in the smoothed PDF
+    5. **Homogeneity Assessment**: Evaluates based on peak count and PDF negativity
     6. **Result Storage**: Comprehensive parameter collection and storage
     
     Parameters
     ----------
-    gdf : Union[EGDF, QGDF]
-        A fitted Global Distribution Function object. Must be either EGDF or QGDF
-        (ELDF and QLDF are not supported). The object must:
+    gdf : EGDF
+        A fitted Estimating Global Distribution Function object. Must be EGDF
+        (QGDF, ELDF and QLDF are not supported). The object must:
         - Be fitted (gdf._fitted == True)
         - Have catch=True to generate required pdf_points and di_points_n
         - Contain valid data and PDF information
+        - Have optimized scale parameter S_opt from EGDF fitting process
         
     verbose : bool, default=True
         Controls output verbosity during analysis.
@@ -68,45 +87,43 @@ class DataHomogeneity:
         - False: Preserves all data arrays (recommended for further analysis)
         
     smoothing_sigma : float, default=1.0
-        Gaussian smoothing parameter for PDF preprocessing before extrema detection.
+        Gaussian smoothing parameter for PDF preprocessing before peak detection.
         - Larger values: More aggressive smoothing, may merge distinct features
         - Smaller values: Less smoothing, may detect noise as features
         - Range: 0.1 to 5.0 (typical), must be positive
+        - Important for numerical sensitivity beyond visual inspection
         
     min_height_ratio : float, default=0.01
-        Minimum relative height threshold for extrema detection.
-        - Expressed as fraction of global extremum height
+        Minimum relative height threshold for peak detection.
+        - Expressed as fraction of global maximum height
         - Range: 0.001 to 0.1 (typical)
-        - Higher values: More selective, fewer detected extrema
+        - Higher values: More selective, fewer detected peaks
         - Lower values: More sensitive, may include noise
         
     min_distance : Optional[int], default=None
-        Minimum separation between detected extrema in array indices.
+        Minimum separation between detected peaks in array indices.
         - None: Automatically calculated as len(pdf_data) // 20
         - Integer: Explicit minimum distance constraint
-        - Prevents detection of closely spaced spurious extrema
+        - Prevents detection of closely spaced spurious peaks
     
     Attributes
     ----------
-    gdf_type : str
-        Type of input GDF object ('egdf' or 'qgdf')
-        
     is_homogeneous : bool or None
         Primary analysis result. None before fit(), True/False after analysis
         
     picks : List[Dict]
-        Detected extrema with detailed information:
-        - index: Array index of extremum
-        - position: Data value at extremum
-        - pdf_value: Original PDF value at extremum
-        - smoothed_pdf_value: Smoothed PDF value at extremum
-        - is_global: Boolean indicating global extremum
+        Detected maxima with detailed information:
+        - index: Array index of maximum
+        - position: Data value at maximum
+        - pdf_value: Original PDF value at maximum
+        - smoothed_pdf_value: Smoothed PDF value at maximum
+        - is_global: Boolean indicating global maximum
         
     z0 : float or None
-        Global optimum value from GDF object or detected from PDF
+        Global optimum value from EGDF object or detected from PDF
         
     global_extremum_idx : int or None
-        Array index of the global maximum (EGDF) or minimum (QGDF)
+        Array index of the global maximum
         
     fitted : bool
         Read-only property indicating if analysis has been completed
@@ -114,13 +131,13 @@ class DataHomogeneity:
     Raises
     ------
     ValueError
-        - If input is not EGDF or QGDF object
+        - If input is not EGDF object
         - If GDF object is not fitted
         - If required attributes are missing
         
     AttributeError
-        - If GDF object lacks pdf_points (catch=False during GDF fitting)
-        - If required GDF attributes are not accessible
+        - If EGDF object lacks pdf_points (catch=False during EGDF fitting)
+        - If required EGDF attributes are not accessible
         
     RuntimeError
         - If fit() method fails due to numerical issues
@@ -139,7 +156,7 @@ class DataHomogeneity:
     >>> 
     >>> # Fit EGDF with catch=True (required for homogeneity analysis)
     >>> egdf = EGDF(data=data, catch=True, verbose=False)
-    >>> egdf.fit()
+    >>> egdf.fit()  # Automatically finds optimal scale parameter
     >>> 
     >>> # Analyze homogeneity
     >>> homogeneity = DataHomogeneity(egdf, verbose=True)
@@ -153,18 +170,18 @@ class DataHomogeneity:
     >>> results = homogeneity.results()
     >>> print(f"Number of maxima detected: {len(results['picks'])}")
     
-    **QGDF Analysis with Custom Parameters:**
+    **EGDF Analysis with Multiple Clusters:**
     
     >>> # Heterogeneous data (multiple clusters)
     >>> data = np.array([1, 2, 3, 10, 11, 12, 20, 21, 22])
     >>> 
-    >>> # Fit QGDF
-    >>> qgdf = QGDF(data=data, catch=True)
-    >>> qgdf.fit()
+    >>> # Fit EGDF (will find optimal S automatically)
+    >>> egdf = EGDF(data=data, catch=True)
+    >>> egdf.fit()
     >>> 
-    >>> # Analyze with custom smoothing
+    >>> # Analyze with custom smoothing for numerical sensitivity
     >>> homogeneity = DataHomogeneity(
-    ...     qgdf, 
+    ...     egdf, 
     ...     verbose=True,
     ...     smoothing_sigma=2.0,  # More aggressive smoothing
     ...     min_height_ratio=0.05,  # Higher threshold
@@ -172,7 +189,21 @@ class DataHomogeneity:
     ... )
     >>> 
     >>> is_homogeneous = homogeneity.fit()
-    >>> # For QGDF: looks for single minimum, expects False for multi-cluster data
+    >>> # Expected: False due to multiple clusters creating multiple maxima
+    
+    **Outlier Detection Example:**
+    
+    >>> # Data with outlier
+    >>> data = np.array([5, 5.1, 5.2, 4.9, 5.0, 15.0])  # 15.0 is outlier
+    >>> 
+    >>> # Fit EGDF
+    >>> egdf = EGDF(data=data, catch=True)
+    >>> egdf.fit()
+    >>> 
+    >>> # Analyze homogeneity
+    >>> homogeneity = DataHomogeneity(egdf, verbose=True)
+    >>> is_homogeneous = homogeneity.fit()
+    >>> # Expected: False due to outlier creating additional local maximum
     
     **Error Handling and Parameter Access:**
     
@@ -187,9 +218,10 @@ class DataHomogeneity:
     >>> if 'warnings' in results:
     ...     print("Analysis warnings:", results['warnings'])
     >>> 
-    >>> # Access GDF parameters
+    >>> # Access EGDF parameters
     >>> gdf_params = results['gdf_parameters']
-    >>> print(f"Original GDF Z0: {gdf_params.get('z0', 'Not found')}")
+    >>> print(f"Optimal scale parameter: {gdf_params.get('S_opt', 'Not found')}")
+    >>> print(f"Global optimum Z0: {gdf_params.get('z0', 'Not found')}")
     
     **Memory Management:**
     
@@ -207,41 +239,69 @@ class DataHomogeneity:
     **Mathematical Background:**
     
     The gnostic homogeneity analysis is based on the principle that homogeneous data should
-    produce a unimodal PDF with specific characteristics depending on the GDF type:
+    produce a unimodal PDF with specific characteristics for EGDF:
     
-    - **EGDF**: Represents Euclidean distances, expecting a single peak for homogeneous data
-    - **QGDF**: Represents quasi-distances, expecting a single valley for homogeneous data
+    - **EGDF Uniqueness**: Each data sample has exactly one optimal EGDF representation
+    - **Scale Optimization**: EGDF automatically finds the best scale parameter S_opt
+    - **Density Properties**: Homogeneous data produces single maximum, non-negative density
+    - **Numerical Sensitivity**: Analysis must be numerical, not based on visual inspection
+    
+    **Why Only EGDF:**
+    
+    Homogeneity testing is only applicable to EGDF because:
+    - EGDF provides unique representation for each data sample
+    - Automatic scale parameter optimization enables reliable homogeneity testing
+    - Global nature with normalized weights makes it suitable for detecting data structure
+    - Robustness against outliers while maintaining sensitivity to detect them
+    - QGDF, ELDF, and QLDF have different mathematical properties unsuitable for this analysis
+    
+    **Gnostic Principles Applied:**
+    
+    - **Data Primacy**: Data are the primary parameters determining the distribution
+    - **Let Data Speak**: Analysis relies on data-driven optimal parameters
+    - **Unique Representation**: EGDF provides the one and only best representation
+    - **Numerical Decision Making**: Homogeneity decisions must be numerical, not visual
     
     **Parameter Tuning Guidelines:**
     
-    - **smoothing_sigma**: Start with 1.0, increase for noisy data, decrease for clean data
-    - **min_height_ratio**: Start with 0.01, increase to reduce false positives
-    - **min_distance**: Usually auto-calculated, manually set for specific requirements
+    - **smoothing_sigma**: Start with 1.0, increase for noisy data to improve numerical stability
+    - **min_height_ratio**: Start with 0.01, increase to reduce false positives from noise
+    - **min_distance**: Usually auto-calculated, manually set for specific data characteristics
+    - Remember: Visual inspection can be misleading, rely on numerical analysis
     
     **Performance Considerations:**
     
     - Memory usage scales with data size due to PDF point storage
     - Use flush=True for large datasets if PDF data not needed afterward
-    - Smoothing adds computational cost but improves robustness
+    - Smoothing adds computational cost but improves numerical robustness
+    - EGDF fitting provides optimal parameters, reducing computational overhead
     
     **Integration with Existing Workflows:**
     
-    This class integrates seamlessly with existing GDF workflows:
-    - Reads parameters from fitted GDF objects
-    - Appends errors/warnings to existing GDF parameter collections
-    - Updates GDF objects with homogeneity results
-    - Preserves all original GDF functionality
+    This class integrates seamlessly with existing EGDF workflows:
+    - Reads parameters from fitted EGDF objects including S_opt
+    - Appends errors/warnings to existing EGDF parameter collections
+    - Updates EGDF objects with homogeneity results
+    - Preserves all original EGDF functionality and gnostic principles
+    - Works with EGDF's automatic parameter optimization
+    
+    **Theoretical Foundation:**
+    
+    Based on gnostic theory where:
+    - Global distribution functions assume data sample homogeneity
+    - Non-homogeneous samples exhibit multiple density maxima or negative densities
+    - EGDF's unique scale parameter enables reliable homogeneity hypothesis testing
+    - Robustness properties make EGDF particularly suitable for small, widely spread samples
     
     See Also
     --------
-    EGDF : Euclidean Global Distribution Function
-    QGDF : Quasi-Global Distribution Function
+    EGDF : Estimating Global Distribution Function
     """
     
-    def __init__(self, gdf: Union[EGDF, QGDF], verbose=True, catch=True, flush=False,
+    def __init__(self, gdf: EGDF, verbose=True, catch=True, flush=False,
                  smoothing_sigma=1.0, min_height_ratio=0.01, min_distance=None):
         self.gdf = gdf
-        self.gdf_type = self._detect_and_validate_gdf_type()
+        self._validate_egdf_only()
         self.verbose = verbose
         self.catch = catch
         self.flush = flush
@@ -261,60 +321,59 @@ class DataHomogeneity:
 
         self._gdf_obj_validation()
 
-    def _detect_and_validate_gdf_type(self):
-        """Detect and validate that the GDF object is EGDF or QGDF only."""
+    def _validate_egdf_only(self):
+        """Validate that the GDF object is EGDF only."""
         class_name = self.gdf.__class__.__name__
+        
+        if 'QGDF' in class_name:
+            raise ValueError(
+                f"DataHomogeneity only supports EGDF objects. "
+                f"Received {class_name}. QGDF is not supported for homogeneity analysis."
+            )
         
         if 'ELDF' in class_name or 'QLDF' in class_name:
             raise ValueError(
-                f"DataHomogeneity only supports global distribution functions (EGDF, QGDF). "
+                f"DataHomogeneity only supports EGDF objects. "
                 f"Received {class_name}. Local distribution functions (ELDF, QLDF) are not supported "
                 f"for homogeneity analysis."
             )
         
-        if 'EGDF' in class_name:
-            return 'egdf'
-        elif 'QGDF' in class_name:
-            return 'qgdf'
-        else:
+        if 'EGDF' not in class_name:
             # Fallback detection based on methods
-            if hasattr(self.gdf, '_fit_egdf'):
-                return 'egdf'
-            elif hasattr(self.gdf, '_fit_qgdf'):
-                return 'qgdf'
-            else:
+            if not hasattr(self.gdf, '_fit_egdf'):
                 raise ValueError(
-                    f"Cannot determine GDF type from {class_name}. "
-                    f"Object must be EGDF or QGDF for homogeneity analysis."
+                    f"DataHomogeneity only supports EGDF objects. "
+                    f"Cannot determine if {class_name} is EGDF. "
+                    f"Object must be EGDF for homogeneity analysis."
                 )
 
     def _gdf_obj_validation(self):
-        """Validate that the GDF object meets requirements for homogeneity analysis."""
+        """Validate that the EGDF object meets requirements for homogeneity analysis."""
         if not hasattr(self.gdf, '_fitted'):
-            raise ValueError("GDF object must have _fitted attribute")
+            raise ValueError("EGDF object must have _fitted attribute")
         
         if not self.gdf._fitted:
-            raise ValueError("GDF object must be fitted before homogeneity analysis")
+            raise ValueError("EGDF object must be fitted before homogeneity analysis")
         
         required_attrs = ['data']
         for attr in required_attrs:
             if not hasattr(self.gdf, attr):
-                raise ValueError(f"GDF object missing required attribute: {attr}")
+                raise ValueError(f"EGDF object missing required attribute: {attr}")
         
         if not (hasattr(self.gdf, 'pdf_points') and self.gdf.pdf_points is not None):
             if hasattr(self.gdf, 'catch') and not self.gdf.catch:
                 raise AttributeError(
-                    f"{self.gdf_type.upper()} object must have catch=True to generate "
+                    f"EGDF object must have catch=True to generate "
                     f"pdf_points required for homogeneity analysis."
                 )
             else:
                 raise AttributeError(
-                    f"{self.gdf_type.upper()} object is missing 'pdf_points'. "
-                    f"Please ensure catch=True when fitting {self.gdf_type.upper()}."
+                    f"EGDF object is missing 'pdf_points'. "
+                    f"Please ensure catch=True when fitting EGDF."
                 )
 
     def _prepare_params_from_gdf(self):
-        """Extract and prepare parameters from the GDF object."""
+        """Extract and prepare parameters from the EGDF object."""
         gdf_params = {}
         
         # Extract basic parameters
@@ -322,7 +381,7 @@ class DataHomogeneity:
             gdf_params.update(self.gdf.params)
         
         # Extract direct attributes
-        direct_attrs = ['S', 'S_opt', 'z0', 'data', 'pdf_points', 'di_points_n'] #NOTE good to have fallback logic hre, if pdf_points or di_points_n missing we can use pdf and use it with data.
+        direct_attrs = ['S', 'S_opt', 'z0', 'data', 'pdf_points', 'di_points_n']
         for attr in direct_attrs:
             if hasattr(self.gdf, attr):
                 value = getattr(self.gdf, attr)
@@ -332,14 +391,14 @@ class DataHomogeneity:
         return gdf_params
 
     def _append_error(self, error_message, exception_type=None):
-        """Append error to existing errors in GDF params or create new ones."""
+        """Append error to existing errors in EGDF params or create new ones."""
         error_entry = {
             'method': 'DataHomogeneity',
             'error': error_message,
             'exception_type': exception_type or 'DataHomogeneityError'
         }
         
-        # Add to GDF object params if possible
+        # Add to EGDF object params if possible
         if hasattr(self.gdf, 'params'):
             if 'errors' not in self.gdf.params:
                 self.gdf.params['errors'] = []
@@ -351,13 +410,13 @@ class DataHomogeneity:
         self.params['errors'].append(error_entry)
 
     def _append_warning(self, warning_message):
-        """Append warning to existing warnings in GDF params or create new ones."""
+        """Append warning to existing warnings in EGDF params or create new ones."""
         warning_entry = {
             'method': 'DataHomogeneity',
             'warning': warning_message
         }
         
-        # Add to GDF object params if possible
+        # Add to EGDF object params if possible
         if hasattr(self.gdf, 'params'):
             if 'warnings' not in self.gdf.params:
                 self.gdf.params['warnings'] = []
@@ -371,55 +430,78 @@ class DataHomogeneity:
     def _flush_memory(self):
         """Flush di_points and pdf_points from memory if flush=True."""
         if self.flush:
+            # Flush from EGDF object attributes
             if hasattr(self.gdf, 'di_points_n'):
                 self.gdf.di_points_n = None
                 if self.verbose:
-                    print("DataHomogeneity: Flushed di_points_n from GDF object to save memory.")
+                    print("DataHomogeneity: Flushed di_points_n from EGDF object to save memory.")
             
             if hasattr(self.gdf, 'pdf_points'):
                 self.gdf.pdf_points = None
                 if self.verbose:
-                    print("DataHomogeneity: Flushed pdf_points from GDF object to save memory.")
+                    print("DataHomogeneity: Flushed pdf_points from EGDF object to save memory.")
             
-            # Remove from params as well if present
+            # Flush from EGDF object params dictionary
             if hasattr(self.gdf, 'params') and self.gdf.params:
                 if 'di_points_n' in self.gdf.params:
-                    self.gdf.params['di_points_n'] = None
+                    del self.gdf.params['di_points_n']
+                    if self.verbose:
+                        print("DataHomogeneity: Removed di_points_n from EGDF params dictionary to save memory.")
+                
                 if 'pdf_points' in self.gdf.params:
-                    self.gdf.params['pdf_points'] = None
+                    del self.gdf.params['pdf_points']
+                    if self.verbose:
+                        print("DataHomogeneity: Removed pdf_points from EGDF params dictionary to save memory.")
+            
+            # Also flush from local params if they exist
+            if 'gdf_parameters' in self.params and self.params['gdf_parameters']:
+                if 'di_points_n' in self.params['gdf_parameters']:
+                    del self.params['gdf_parameters']['di_points_n']
+                    if self.verbose:
+                        print("DataHomogeneity: Removed di_points_n from local gdf_parameters to save memory.")
+                
+                if 'pdf_points' in self.params['gdf_parameters']:
+                    del self.params['gdf_parameters']['pdf_points']
+                    if self.verbose:
+                        print("DataHomogeneity: Removed pdf_points from local gdf_parameters to save memory.")
 
-    def fit(self):
+    def fit(self, plot: bool = False) -> bool:
         """
-        Perform comprehensive homogeneity analysis on the GDF object.
+        Perform comprehensive homogeneity analysis on the EGDF object.
         
         This is the primary analysis method that executes the complete homogeneity assessment
-        pipeline. It analyzes the probability density function (PDF) of the fitted GDF object
+        pipeline. It analyzes the probability density function (PDF) of the fitted EGDF object
         to determine if the underlying data exhibits homogeneous characteristics based on
-        extrema detection and PDF properties.
+        peak detection and PDF properties.
         
         **Analysis Pipeline:**
         
-        1. **Parameter Extraction**: Retrieves comprehensive parameters from the input GDF object
+        1. **Parameter Extraction**: Retrieves comprehensive parameters from the input EGDF object
         2. **PDF Processing**: Applies Gaussian smoothing to reduce noise and improve detection
-        3. **Extrema Detection**: Identifies peaks (EGDF) or valleys (QGDF) in the smoothed PDF
-        4. **Homogeneity Assessment**: Evaluates based on extrema count and PDF negativity
+        3. **Peak Detection**: Identifies maxima in the smoothed PDF
+        4. **Homogeneity Assessment**: Evaluates based on peak count and PDF negativity
         5. **Result Storage**: Stores comprehensive analysis results and metadata
         6. **Memory Management**: Optionally flushes large arrays to conserve memory
         
         **Homogeneity Criteria:**
         
         - **EGDF**: Data is homogeneous if PDF has exactly one global maximum and no negative values
-        - **QGDF**: Data is homogeneous if PDF has exactly one global minimum and no negative values
         
         The method automatically handles parameter tuning, error tracking, and integration
-        with the existing GDF parameter system.
-        
+        with the existing EGDF parameter system.
+
+        Parameters
+        ----------
+        plot : bool, optional
+            If True, generates plots for visual inspection of the analysis results.
+            - True: Displays plots of original and smoothed PDF with detected maxima
+
         Returns
         -------
         bool
             The primary homogeneity result:
             - True: Data exhibits homogeneous characteristics
-            - False: Data is heterogeneous (multiple extrema or negative PDF values)
+            - False: Data is heterogeneous (multiple maxima or negative PDF values)
         
         Raises
         ------
@@ -430,10 +512,10 @@ class DataHomogeneity:
             - Memory allocation issues during processing
             
         AttributeError
-            If the GDF object lacks required attributes:
-            - Missing pdf_points (ensure catch=True during GDF fitting)
+            If the EGDF object lacks required attributes:
+            - Missing pdf_points (ensure catch=True during EGDF fitting)
             - Missing di_points_n for position mapping
-            - Invalid or incomplete GDF state
+            - Invalid or incomplete EGDF state
         
         ValueError
             If analysis parameters are invalid:
@@ -444,12 +526,12 @@ class DataHomogeneity:
         Side Effects
         -----------
         - Updates self.is_homogeneous with the analysis result
-        - Populates self.picks with detected extrema information
+        - Populates self.picks with detected maxima information
         - Sets self.z0 with the global optimum value
-        - Updates self.global_extremum_idx with the extremum location
-        - Modifies GDF object params with homogeneity results (if catch=True)
-        - May clear pdf_points and di_points_n from GDF object (if flush=True)
-        - Appends any errors or warnings to existing GDF error/warning collections
+        - Updates self.global_extremum_idx with the maximum location
+        - Modifies EGDF object params with homogeneity results (if catch=True)
+        - May clear pdf_points and di_points_n from EGDF object (if flush=True)
+        - Appends any errors or warnings to existing EGDF error/warning collections
         
         Examples
         --------
@@ -463,18 +545,18 @@ class DataHomogeneity:
         **Memory Management:**
         
         >>> # For large datasets
-        >>> homogeneity = DataHomogeneity(large_gdf, flush=True)
+        >>> homogeneity = DataHomogeneity(large_egdf, flush=True)
         >>> result = homogeneity.fit()  # Automatically frees memory after analysis
         
         **Integration with Workflows:**
         
-        >>> # Analysis integrates seamlessly with existing GDF workflows
-        >>> egdf.fit()  # Standard GDF fitting
+        >>> # Analysis integrates seamlessly with existing EGDF workflows
+        >>> egdf.fit()  # Standard EGDF fitting
         >>> homogeneity = DataHomogeneity(egdf)
         >>> homogeneity.fit()  # Homogeneity analysis
         >>> 
         >>> # Results now available in both objects
-        >>> print("GDF homogeneity flag:", egdf.params['is_homogeneous'])
+        >>> print("EGDF homogeneity flag:", egdf.params['is_homogeneous'])
         >>> print("Detailed analysis:", homogeneity.results())
         
         Notes
@@ -496,8 +578,7 @@ class DataHomogeneity:
         
         The method implements gnostic homogeneity theory where:
         - Homogeneous data should produce unimodal PDFs
-        - EGDF represents Euclidean distances (expect single peak)
-        - QGDF represents quasi-distances (expect single valley)
+        - EGDF represents optimal scale parameter selection (expect single peak)
         
         **Quality Assurance:**
         
@@ -514,9 +595,9 @@ class DataHomogeneity:
         """
         try:
             if self.verbose:
-                print(f"DataHomogeneity: Starting homogeneity analysis for {self.gdf_type.upper()} data...")
+                print(f"DataHomogeneity: Starting homogeneity analysis for EGDF data...")
             
-            # Prepare parameters from GDF
+            # Prepare parameters from EGDF
             gdf_params = self._prepare_params_from_gdf()
             
             # Set minimum distance if not provided
@@ -533,7 +614,7 @@ class DataHomogeneity:
             # Store comprehensive results
             if self.catch:
                 self.params.update({
-                    'gdf_type': self.gdf_type,
+                    'gdf_type': 'egdf',
                     'is_homogeneous': self.is_homogeneous,
                     'picks': self.picks,
                     'z0': self.z0,
@@ -547,10 +628,10 @@ class DataHomogeneity:
                     'homogeneity_fitted': True
                 })
                 
-                # Include GDF parameters
+                # Include EGDF parameters
                 self.params['gdf_parameters'] = gdf_params
             
-            # Update GDF object params if possible
+            # Update EGDF object params if possible
             if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
                 self.gdf.params.update({
                     'is_homogeneous': self.is_homogeneous,
@@ -559,17 +640,21 @@ class DataHomogeneity:
                 })
                 
                 if self.verbose:
-                    print(f"DataHomogeneity: Homogeneity results written to {self.gdf_type.upper()} params dictionary.")
-            
+                    print(f"DataHomogeneity: Homogeneity results written to EGDF params dictionary.")          
+                        
+            self._fitted = True
+
+            # plot
+            if plot:
+                self.plot() 
+
             # Flush memory if requested
             self._flush_memory()
             
-            self._fitted = True
-            
             if self.verbose:
-                print(f"DataHomogeneity: Homogeneity analysis completed for {self.gdf_type.upper()}.")
+                print(f"DataHomogeneity: Homogeneity analysis completed for EGDF.")
                 print(f"DataHomogeneity: Data is {'homogeneous' if self.is_homogeneous else 'not homogeneous'}")
-                print(f"DataHomogeneity: Number of {('maxima' if self.gdf_type == 'egdf' else 'minima')} detected: {len(self.picks)}")
+                print(f"DataHomogeneity: Number of maxima detected: {len(self.picks)}")
             
             return self.is_homogeneous
     
@@ -582,7 +667,7 @@ class DataHomogeneity:
 
     def _test_homogeneity(self):
         """
-        Test data homogeneity based on GDF type.
+        Test data homogeneity for EGDF.
         
         Returns
         -------
@@ -593,15 +678,9 @@ class DataHomogeneity:
             pdf_data = self._get_pdf_data()
             has_negative_pdf = np.any(pdf_data < 0)
             
-            if self.gdf_type == 'egdf':
-                # EGDF: Look for single global maximum
-                self.picks = self._detect_maxima()
-                extrema_type = "maxima"
-            else:  # qgdf
-                # QGDF: Look for single global minimum
-                self.picks = self._detect_minima()
-                extrema_type = "minima"
-            
+            # EGDF: Look for single global maximum
+            self.picks = self._detect_maxima()
+            extrema_type = "maxima"
             num_extrema = len(self.picks)
             is_homogeneous = not has_negative_pdf and num_extrema == 1
             
@@ -617,9 +696,9 @@ class DataHomogeneity:
                     elif num_extrema == 0:
                         reasons.append(f"no significant {extrema_type} detected")
                         self._append_warning(f"No significant {extrema_type} detected - check smoothing parameters")
-                    print(f"DataHomogeneity: {self.gdf_type.upper()} data is not homogeneous: {', '.join(reasons)}.")
+                    print(f"DataHomogeneity: EGDF data is not homogeneous: {', '.join(reasons)}.")
                 else:
-                    print(f"DataHomogeneity: {self.gdf_type.upper()} data is homogeneous: PDF has no negative values "
+                    print(f"DataHomogeneity: EGDF data is homogeneous: PDF has no negative values "
                         f"and exactly one {extrema_type[:-1]} detected.")
             
             # Store additional info in params
@@ -682,53 +761,6 @@ class DataHomogeneity:
             self._append_error(error_msg, type(e).__name__)
             return []
 
-    def _detect_minima(self):
-        """Detect minima for QGDF analysis."""
-        try:
-            pdf_data = self._get_pdf_data()
-            data_points = self._get_data_points()
-            smoothed_pdf = self._smooth_pdf()
-            
-            # For minima detection, invert the PDF
-            inverted_pdf = -smoothed_pdf
-            min_height = np.max(inverted_pdf) * self.min_height_ratio
-            minima_idx, _ = find_peaks(inverted_pdf, 
-                                       height=min_height,
-                                       distance=self.min_distance)
-            
-            picks = []
-            global_min_value = np.inf
-            
-            for idx in minima_idx:
-                pick_info = {
-                    'index': int(idx),
-                    'position': float(data_points[idx]),
-                    'pdf_value': float(pdf_data[idx]),
-                    'smoothed_pdf_value': float(smoothed_pdf[idx]),
-                    'is_global': False
-                }
-                picks.append(pick_info)
-                
-                if smoothed_pdf[idx] < global_min_value:
-                    global_min_value = smoothed_pdf[idx]
-                    self.global_extremum_idx = idx
-            
-            # Mark global minimum
-            for pick in picks:
-                if pick['index'] == self.global_extremum_idx:
-                    pick['is_global'] = True
-                    break
-            
-            # Sort by importance (global first, then by depth for minima)
-            picks.sort(key=lambda x: (not x['is_global'], x['smoothed_pdf_value']))
-            
-            return picks
-            
-        except Exception as e:
-            error_msg = f"Error detecting minima: {str(e)}"
-            self._append_error(error_msg, type(e).__name__)
-            return []
-
     def _smooth_pdf(self):
         """Apply Gaussian smoothing to PDF."""
         try:
@@ -740,15 +772,15 @@ class DataHomogeneity:
             return pdf_data  # Return unsmoothed data as fallback
 
     def _get_pdf_data(self):
-        """Get PDF values from the GDF object."""
+        """Get PDF values from the EGDF object."""
         return self.gdf.pdf_points
 
     def _get_data_points(self):
-        """Get data point positions from the GDF object."""
+        """Get data point positions from the EGDF object."""
         return self.gdf.di_points_n
 
     def _get_z0(self):
-        """Get Z0 (global optimum) value from the GDF object."""
+        """Get Z0 (global optimum) value from the EGDF object."""
         if hasattr(self.gdf, 'z0') and self.gdf.z0 is not None:
             return self.gdf.z0
         elif hasattr(self.gdf, 'params') and 'z0' in self.gdf.params:
@@ -758,7 +790,7 @@ class DataHomogeneity:
             if self.global_extremum_idx is not None:
                 data_points = self._get_data_points()
                 if self.verbose:
-                    self._append_warning("Z0 not found in GDF object. Using PDF global extremum as Z0.")
+                    self._append_warning("Z0 not found in EGDF object. Using PDF global extremum as Z0.")
                 return data_points[self.global_extremum_idx]
             return None
 
@@ -767,7 +799,7 @@ class DataHomogeneity:
         Create a comprehensive visualization of the homogeneity analysis results.
         
         This method generates an informative plot that displays the probability density
-        function (PDF), detected extrema, homogeneity status, and key analysis metrics.
+        function (PDF), detected maxima, homogeneity status, and key analysis metrics.
         The visualization provides both quantitative and qualitative insights into the
         data's homogeneous characteristics.
         
@@ -775,9 +807,9 @@ class DataHomogeneity:
         
         1. **Original PDF Curve**: Blue solid line showing the raw probability density
         2. **Smoothed PDF Curve**: Orange dashed line showing Gaussian-filtered PDF
-        3. **Global Extremum**: Red circle with vertical line marking the primary extremum
-        4. **Secondary Extrema**: Grey circles with vertical lines for additional extrema
-        5. **Z0 Reference**: Cyan dotted line if Z0 differs from detected extremum
+        3. **Global Maximum**: Red circle with vertical line marking the primary maximum
+        4. **Secondary Maxima**: Grey circles with vertical lines for additional maxima
+        5. **Z0 Reference**: Cyan dotted line if Z0 differs from detected maximum
         6. **Status Indicator**: Color-coded text box showing homogeneity result
         7. **Analysis Summary**: Information box with key metrics and statistics
         
@@ -794,7 +826,7 @@ class DataHomogeneity:
             
         title : str, optional
             Custom plot title. If None, generates descriptive title automatically.
-            - None: Auto-generated title with GDF type and homogeneity status
+            - None: Auto-generated title with EGDF type and homogeneity status
             - str: Custom title text (supports LaTeX formatting)
             - Empty string: No title displayed
         
@@ -815,7 +847,7 @@ class DataHomogeneity:
             If required plot data is missing or corrupted:
             - PDF data unavailable or deleted (check flush parameter)
             - Data points array missing or malformed
-            - Extrema detection results incomplete
+            - Maxima detection results incomplete
             
         ImportError
             If matplotlib is not available or not properly installed
@@ -851,10 +883,10 @@ class DataHomogeneity:
         -----
         **Visual Interpretation Guide:**
         
-        - **Green Status Box**: Data is homogeneous (single extremum, no negative PDF)
-        - **Red Status Box**: Data is heterogeneous (multiple extrema or negative values)
-        - **Red Markers**: Global maximum (EGDF) or minimum (QGDF)
-        - **Grey Markers**: Secondary extrema indicating potential heterogeneity
+        - **Green Status Box**: Data is homogeneous (single maximum, no negative PDF)
+        - **Red Status Box**: Data is heterogeneous (multiple maxima or negative values)
+        - **Red Markers**: Global maximum
+        - **Grey Markers**: Secondary maxima indicating potential heterogeneity
         - **Smooth vs Raw PDF**: Comparison shows impact of noise filtering
         
         **Plot Customization:**
@@ -884,9 +916,9 @@ class DataHomogeneity:
         
         The visualization directly represents the mathematical foundation:
         - PDF height indicates probability density magnitude
-        - Extrema positions show optimal data characteristics
+        - Maximum positions show optimal data characteristics
         - Smoothing reveals underlying distributional structure
-        - Multiple extrema indicate potential data clustering or heterogeneity
+        - Multiple maxima indicate potential data clustering or heterogeneity
         
         See Also
         --------
@@ -908,10 +940,7 @@ class DataHomogeneity:
             ax.plot(data_points, smoothed_pdf, 'orange', linestyle='--', linewidth=1.5, 
                     label='Smoothed PDF', alpha=0.8)
             
-            # Plot detected extrema
-            extrema_type = "maximum" if self.gdf_type == 'egdf' else "minimum"
-            extrema_plural = "maxima" if self.gdf_type == 'egdf' else "minima"
-            
+            # Plot detected maxima
             for pick in self.picks:
                 pos = pick['position']
                 pdf_val = pick['pdf_value']
@@ -920,15 +949,15 @@ class DataHomogeneity:
                 if is_global:
                     ax.axvline(pos, color='red', linestyle='-', linewidth=2, alpha=0.8)
                     ax.plot(pos, pdf_val, 'o', color='red', markersize=10, 
-                        label=f'Global {extrema_type} (Z0={pos:.3f})')
+                        label=f'Global maximum (Z0={pos:.3f})')
                 else:
                     ax.axvline(pos, color='grey', linestyle='-', linewidth=1, alpha=0.6)
                     ax.plot(pos, pdf_val, 'o', color='grey', markersize=6, alpha=0.7)
             
-            # Add Z0 line if different from global extremum
+            # Add Z0 line if different from global maximum
             if self.z0 is not None and self.global_extremum_idx is not None:
-                global_extremum_pos = data_points[self.global_extremum_idx]
-                if abs(self.z0 - global_extremum_pos) > 0.001:
+                global_maximum_pos = data_points[self.global_extremum_idx]
+                if abs(self.z0 - global_maximum_pos) > 0.001:
                     ax.axvline(self.z0, color='cyan', linestyle=':', linewidth=2, alpha=0.8,
                             label=f'Original Z0={self.z0:.3f}')
             
@@ -942,8 +971,9 @@ class DataHomogeneity:
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor=status_color))
             
             # Add analysis info
-            info_text = f"Type: {self.gdf_type.upper()}\n"
-            info_text += f"{extrema_plural.capitalize()}: {len(self.picks)}\n"
+            info_text = f"Type: EGDF\n"
+            info_text += f"Maxima: {len(self.picks)}\n"
+                
             if hasattr(self, 'params') and 'has_negative_pdf' in self.params:
                 info_text += f"Negative PDF: {'Yes' if self.params['has_negative_pdf'] else 'No'}"
             
@@ -956,7 +986,7 @@ class DataHomogeneity:
             
             if title is None:
                 homogeneous_str = "Homogeneous" if self.is_homogeneous else "Non-Homogeneous"
-                title = f"{self.gdf_type.upper()} {homogeneous_str} Data Analysis"
+                title = f"EGDF {homogeneous_str} Data Analysis"
             ax.set_title(title)
             
             ax.legend()
@@ -978,16 +1008,16 @@ class DataHomogeneity:
         
         This method provides access to all analysis results, parameters, and diagnostic
         information generated during the homogeneity assessment. It returns a complete
-        dictionary containing quantitative results, detected extrema details, analysis
-        parameters, original GDF object information, and any errors or warnings
+        dictionary containing quantitative results, detected maxima details, analysis
+        parameters, original EGDF object information, and any errors or warnings
         encountered during processing.
         
         **Result Categories:**
         
-        1. **Primary Results**: Core homogeneity findings (is_homogeneous, extrema count)
-        2. **Extrema Details**: Complete information about detected peaks/valleys
+        1. **Primary Results**: Core homogeneity findings (is_homogeneous, maxima count)
+        2. **Maxima Details**: Complete information about detected peaks
         3. **Analysis Parameters**: Configuration settings used during analysis  
-        4. **GDF Parameters**: Original parameters from the input GDF object
+        4. **EGDF Parameters**: Original parameters from the input EGDF object
         5. **Diagnostic Data**: Errors, warnings, and processing metadata
         6. **Quality Metrics**: PDF characteristics and numerical indicators
         
@@ -1000,34 +1030,34 @@ class DataHomogeneity:
             Comprehensive results dictionary with the following structure:
             
             **Core Analysis Results:**
-            - 'gdf_type' (str): Type of GDF analyzed ('egdf' or 'qgdf')
+            - 'gdf_type' (str): Always 'egdf' for this class
             - 'is_homogeneous' (bool): Primary homogeneity determination
-            - 'z0' (float): Global optimum value (Z0) from GDF or detected extremum
-            - 'global_extremum_idx' (int): Array index of global maximum/minimum
+            - 'z0' (float): Global optimum value (Z0) from EGDF or detected maximum
+            - 'global_extremum_idx' (int): Array index of global maximum
             - 'homogeneity_fitted' (bool): Confirmation flag for completed analysis
             
-            **Extrema Information:**
-            - 'picks' (List[Dict]): Detected extrema with detailed properties:
-            - 'index' (int): Array position of extremum
-            - 'position' (float): Data value at extremum location
-            - 'pdf_value' (float): Original PDF value at extremum
-            - 'smoothed_pdf_value' (float): Smoothed PDF value at extremum
-            - 'is_global' (bool): Flag indicating global extremum
+            **Maxima Information:**
+            - 'picks' (List[Dict]): Detected maxima with detailed properties:
+            - 'index' (int): Array position of maximum
+            - 'position' (float): Data value at maximum location
+            - 'pdf_value' (float): Original PDF value at maximum
+            - 'smoothed_pdf_value' (float): Smoothed PDF value at maximum
+            - 'is_global' (bool): Flag indicating global maximum
             
             **PDF Characteristics:**
             - 'has_negative_pdf' (bool): Whether PDF contains negative values
-            - 'num_maxima' or 'num_minima' (int): Count of detected extrema
-            - 'extrema_type' (str): Type of extrema detected ('maxima' or 'minima')
+            - 'num_maxima' (int): Count of detected maxima
+            - 'extrema_type' (str): Always 'maxima' for EGDF
             
             **Analysis Configuration:**
             - 'analysis_parameters' (Dict): Settings used during analysis:
             - 'smoothing_sigma' (float): Gaussian smoothing parameter
             - 'min_height_ratio' (float): Minimum height threshold for detection
-            - 'min_distance' (int): Minimum separation between extrema
+            - 'min_distance' (int): Minimum separation between maxima
             - 'flush' (bool): Memory management setting
             
-            **Original GDF Data:**
-            - 'gdf_parameters' (Dict): Complete parameter set from input GDF object
+            **Original EGDF Data:**
+            - 'gdf_parameters' (Dict): Complete parameter set from input EGDF object
             including S, S_opt, z0, data arrays, and fitted results
             
             **Diagnostics (if present):**
@@ -1055,17 +1085,17 @@ class DataHomogeneity:
         >>> homogeneity.fit()
         >>> results = homogeneity.results()
         >>> print(f"Homogeneous: {results['is_homogeneous']}")
-        >>> print(f"Extrema detected: {len(results['picks'])}")
+        >>> print(f"Maxima detected: {len(results['picks'])}")
         
-        **Detailed Extrema Analysis:**
+        **Detailed Maxima Analysis:**
         
         >>> results = homogeneity.results()
-        >>> for i, extremum in enumerate(results['picks']):
-        ...     status = "Global" if extremum['is_global'] else "Local"
-        ...     print(f"{status} extremum {i+1}:")
-        ...     print(f"  Position: {extremum['position']:.4f}")
-        ...     print(f"  PDF value: {extremum['pdf_value']:.4f}")
-        ...     print(f"  Smoothed PDF: {extremum['smoothed_pdf_value']:.4f}")
+        >>> for i, maximum in enumerate(results['picks']):
+        ...     status = "Global" if maximum['is_global'] else "Local"
+        ...     print(f"{status} maximum {i+1}:")
+        ...     print(f"  Position: {maximum['position']:.4f}")
+        ...     print(f"  PDF value: {maximum['pdf_value']:.4f}")
+        ...     print(f"  Smoothed PDF: {maximum['smoothed_pdf_value']:.4f}")
         
         **Error and Warning Inspection:**
         
@@ -1096,7 +1126,7 @@ class DataHomogeneity:
         The returned dictionary is a deep copy of internal results, ensuring:
         - Modifications to returned data don't affect internal state
         - Thread-safe access to results
-        - Consistent data even if original GDF object changes
+        - Consistent data even if original EGDF object changes
         
         **Memory Considerations:**
         
