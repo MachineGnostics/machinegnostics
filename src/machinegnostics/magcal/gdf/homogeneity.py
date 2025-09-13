@@ -430,16 +430,16 @@ class DataHomogeneity:
     def _flush_memory(self):
         """Flush di_points and pdf_points from memory if flush=True."""
         if self.flush:
-            # Flush from EGDF object attributes
-            if hasattr(self.gdf, 'di_points_n'):
-                self.gdf.di_points_n = None
-                if self.verbose:
-                    print("DataHomogeneity: Flushed di_points_n from EGDF object to save memory.")
+            # # Flush from EGDF object attributes
+            # if hasattr(self.gdf, 'di_points_n'):
+            #     self.gdf.di_points_n = None
+            #     if self.verbose:
+            #         print("DataHomogeneity: Flushed di_points_n from EGDF object to save memory.")
             
-            if hasattr(self.gdf, 'pdf_points'):
-                self.gdf.pdf_points = None
-                if self.verbose:
-                    print("DataHomogeneity: Flushed pdf_points from EGDF object to save memory.")
+            # if hasattr(self.gdf, 'pdf_points'):
+            #     self.gdf.pdf_points = None
+            #     if self.verbose:
+            #         print("DataHomogeneity: Flushed pdf_points from EGDF object to save memory.")
             
             # Flush from EGDF object params dictionary
             if hasattr(self.gdf, 'params') and self.gdf.params:
