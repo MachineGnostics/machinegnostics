@@ -20,10 +20,7 @@ from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.data_cluster import DataCluster
 from machinegnostics.magcal.gdf.data_membership import DataMembership
-from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
-from machinegnostics.magcal.gdf.eldf_ma import MarginalAnalysisELDF
-from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
-from machinegnostics.magcal.gdf.eldf_intv import IntervalAnalysisELDF
+from machinegnostics.magcal.gdf.intv_engine import DataIntervals
 
 
 # g correlation function
