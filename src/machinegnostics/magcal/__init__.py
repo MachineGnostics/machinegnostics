@@ -18,6 +18,8 @@ from machinegnostics.magcal.gdf.qgdf import QGDF
 from machinegnostics.magcal.gdf.qldf import QLDF
 from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
+from machinegnostics.magcal.gdf.data_cluster import DataCluster
+from machinegnostics.magcal.gdf.data_membership import DataMembership
 from machinegnostics.magcal.gdf.egdf_ma import MarginalAnalysisEGDF
 from machinegnostics.magcal.gdf.eldf_ma import MarginalAnalysisELDF
 from machinegnostics.magcal.gdf.egdf_intv import IntervalAnalysisEGDF
