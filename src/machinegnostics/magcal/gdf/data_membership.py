@@ -117,8 +117,7 @@ class DataMembership:
         try:
             extended_data = np.append(self.egdf.data, test_point)
             
-            extended_egdf = EGDF(data=extended_data,
-                                 S=self.egdf.S,
+            extended_egdf = EGDF(S=self.egdf.S,
                                  verbose=False,
                                  catch=True,
                                  flush=True,
@@ -131,8 +130,8 @@ class DataMembership:
                                  max_data_size=self.egdf.max_data_size,
                                  wedf=self.egdf.wedf,
                                  weights=None)
-            extended_egdf.fit(plot=False)
-            
+            extended_egdf.fit(data=extended_data, plot=False)
+
             homogeneity = DataHomogeneity(
                 gdf=extended_egdf,
                 verbose=False,
