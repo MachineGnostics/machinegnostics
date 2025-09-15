@@ -2,6 +2,7 @@ import numpy as np
 from typing import Optional, Union, Dict
 from scipy.signal import savgol_filter, find_peaks
 from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF
+import warnings
 
 
 # Improved DataIntervals class inspired by IntveEngine
@@ -98,6 +99,23 @@ class DataIntervals:
         except Exception as e:
             self._add_error(f"DataIntervals: Failed to extract GDF data: {e}")
             return
+        
+    def _argument_validation(self):
+        # Check GDF type suitability
+        if self.gdf_name not in ['ELDF', 'QLDF']:
+            msg = "Interval Analysis is optimized for ELDF and QLDF. Results may be less robust for other types."
+            self._add_warning(msg)
+    
+        # Check wedf setting
+        if getattr(self.gdf, 'wedf', False):
+            msg = "Interval Analysis works best with KSDF. Consider setting 'wedf=False' for optimal results."
+            self._add_warning(msg)
+    
+        # Check n_points for computational efficiency
+        if self.n_points > 1000:
+            msg = (f"Current n_points = {self.n_points} is very high and may cause excessive computation time. "
+                   "Consider reducing n_points for efficiency.")
+            self._add_warning(msg)
 
     def _store_init_params(self):
         if self.catch:
@@ -126,23 +144,47 @@ class DataIntervals:
         self.ordering_valid = None
 
     def fit(self, plot: bool = False):
+        import time
+        start_time = time.time()
         try:
+            self._argument_validation()
+
             if self.verbose:
-                print("DataIntervals: Starting fit process...")
+                print("\n[DataIntervals] Fit process started.")
             self._reset_results()
+    
+            # Scan intervals and extract boundaries
             self._scan_intervals()
             self._extract_intervals_with_ordering()
+    
+            # Check ordering constraint
+            if not self.ordering_valid:
+                msg = ("Interval ordering constraint violated. "
+                       "Try setting 'wedf=False', increasing 'n_points', or adjusting thresholds for sensitivity.")
+                self._add_warning(msg)
+    
+            # Update parameters and optionally plot
             self._update_params()
             if plot:
                 self.plot()
                 self.plot_intervals()
+    
+            # Optionally flush memory
             if self.flush:
                 self._flush_memory()
+    
             if self.verbose:
-                print("DataIntervals: Fit process completed.")
+                elapsed = time.time() - start_time
+                print(f"[DataIntervals] Fit process completed in {elapsed:.2f} seconds.")
+                print(f"[DataIntervals] Ordering valid: {self.ordering_valid}")
+                print(f"[DataIntervals] Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]")
+                print(f"[DataIntervals] Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}]")
         except Exception as e:
-            self._add_error(f"DataIntervals: Fit failed: {e}")
-            raise e
+            err_msg = f"DataIntervals: Fit failed: {e}"
+            if self.verbose:
+                print(f"[DataIntervals] ERROR: {err_msg}")
+            self._add_error(err_msg)
+            raise
 
     def _scan_intervals(self):
         try:
