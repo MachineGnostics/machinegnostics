@@ -103,12 +103,12 @@ class DataIntervals:
     def _interval_validation(self):
         valid = self.ZL < self.Z0L < self.Z0 < self.Z0U < self.ZU
         if not valid:
-            if self.verbose:
-                print('DataIntervals: Interval validation failed!', end='\r', flush=True)
+            # if self.verbose:
+            #     print('DataIntervals: Interval validation failed!')
             self.params['interval_validation'] = False
         else:
             if self.verbose:
-                print('DataIntervals: Interval validation succeeded.', end='\r', flush=True)
+                print('DataIntervals: Interval validation succeeded.')
             self.params['interval_validation'] = True
         return valid
 
@@ -166,7 +166,7 @@ class DataIntervals:
 
         # Main Z0 variation curve
         sort_idx = np.argsort(datum_vals)
-        ax.plot(datum_vals[sort_idx], z0_vals[sort_idx], 'k-', alpha=0.5, linewidth=1.5, label='Z0 Variation')
+        ax.scatter(datum_vals[sort_idx], z0_vals[sort_idx], color='k', alpha=0.5, linewidth=1, label='Z0 Variation')
 
         # Critical points
         ax.scatter([self.ZL], [self.Z0L], marker='v', s=120, color='purple', edgecolor='black', zorder=10, label=f'ZL,Z0L ({self.ZL:.4f},{self.Z0L:.4f})')
