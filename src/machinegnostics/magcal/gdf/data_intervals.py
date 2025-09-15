@@ -1,326 +1,445 @@
 import numpy as np
-import warnings
 from typing import Optional, Union, Dict
+from scipy.signal import savgol_filter, find_peaks
 from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF
 
+
+# Improved DataIntervals class inspired by IntveEngine
 class DataIntervals:
     """
-    Fast, robust interval estimation for GDF classes.
+    Robust interval estimation for GDF classes with adaptive search, diagnostics, and ordering constraint.
     """
-
-    def __init__(self, 
-                 gdf: Union[ELDF, EGDF, QLDF, QGDF], 
-                 verbose: bool = False, 
-                 catch: bool = True, 
-                 tolerance: float = 1e-5, 
-                 early_stopping_steps: int = 25,
-                 n_points: int = 500,
+    def __init__(self, gdf: Union[ELDF, EGDF, QLDF, QGDF],
+                 n_points: int = 100,
+                 dense_zone_fraction: float = 0.4,
+                 dense_points_fraction: float = 0.7,
+                 convergence_window: int = 15,
+                 convergence_threshold: float = 1e-6,
+                 min_search_points: int = 30,
+                 boundary_margin_factor: float = 0.001,
+                 extrema_search_tolerance: float = 1e-6,
+                 catch: bool = True,
+                 verbose: bool = False,
                  flush: bool = False):
         self.gdf = gdf
-        self.verbose = verbose
+        self.n_points = max(n_points, 50)
+        self.dense_zone_fraction = np.clip(dense_zone_fraction, 0.1, 0.8)
+        self.dense_points_fraction = np.clip(dense_points_fraction, 0.5, 0.9)
+        self.convergence_window = max(convergence_window, 5)
+        self.convergence_threshold = convergence_threshold
+        self.min_search_points = max(min_search_points, 10)
+        self.boundary_margin_factor = max(boundary_margin_factor, 1e-6)
+        self.extrema_search_tolerance = extrema_search_tolerance
         self.catch = catch
-        self.tolerance = tolerance
-        self.early_stopping_steps = early_stopping_steps
-        self.n_points = n_points
+        self.verbose = verbose
         self.flush = flush
         self.params: Dict = {}
-        self.z0_dict = {'datum': [], 'Z0': []}
+        self.params['errors'] = []
+        self.params['warnings'] = []
+        self.search_results = {'datum': [], 'z0': [], 'success': []}
+        self._extract_gdf_data()
+        self._reset_results()
+        self._store_init_params()
+
+    def _add_warning(self, message: str):
+        self.params['warnings'].append(message)
+        if self.verbose:
+            print(f"DataInterval: Warning: {message}")
+        if self.catch:
+            self.params['warnings'].append(message)
+    
+    def _add_error(self, message: str):
+        self.params['errors'].append(message)
+        if self.verbose:
+            print(f"DataInterval: Error: {message}")
+        if self.catch:
+            self.params['errors'].append(message)
 
     def _extract_gdf_data(self):
-        self.data = self.gdf.data
-        self.Z0 = self.gdf.z0
-        self.LB = self.gdf.LB
-        self.UB = self.gdf.UB
-        self.DLB = self.gdf.DLB
-        self.DUB = self.gdf.DUB
-        # try to get LSB, USB, LCB, UCB if available
-        self.LSB = getattr(self.gdf, 'LSB', None)
-        self.USB = getattr(self.gdf, 'USB', None)
-        self.LCB = getattr(self.gdf, 'LCB', None)
-        self.UCB = getattr(self.gdf, 'UCB', None)
+        try:
+            gdf = self.gdf
+            self.data = np.array(gdf.data)
+            self.Z0 = float(gdf.z0)
+            self.LB = float(gdf.LB)
+            self.UB = float(gdf.UB)
+            self.S = getattr(gdf, 'S', 'auto')
+            self.S_opt = getattr(gdf, 'S_opt', None)
+            self.wedf = getattr(gdf, 'wedf', False)
+            self.n_points_gdf = getattr(gdf, 'n_points', self.n_points)
+            self.opt_method = getattr(gdf, 'opt_method', 'L-BFGS-B')
+            self.homogeneous = getattr(gdf, 'homogeneous', True)
+            self.is_homogeneous = getattr(gdf, 'is_homogeneous', True)
+            self.z0_optimize = getattr(gdf, 'z0_optimize', True)
+            self.max_data_size = getattr(gdf, 'max_data_size', 1000)
+            self.tolerance = getattr(gdf, 'tolerance', 1e-5)
+            self.DLB = getattr(gdf, 'DLB', None)
+            self.DUB = getattr(gdf, 'DUB', None)
+            self.LSB = getattr(gdf, 'LSB', None)
+            self.USB = getattr(gdf, 'USB', None)
+            self.LCB = getattr(gdf, 'LCB', None)
+            self.UCB = getattr(gdf, 'UCB', None)
+            self.gdf_name = type(gdf).__name__
+            if self.catch:
+                self.params['gdf_type'] = self.gdf_name
+                self.params['data_size'] = len(self.data)
+                self.params['LB'] = self.LB
+                self.params['UB'] = self.UB
+                self.params['Z0'] = self.Z0
+                self.params['S'] = self.S
+                self.params['S_opt'] = self.S_opt
+                self.params['wedf'] = self.wedf
+                self.params['opt_method'] = self.opt_method
+                self.params['is_homogeneous'] = self.is_homogeneous
+                self.params['data_range'] = [float(np.min(self.data)), float(np.max(self.data))]
 
-        if self.catch:
-            self.params = dict(self.gdf.params)
-        if self.verbose:
-            print(f'DataIntervals: Data length: {len(self.data)}, Z0: {self.Z0}')
-
-    def _extend_and_record(self, datum: float):
-        extended_data = np.append(self.data, datum)
-        gdf_type = type(self.gdf)
-        # Only pass valid constructor arguments
-        kwargs = {
-            'verbose': self.verbose,
-            'wedf': getattr(self.gdf, 'wedf', False),
-            'S': getattr(self.gdf, 'S', None),
-            'varS': getattr(self.gdf, 'varS', None),
-            'flush': getattr(self.gdf, 'flush', True),
-            'catch': getattr(self.gdf, 'catch', True),
-            'z0_optimize': getattr(self.gdf, 'z0_optimize', False),
-            'tolerance': getattr(self.gdf, 'tolerance', 1e-5),
-            'data_form': getattr(self.gdf, 'data_form', None),
-            'n_points': getattr(self.gdf, 'n_points', 20),
-            'opt_method': getattr(self.gdf, 'opt_method', None),
-            'max_data_size': getattr(self.gdf, 'max_data_size', None),
-        }
-        # Remove None values (not all GDFs use all args)
-        kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        gdf_extended = gdf_type(**kwargs)
-        gdf_extended.fit(data=extended_data, plot=False)
-        self.z0_dict['datum'].append(datum)
-        self.z0_dict['Z0'].append(gdf_extended.z0)
-
-    def _scan_intervals(self):
-        # Vectorized scan over lower and upper ranges
-        lower_range = np.linspace(self.Z0, self.LB, self.n_points)
-        upper_range = np.linspace(self.Z0, self.UB, self.n_points)
-        for datum in np.concatenate([lower_range, upper_range]):
-            self._extend_and_record(datum)
-            if self._early_stopping_check():
-                break
-
-    def _early_stopping_check(self):
-        z0s = np.array(self.z0_dict['Z0'])
-        if len(z0s) < self.early_stopping_steps + 1:
-            return False
-        changes = np.abs(np.diff(z0s)[-self.early_stopping_steps:])
-        if np.all(changes < self.tolerance):
             if self.verbose:
-                print('DataIntervals: Early stopping triggered.')
-            return True
-        return False
+                print(f"DataIntervals: Initialized with {self.params['gdf_type']} | Data size: {self.params['data_size']} | Z0: {self.Z0:.6f}")
 
-    def _extract_interval_params(self):
-        z0s = np.array(self.z0_dict['Z0'])
-        datums = np.array(self.z0_dict['datum'])
-        min_idx, max_idx = np.argmin(z0s), np.argmax(z0s)
-        self.Z0L, self.ZL = z0s[min_idx], datums[min_idx]
-        self.Z0U, self.ZU = z0s[max_idx], datums[max_idx]
-        if self.catch:
-            self.params.update({'ZL': self.ZL, 'Z0L': self.Z0L, 'Z0': self.Z0, 'Z0U': self.Z0U, 'ZU': self.ZU})
-        if self.verbose:
-            print(f'DataIntervals: Intervals: Z0L={self.Z0L}, Z0U={self.Z0U}, ZL={self.ZL}, ZU={self.ZU}')
-
-    def _interval_validation(self):
-        valid = self.ZL < self.Z0L < self.Z0 < self.Z0U < self.ZU
-        if not valid:
-            # if self.verbose:
-            #     print('DataIntervals: Interval validation failed!')
-            self.params['interval_validation'] = False
-        else:
-            if self.verbose:
-                print('DataIntervals: Interval validation succeeded.')
-            self.params['interval_validation'] = True
-        return valid
-
-    def _interval_correction(self):
-        z0s = np.array(self.z0_dict['Z0'])
-        datums = np.array(self.z0_dict['datum'])
-        sorted_idx = np.argsort(z0s)
-        for i in range(len(z0s)):
-            for j in range(len(z0s)-1, i, -1):
-                self.Z0L, self.ZL = z0s[sorted_idx[i]], datums[sorted_idx[i]]
-                self.Z0U, self.ZU = z0s[sorted_idx[j]], datums[sorted_idx[j]]
-                self.params.update({'ZL': self.ZL, 'Z0L': self.Z0L, 'Z0': self.Z0, 'Z0U': self.Z0U, 'ZU': self.ZU})
-                if self._interval_validation():
-                    if self.verbose:
-                        print(f'DataIntervals: Correction succeeded: min={i}, max={j}')
-                    return
-        warnings.warn('DataIntervals: Correction failed for all candidates.')
-
-    def fit(self, plot: bool = False):
-        self._extract_gdf_data()
-        self._scan_intervals()
-        self._extract_interval_params()
-        if not self._interval_validation():
-            self._interval_correction()
-        # final interval validation
-        if not self._interval_validation():
-            warnings.warn('DataIntervals: Final interval validation failed after correction. Check data or initialization parameters.')
-        if plot:
-            self.plot()
-            self.plot_intervals()
-
-        if self.flush:
-            self._flush_memory()
-
-    def results(self) -> Dict:
-        return dict(self.params)
-
-    def plot_intervals(self, figsize=(12, 8)):
-        """
-        Plot Z0 variation and interval boundaries (IntveEngine style).
-        """
-        if self.flush and not hasattr(self, 'z0_dict'):
-            raise ValueError("DataIntervals: No data available for plotting. Set flush=False during initialization.")
-        
-        import matplotlib.pyplot as plt
-
-        datum_vals = np.array(self.z0_dict['datum'])
-        z0_vals = np.array(self.z0_dict['Z0'])
-
-        if len(datum_vals) == 0 or len(z0_vals) == 0:
-            print("No valid data for plotting")
+        except Exception as e:
+            self._add_error(f"DataIntervals: Failed to extract GDF data: {e}")
             return
 
+    def _store_init_params(self):
+        if self.catch:
+            self.params.update({
+                'n_points': self.n_points,
+                'dense_zone_fraction': self.dense_zone_fraction,
+                'dense_points_fraction': self.dense_points_fraction,
+                'convergence_window': self.convergence_window,
+                'convergence_threshold': self.convergence_threshold,
+                'min_search_points': self.min_search_points,
+                'boundary_margin_factor': self.boundary_margin_factor,
+                'extrema_search_tolerance': self.extrema_search_tolerance,
+                'verbose': self.verbose,
+                'flush': self.flush
+            })
+        if self.verbose:
+            print("DataIntervals: Initial parameters stored.")
+
+    def _reset_results(self):
+        self.ZL = None
+        self.Z0L = None
+        self.ZU = None
+        self.Z0U = None
+        self.tolerance_interval = None
+        self.typical_data_interval = None
+        self.ordering_valid = None
+
+    def fit(self, plot: bool = False):
+        try:
+            if self.verbose:
+                print("DataIntervals: Starting fit process...")
+            self._reset_results()
+            self._scan_intervals()
+            self._extract_intervals_with_ordering()
+            self._update_params()
+            if plot:
+                self.plot()
+                self.plot_intervals()
+            if self.flush:
+                self._flush_memory()
+            if self.verbose:
+                print("DataIntervals: Fit process completed.")
+        except Exception as e:
+            self._add_error(f"DataIntervals: Fit failed: {e}")
+            raise e
+
+    def _scan_intervals(self):
+        try:
+            if self.verbose:
+                print("DataIntervals: Scanning intervals...")
+            # Adaptive search: dense near Z0, sparse near LB/UB
+            lower_points = self._generate_search_points('lower')
+            upper_points = self._generate_search_points('upper')
+            for datum in np.concatenate([lower_points, upper_points]):
+                z0_val = self._compute_z0_with_extended_datum(datum)
+                self.search_results['datum'].append(datum)
+                self.search_results['z0'].append(z0_val)
+                self.search_results['success'].append(True)
+                if self.verbose:
+                    # print on 50th point
+                    if len(self.search_results['datum']) % 50 == 0:
+                        print(f"  Datum: {datum:.4f} | New Z0: {z0_val:.6f}")
+                if self._check_convergence():
+                    if self.verbose:
+                        print(f"DataIntervals: Early stopping at datum={datum:.4f}")
+                    break
+        except Exception as e:
+            self._add_error(f"DataIntervals: Scanning intervals failed: {e}")
+            return
+
+    def _generate_search_points(self, direction: str) -> np.ndarray:
+        # Dense zone near Z0, sparse toward LB/UB
+        if direction == 'lower':
+            start, end = self.Z0, self.LB + self.boundary_margin_factor * (self.UB - self.LB)
+        else:
+            start, end = self.Z0, self.UB - self.boundary_margin_factor * (self.UB - self.LB)
+        dense_n = int(self.n_points * self.dense_points_fraction)
+        sparse_n = self.n_points - dense_n
+        dense_zone = self.dense_zone_fraction * abs(self.Z0 - end)
+        if direction == 'lower':
+            dense_end = self.Z0 - dense_zone
+            dense_points = np.linspace(self.Z0, dense_end, dense_n)
+            sparse_points = np.linspace(dense_end, end, sparse_n)
+        else:
+            dense_end = self.Z0 + dense_zone
+            dense_points = np.linspace(self.Z0, dense_end, dense_n)
+            sparse_points = np.linspace(dense_end, end, sparse_n)
+        return np.unique(np.concatenate([dense_points, sparse_points]))
+
+    def _compute_z0_with_extended_datum(self, datum: float) -> float:
+        # Extend data and fit new GDF, return z0
+        extended_data = np.append(self.data, datum)
+        gdf_type = type(self.gdf)
+        kwargs = {
+                'LB': self.LB,
+                'UB': self.UB,
+                'S': self.S,
+                'verbose': False,
+                'tolerance': getattr(self.gdf, 'tolerance', 1e-5),
+                'flush': True,
+                'opt_method': self.opt_method,
+                'n_points': self.n_points_gdf,
+                'wedf': self.wedf,
+                'homogeneous': self.homogeneous,
+                'z0_optimize': self.z0_optimize,
+                'max_data_size': self.max_data_size,
+                'tolerance': self.tolerance,
+            }
+        gdf_new = gdf_type(**kwargs)
+        gdf_new.fit(data=extended_data, plot=False)
+        return float(gdf_new.z0)
+
+    def _check_convergence(self) -> bool:
+        z0s = np.array(self.search_results['z0'])
+        if len(z0s) < self.convergence_window + self.min_search_points:
+            return False
+        window = z0s[-self.convergence_window:]
+        if np.std(window) < self.convergence_threshold:
+            return True
+        return False
+    
+    def _extract_intervals_with_ordering(self):
+        datums = np.array(self.search_results['datum'])
+        z0s = np.array(self.search_results['z0'])
+        # Smoothing
+        if len(z0s) > 11:
+            z0s_smooth = savgol_filter(z0s, 11, 3)
+        else:
+            z0s_smooth = z0s
+        # Window
+        data_mean = np.mean(self.data)
+        data_std = np.std(self.data)
+        window_mask = (datums >= data_mean - 2 * data_std) & (datums <= data_mean + 2 * data_std)
+        datums_win = datums[window_mask]
+        z0s_win = z0s_smooth[window_mask]
+        if len(z0s_win) == 0:
+            datums_win = datums
+            z0s_win = z0s_smooth
+    
+        # Find local minima/maxima with prominence
+        min_peaks, _ = find_peaks(-z0s_win, prominence=0.1)
+        max_peaks, _ = find_peaks(z0s_win, prominence=0.1)
+        # Fallback to global min/max if no peaks found
+        if len(min_peaks) > 0:
+            min_idx = min_peaks[np.argmin(z0s_win[min_peaks])]
+        else:
+            min_idx = np.argmin(z0s_win)
+        if len(max_peaks) > 0:
+            max_idx = max_peaks[np.argmax(z0s_win[max_peaks])]
+        else:
+            max_idx = np.argmax(z0s_win)
+        zl, z0l = datums_win[min_idx], z0s_win[min_idx]
+        zu, z0u = datums_win[max_idx], z0s_win[max_idx]
+        ordering_valid = (zl < z0l < self.Z0 < z0u < zu)
+        if ordering_valid:
+            self.ZL, self.Z0L, self.ZU, self.Z0U = zl, z0l, zu, z0u
+            self.ordering_valid = True
+        else:
+            self._find_valid_extrema_with_ordering(datums_win, z0s_win)
+        self.tolerance_interval = self.Z0U - self.Z0L
+        self.typical_data_interval = self.ZU - self.ZL
+
+    def _find_valid_extrema_with_ordering(self, datums, z0s):
+        # Try combinations to satisfy ordering constraint
+        lower_mask = datums < self.Z0
+        upper_mask = datums > self.Z0
+        lower_datum = datums[lower_mask]
+        lower_z0 = z0s[lower_mask]
+        upper_datum = datums[upper_mask]
+        upper_z0 = z0s[upper_mask]
+        n_candidates = min(5, len(lower_datum), len(upper_datum))
+        found = False
+        for i in range(n_candidates):
+            zl, z0l = lower_datum[i], lower_z0[i]
+            zu, z0u = upper_datum[-(i+1)], upper_z0[-(i+1)]
+            if zl < z0l < self.Z0 < z0u < zu:
+                self.ZL, self.Z0L, self.ZU, self.Z0U = zl, z0l, zu, z0u
+                self.ordering_valid = True
+                found = True
+                break
+        if not found:
+            # Fallback: use initial extrema
+            min_idx = np.argmin(z0s)
+            max_idx = np.argmax(z0s)
+            self.ZL, self.Z0L, self.ZU, self.Z0U = datums[min_idx], z0s[min_idx], datums[max_idx], z0s[max_idx]
+            self.ordering_valid = False
+        if self.verbose:
+            print(f"DataIntervals: Ordering constraint {'satisfied' if self.ordering_valid else 'NOT satisfied'}.")
+
+    def _update_params(self):
+        self.params.update({
+            'LB': self.LB,
+            'LSB': self.LSB,
+            'DLB': self.DLB,
+            'LCB': self.LCB,
+            'ZL': self.ZL,
+            'Z0L': self.Z0L,
+            'Z0': self.Z0,
+            'Z0U': self.Z0U,
+            'ZU': self.ZU,
+            'UCB': self.UCB,
+            'DUB': self.DUB,
+            'USB': self.USB,
+            'UB': self.UB,
+            'tolerance_interval': self.tolerance_interval,
+            'typical_data_interval': self.typical_data_interval,
+            'ordering_valid': self.ordering_valid,
+            'search_points': len(self.search_results['datum'])
+        })
+        if self.verbose:
+            print(f"""DataIntervals: Results updated. 
+        Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}], 
+        Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}] 
+        Ordering valid: {self.ordering_valid}""")
+
+    def results(self) -> Dict:
+        results = {
+            'LB': float(self.LB) if self.LB is not None else None,
+            'LSB': float(self.LSB) if self.LSB is not None else None,
+            'DLB': float(self.DLB) if self.DLB is not None else None,
+            'LCB': float(self.LCB) if self.LCB is not None else None,
+            'ZL': float(self.ZL) if self.ZL is not None else None,
+            'Z0L': float(self.Z0L) if self.Z0L is not None else None,
+            'Z0': float(self.Z0) if self.Z0 is not None else None,
+            'Z0U': float(self.Z0U) if self.Z0U is not None else None,
+            'ZU': float(self.ZU) if self.ZU is not None else None,
+            'UCB': float(self.UCB) if self.UCB is not None else None,
+            'DUB': float(self.DUB) if self.DUB is not None else None,
+            'USB': float(self.USB) if self.USB is not None else None,
+            'UB': float(self.UB) if self.UB is not None else None
+        }
+        return results
+
+    def plot_intervals(self, figsize=(12, 8)):
+        import matplotlib.pyplot as plt
+        datums = np.array(self.search_results['datum'])
+        z0s = np.array(self.search_results['z0'])
         fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-        # Main Z0 variation curve
-        sort_idx = np.argsort(datum_vals)
-        ax.scatter(datum_vals[sort_idx], z0_vals[sort_idx], color='k', alpha=0.5, linewidth=1, label='Z0 Variation')
-
-        # Critical points
+        sort_idx = np.argsort(datums)
+        ax.scatter(datums[sort_idx], z0s[sort_idx], color='k', alpha=0.5, linewidth=1, label='Z0 Variation')
+        ax.plot(datums[sort_idx], z0s[sort_idx], color='k', alpha=0.5, linewidth=1)
         ax.scatter([self.ZL], [self.Z0L], marker='v', s=120, color='purple', edgecolor='black', zorder=10, label=f'ZL,Z0L ({self.ZL:.4f},{self.Z0L:.4f})')
         ax.scatter([self.Z0], [self.Z0], marker='s', s=120, color='green', edgecolor='black', zorder=10, label=f'Z0 ({self.Z0:.4f})')
         ax.scatter([self.ZU], [self.Z0U], marker='^', s=120, color='orange', edgecolor='black', zorder=10, label=f'Z0U,ZU ({self.Z0U:.4f},{self.ZU:.4f})')
-
-        # Reference lines
-        ax.axvline(x=self.ZL, color='purple', linestyle='--', alpha=0.7, linewidth=1)
-        ax.axvline(x=self.Z0, color='green', linestyle='-', alpha=0.8, linewidth=2)
-        ax.axvline(x=self.ZU, color='orange', linestyle='--', alpha=0.7, linewidth=1)
-        ax.axhline(y=self.Z0L, color='purple', linestyle=':', alpha=0.7, linewidth=1)
-        ax.axhline(y=self.Z0U, color='orange', linestyle=':', alpha=0.7, linewidth=1)
-
-        # Interval info and ordering status
-        ordering_valid = (self.ZL < self.Z0L < self.Z0 < self.Z0U < self.ZU)
-        ordering_status = "✓ VALID" if ordering_valid else "✗ INVALID"
+        ax.axvline(x=self.ZL, color='purple', linestyle='--', alpha=1, linewidth=1)
+        ax.axvline(x=self.Z0, color='green', linestyle='-', alpha=1, linewidth=2)
+        ax.axvline(x=self.ZU, color='orange', linestyle='--', alpha=1, linewidth=1)
+        ax.axhline(y=self.Z0L, color='purple', linestyle=':', alpha=1, linewidth=1)
+        ax.axhline(y=self.Z0U, color='orange', linestyle=':', alpha=1, linewidth=1)
+        ordering_status = "✓ VALID" if self.ordering_valid else "✗ INVALID"
         tol_interval_str = f"Tolerance Interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]"
         typ_interval_str = f"Typical Data Interval: [{self.ZL:.4f}, {self.ZU:.4f}]"
         ordering_str = f"Ordering Constraint: {ordering_status}"
-
         ax.plot([], [], ' ', label=tol_interval_str)
         ax.plot([], [], ' ', label=typ_interval_str)
         ax.plot([], [], ' ', label=ordering_str)
-
-        # y-axis limits
-        z0_min, z0_max = self.Z0L - 0.1 * abs(self.Z0L), self.Z0U + 0.1 * abs(self.Z0U)
+        pad = (self.Z0U - self.Z0L) * 0.1
+        z0_min, z0_max = self.Z0L - pad, self.Z0U + pad
         ax.set_ylim(z0_min, z0_max)
-
         ax.set_xlabel('Datum Value', fontsize=12, fontweight='bold')
         ax.set_ylabel('Z0 Value', fontsize=12, fontweight='bold')
         title = 'Z0-Based Interval Estimation'
-        if not ordering_valid:
+        if not self.ordering_valid:
             title += ' - ⚠ Ordering Constraint Violated'
         ax.set_title(title, fontsize=12)
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
         ax.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
-
         if self.verbose:
             print(f"\nZ0 Variation Plot Summary:")
             print(f"  Typical data interval: [{self.ZL:.6f}, {self.ZU:.6f}] (width: {self.ZU - self.ZL:.6f})")
             print(f"  Tolerance interval: [{self.Z0L:.6f}, {self.Z0U:.6f}] (width: {self.Z0U - self.Z0L:.6f})")
-            print(f"  Ordering constraint: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
+            print(f"  Ordering constraint: {'✓ SATISFIED' if self.ordering_valid else '✗ VIOLATED'}")
 
     def plot(self, figsize=(12, 8)):
-        """
-        Comprehensive interval analysis plot with tolerance and typical data intervals,
-        ELDF curve, PDF (if available), filled zones, critical points, and rug plot.
-        """
-        if self.flush and not hasattr(self, 'z0_dict'):
-            raise ValueError("DataIntervals: No data available for plotting. Set flush=False during initialization.")   
-        
         import matplotlib.pyplot as plt
-        import numpy as np
-
-        # Use fitted GDF data
         x_points = np.array(self.data)
-        eldf_vals = getattr(self.gdf, 'eldf_points', None)
-        pdf_vals = getattr(self.gdf, 'pdf_points', None)
-        wedf_vals = getattr(self.gdf, 'wedf_points', None)
-
-        # Smooth curve data if available
-        smooth_x = getattr(self.gdf, 'di_points_n', None)
-        smooth_eldf = getattr(self.gdf, 'eldf_points', None)
-        smooth_pdf = getattr(self.gdf, 'pdf_points', None)
-
-        # X-axis range with padding
         x_min, x_max = np.min(x_points), np.max(x_points)
         x_pad = (x_max - x_min) * 0.05
         x_min -= x_pad
         x_max += x_pad
-        x_fine = np.linspace(x_min, x_max, 1000)
-
         fig, ax1 = plt.subplots(figsize=figsize)
         ax2 = ax1.twinx()
-
-        # Plot ELDF curve
-        if eldf_vals is not None and smooth_x is not None:
-            ax1.plot(smooth_x, smooth_eldf, '-', color='blue', linewidth=2.5, alpha=0.9, label='ELDF')
+        
+        # gdf points
+        gdf_points = f"{self.gdf_name.lower()}_points"
+        # ELDF curve (if available)
+        gdf_vals = getattr(self.gdf, gdf_points, None)
+        smooth_x = getattr(self.gdf, 'di_points_n', None)
+        if gdf_vals is not None and smooth_x is not None:
+            ax1.plot(smooth_x, gdf_vals, '-', color='blue', linewidth=2.5, alpha=0.9, label=self.gdf_name)
         else:
-            ax1.plot(x_points, [self.Z0]*len(x_points), 'o', color='blue', label='ELDF', markersize=4, alpha=0.7)
-
-        # Plot PDF curve
+            ax1.plot(x_points, [self.Z0]*len(x_points), 'o', color='blue', label=self.gdf_name, markersize=4, alpha=0.7)
+        # PDF curve (if available)
+        pdf_vals = getattr(self.gdf, 'pdf_points', None)
         if pdf_vals is not None and smooth_x is not None:
-            ax2.plot(smooth_x, smooth_pdf, '-', color='red', linewidth=2.5, alpha=0.9, label='PDF')
-            max_pdf = np.max(smooth_pdf)
+            ax2.plot(smooth_x, pdf_vals, '-', color='red', linewidth=2.5, alpha=0.9, label='PDF')
+            max_pdf = np.max(pdf_vals)
         elif pdf_vals is not None:
             ax2.plot(x_points, pdf_vals, 'o', color='red', label='PDF', markersize=4, alpha=0.7)
             max_pdf = np.max(pdf_vals)
         else:
             max_pdf = 1.0
+        
+        # Typical Data Interval (ZL to ZU)
+        ax1.axvspan(self.ZL, self.ZU, alpha=0.05, color='orange', label=f'Typical Data Interval [ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
+        # Tolerance Interval (Z0L to Z0U)
+        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.20, color='lightgreen', label=f'Tolerance Interval [Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
 
-        # Tolerance Interval (Z0L to Z0U) - Light Green
-        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.15, color='lightgreen',
-                    label=f'Tolerance Interval [Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
-
-        # Typical Data Interval (ZL to ZU) - Light Blue
-        ax1.axvspan(self.ZL, self.ZU, alpha=0.15, color='lightblue',
-                    label=f'Typical Data Interval [ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
-
-        # Critical vertical lines (ZL, Z0, ZU) with legend
+        # Critical vertical lines
         ax1.axvline(x=self.ZL, color='purple', linestyle='--', linewidth=2, alpha=0.8, label=f'ZL={self.ZL:.3f}')
         ax1.axvline(x=self.Z0, color='magenta', linestyle='-.', linewidth=1, alpha=0.9, label=f'Z0={self.Z0:.3f}')
         ax1.axvline(x=self.ZU, color='orange', linestyle='--', linewidth=2, alpha=0.8, label=f'ZU={self.ZU:.3f}')
-
-        # Vertical grey lines for Z0L, Z0U (no legend)
         ax1.axvline(x=self.Z0L, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
         ax1.axvline(x=self.Z0U, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
-
-        # Vertical grey lines for LSB, USB, CLB, CUB if available (no legend)
-        for bound_name in ['LSB', 'USB', 'CLB', 'CUB']:
-            bound_val = getattr(self.gdf, bound_name, None)
-            if bound_val is not None:
-                ax1.axvline(x=bound_val, color='grey', linestyle=':', linewidth=1.2, alpha=0.7, zorder=0)
-
-        # Data bounds if available (with legend)
+        # Data bounds
         if hasattr(self.gdf, 'LB') and self.gdf.LB is not None:
             ax1.axvline(x=self.gdf.LB, color='purple', linestyle='--', linewidth=1, alpha=0.6, label=f'LB={self.gdf.LB:.3f}')
         if hasattr(self.gdf, 'UB') and self.gdf.UB is not None:
             ax1.axvline(x=self.gdf.UB, color='brown', linestyle='--', linewidth=1, alpha=0.6, label=f'UB={self.gdf.UB:.3f}')
-
         # Rug plot for original data
         data_y_pos = -0.05
         ax1.scatter(x_points, [data_y_pos] * len(x_points), alpha=0.6, s=15, color='black', marker='|')
-
-        # Axis labels and limits
         ax1.set_xlabel('Data Values', fontsize=12, fontweight='bold')
-        ax1.set_ylabel('ELDF Value', fontsize=12, fontweight='bold', color='blue')
+        ax1.set_ylabel(f'{self.gdf_name} Value', fontsize=12, fontweight='bold', color='blue')
         ax1.tick_params(axis='y', labelcolor='blue')
         ax1.set_ylim(-0.1, 1.05)
         ax1.set_xlim(x_min, x_max)
-
         ax2.set_ylabel('PDF Value', fontsize=12, fontweight='bold', color='red')
         ax2.tick_params(axis='y', labelcolor='red')
         ax2.set_ylim(0, max_pdf * 1.1)
         ax2.set_xlim(x_min, x_max)
-
         ax1.grid(True, alpha=0.3)
-
-        # Title
-        title_text = f'ELDF Interval Analysis (Z0 = {self.Z0:.3f})'
+        title_text = f'{self.gdf_name} Interval Analysis (Z0 = {self.Z0:.3f})'
         ax1.set_title(title_text, fontsize=12)
-
-        # Legend (exclude grey lines)
         handles, labels = ax1.get_legend_handles_labels()
-        ax1.legend(handles, labels, loc='upper left', fontsize=10, bbox_to_anchor=(0.02, 0.98))
-
+        ax1.legend(handles, labels, loc='best', fontsize=10, bbox_to_anchor=(1.05, 1))
         plt.tight_layout()
         plt.show()
-
-        # Print summary
         if self.verbose:
-            print(f"\nELDF Interval Analysis Plot Summary:")
+            print(f"\n{self.gdf_name} Interval Analysis Plot Summary:")
             print(f"  Z0 (Gnostic Mode): {self.Z0:.4f}")
             print(f"  Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}] (width: {self.Z0U - self.Z0L:.4f})")
             print(f"  Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}] (width: {self.ZU - self.ZL:.4f})")
@@ -332,9 +451,7 @@ class DataIntervals:
             print(f"  Data range: [{np.min(x_points):.4f}, {np.max(x_points):.4f}]")
 
     def _flush_memory(self):
-        # delete large attributes to free memory
         if self.flush:
-            del self.z0_dict
-        
+            self.search_results = {'datum': [], 'z0': [], 'success': []}
         if self.verbose:
             print("DataIntervals: Flushed data to free memory.")
