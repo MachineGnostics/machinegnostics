@@ -523,9 +523,9 @@ class DataIntervals:
             max_pdf = 1.0
         
         # Typical Data Interval (ZL to ZU)
-        ax1.axvspan(self.ZL, self.ZU, alpha=0.05, color='orange', label=f'Typical Data Interval [ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
+        ax1.axvspan(self.ZL, self.ZU, alpha=0.2, color='lightblue', label=f'Typical Data Interval \n[ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
         # Tolerance Interval (Z0L to Z0U)
-        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.20, color='lightgreen', label=f'Tolerance Interval [Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
+        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.20, color='lightgreen', label=f'Tolerance Interval \n[Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
 
         # Critical vertical lines
         ax1.axvline(x=self.ZL, color='purple', linestyle='--', linewidth=2, alpha=0.8, label=f'ZL={self.ZL:.3f}')
@@ -534,10 +534,15 @@ class DataIntervals:
         ax1.axvline(x=self.Z0L, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
         ax1.axvline(x=self.Z0U, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
         # Data bounds
-        if hasattr(self.gdf, 'LB') and self.gdf.LB is not None:
-            ax1.axvline(x=self.gdf.LB, color='purple', linestyle='--', linewidth=1, alpha=0.6, label=f'LB={self.gdf.LB:.3f}')
-        if hasattr(self.gdf, 'UB') and self.gdf.UB is not None:
-            ax1.axvline(x=self.gdf.UB, color='brown', linestyle='--', linewidth=1, alpha=0.6, label=f'UB={self.gdf.UB:.3f}')
+        if self.LB is not None:
+            ax1.axvline(x=self.gdf.LB, color='purple', linestyle='--', linewidth=1, alpha=1, label=f'LB={self.gdf.LB:.3f}')
+        if self.UB is not None:
+            ax1.axvline(x=self.gdf.UB, color='brown', linestyle='--', linewidth=1, alpha=1, label=f'UB={self.gdf.UB:.3f}')
+        # DLB and DUB bounds
+        if self.DLB is not None:
+            ax1.axvline(x=self.gdf.DLB, color='purple', linestyle='-', linewidth=1.5, alpha=1, label=f'DLB={self.gdf.LB:.3f}')
+        if self.DUB is not None:
+            ax1.axvline(x=self.gdf.DUB, color='brown', linestyle='-', linewidth=1.5, alpha=1, label=f'DUB={self.gdf.LB:.3f}')
         # Rug plot for original data
         data_y_pos = -0.05
         ax1.scatter(x_points, [data_y_pos] * len(x_points), alpha=0.6, s=15, color='black', marker='|')
@@ -554,7 +559,7 @@ class DataIntervals:
         title_text = f'{self.gdf_name} Interval Analysis (Z0 = {self.Z0:.3f})'
         ax1.set_title(title_text, fontsize=12)
         handles, labels = ax1.get_legend_handles_labels()
-        ax1.legend(handles, labels, loc='best', fontsize=10, bbox_to_anchor=(1.05, 1))
+        ax1.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=10, borderaxespad=0)
         plt.tight_layout()
         plt.show()
         if self.verbose:
