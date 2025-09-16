@@ -639,7 +639,7 @@ class DataCluster:
             }
             self.gdf.params.update(cluster_params)
 
-    def fit(self):
+    def fit(self, plot: bool = False) -> Optional[Tuple[float, float]]:
         """
         Perform cluster boundary detection analysis on the GDF.
         
@@ -654,6 +654,11 @@ class DataCluster:
         - **ELDF/EGDF**: Derivative threshold method
         - **QLDF**: Shape detection (W-shape vs U-shape) with valley finding
         - **QGDF**: Slope transition detection with curvature fallback
+
+        Parameters
+        ----------
+        plot : bool, default=False
+            If True, generates a plot of the PDF, detected boundaries, and derivative analysis.
         
         Returns
         -------
@@ -671,9 +676,9 @@ class DataCluster:
         Examples
         --------
         >>> cluster = DataCluster(gdf=qldf, verbose=True)
-        >>> success = cluster.fit()
-        >>> if success:
-        ...     print(f"Boundaries: CLB={cluster.CLB:.3f}, CUB={cluster.CUB:.3f}")
+        >>> CLB, CUB = cluster.fit()
+        >>> if CLB is not None and CUB is not None:
+        ...     print(f"Boundaries: CLB={CLB:.3f}, CUB={CUB:.3f}")
         ... else:
         ...     print("Clustering failed:", cluster.params['errors'])
         """
@@ -710,19 +715,23 @@ class DataCluster:
             self._update_params()
             
             self._fitted = True
+
+            # Optional plotting
+            if plot:
+                self.plot()
             
             if self.verbose:
                 print(f"DataCluster: Final boundaries: CLB={self.CLB:.3f}, CUB={self.CUB:.3f}")
                 print("DataCluster: Clustering: SUCCESSFUL")
             
-            return True
+            return self.CLB, self.CUB
             
         except Exception as e:
             error_msg = f"Error during cluster analysis: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
             if self.verbose:
                 print(f"DataCluster: Error: {error_msg}")
-            return False
+            return  None, None
 
     def results(self):
         """
