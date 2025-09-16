@@ -61,6 +61,9 @@ class BaseDistFuncCompute(BaseDistFunc):
         """Initialize the EGDF class with comprehensive validation."""
         
         # Store raw inputs
+        self.params = {}
+        self.params['warnings'] = []
+        self.params['errors'] = []
         self.data = data
         self.DLB = DLB
         self.DUB = DUB
@@ -82,7 +85,6 @@ class BaseDistFuncCompute(BaseDistFunc):
         self.flush = flush
         
         # Initialize state variables
-        self.params = {}
         self._fitted = False
         self._derivatives_calculated = False
         self._marginal_analysis_done = False
@@ -454,11 +456,6 @@ class BaseDistFuncCompute(BaseDistFunc):
                         'parameter_value': param
                     })
                     raise TypeError(error_msg)
-            
-            # if self.verbose:
-            #     print("Input validation completed successfully.")
-                if self.params['warnings']:
-                    print(f"Generated {len(self.params['warnings'])} warnings during validation.")
         
         except Exception as e:
             if self.verbose:
