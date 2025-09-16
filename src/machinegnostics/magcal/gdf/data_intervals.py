@@ -19,6 +19,7 @@ class DataIntervals:
                  min_search_points: int = 30,
                  boundary_margin_factor: float = 0.001,
                  extrema_search_tolerance: float = 1e-6,
+                 gdf_recompute: bool = False,
                  catch: bool = True,
                  verbose: bool = False,
                  flush: bool = False):
@@ -31,6 +32,7 @@ class DataIntervals:
         self.min_search_points = max(min_search_points, 10)
         self.boundary_margin_factor = max(boundary_margin_factor, 1e-6)
         self.extrema_search_tolerance = extrema_search_tolerance
+        self.gdf_recompute = gdf_recompute
         self.catch = catch
         self.verbose = verbose
         self.flush = flush
@@ -45,14 +47,14 @@ class DataIntervals:
     def _add_warning(self, message: str):
         self.params['warnings'].append(message)
         if self.verbose:
-            print(f"DataInterval: Warning: {message}")
+            print(f"DataIntervals: Warning: {message}")
         if self.catch:
             self.params['warnings'].append(message)
     
     def _add_error(self, message: str):
         self.params['errors'].append(message)
         if self.verbose:
-            print(f"DataInterval: Error: {message}")
+            print(f"DataIntervals: Error: {message}")
         if self.catch:
             self.params['errors'].append(message)
 
@@ -150,7 +152,7 @@ class DataIntervals:
             self._argument_validation()
 
             if self.verbose:
-                print("\n[DataIntervals] Fit process started.")
+                print("\nDataIntervals: Fit process started.")
             self._reset_results()
     
             # Scan intervals and extract boundaries
@@ -175,14 +177,14 @@ class DataIntervals:
     
             if self.verbose:
                 elapsed = time.time() - start_time
-                print(f"[DataIntervals] Fit process completed in {elapsed:.2f} seconds.")
-                print(f"[DataIntervals] Ordering valid: {self.ordering_valid}")
-                print(f"[DataIntervals] Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]")
-                print(f"[DataIntervals] Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}]")
+                print(f"DataIntervals: Fit process completed in {elapsed:.2f} seconds.")
+                print(f"DataIntervals: Ordering valid: {self.ordering_valid}")
+                print(f"DataIntervals: Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]")
+                print(f"DataIntervals: Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}]")
         except Exception as e:
             err_msg = f"DataIntervals: Fit failed: {e}"
             if self.verbose:
-                print(f"[DataIntervals] ERROR: {err_msg}")
+                print(f"DataIntervals: ERROR: {err_msg}")
             self._add_error(err_msg)
             raise
 
@@ -233,12 +235,9 @@ class DataIntervals:
         # Extend data and fit new GDF, return z0
         extended_data = np.append(self.data, datum)
         gdf_type = type(self.gdf)
-        kwargs = {
-                'LB': self.LB,
-                'UB': self.UB,
-                'S': self.S,
+        if self.gdf_recompute:
+            kwargs = {
                 'verbose': False,
-                'tolerance': getattr(self.gdf, 'tolerance', 1e-5),
                 'flush': True,
                 'opt_method': self.opt_method,
                 'n_points': self.n_points_gdf,
@@ -248,6 +247,21 @@ class DataIntervals:
                 'max_data_size': self.max_data_size,
                 'tolerance': self.tolerance,
             }
+        else:
+            kwargs = {
+                    'LB': self.LB,
+                    'UB': self.UB,
+                    'S': self.S,
+                    'verbose': False,
+                    'flush': True,
+                    'opt_method': self.opt_method,
+                    'n_points': self.n_points_gdf,
+                    'wedf': self.wedf,
+                    'homogeneous': self.homogeneous,
+                    'z0_optimize': self.z0_optimize,
+                    'max_data_size': self.max_data_size,
+                    'tolerance': self.tolerance,
+                }
         gdf_new = gdf_type(**kwargs)
         gdf_new.fit(data=extended_data, plot=False)
         return float(gdf_new.z0)
