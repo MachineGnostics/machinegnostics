@@ -1,11 +1,17 @@
+'''
+DataIntervals
+
+Interval Analysis Engine
+
+Author: Nirmal Parmar
+Machine Gnostics
+'''
+
 import numpy as np
 from typing import Optional, Union, Dict
 from scipy.signal import savgol_filter, find_peaks
-from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF
-import warnings
+from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF, DataCluster
 
-
-# Improved DataIntervals class inspired by IntveEngine
 class DataIntervals:
     """
     Robust interval estimation for GDF classes with adaptive search, diagnostics, and ordering constraint.
@@ -20,6 +26,7 @@ class DataIntervals:
                  boundary_margin_factor: float = 0.001,
                  extrema_search_tolerance: float = 1e-6,
                  gdf_recompute: bool = False,
+                 gnostic_filter: bool = False,
                  catch: bool = True,
                  verbose: bool = False,
                  flush: bool = False):
@@ -33,6 +40,7 @@ class DataIntervals:
         self.boundary_margin_factor = max(boundary_margin_factor, 1e-6)
         self.extrema_search_tolerance = extrema_search_tolerance
         self.gdf_recompute = gdf_recompute
+        self.gnostic_filter = gnostic_filter
         self.catch = catch
         self.verbose = verbose
         self.flush = flush
@@ -43,6 +51,17 @@ class DataIntervals:
         self._extract_gdf_data()
         self._reset_results()
         self._store_init_params()
+
+        # validation
+        # n_points should not less then 50 or more then 10000 else it can be computationally expensive. It balances efficiency and accuracy.
+        if self.n_points < 50 or self.n_points > 10000:
+            msg =  f"n_points={self.n_points} is out of recommended range [50, 10000]. Consider adjusting for efficiency and accuracy."
+            self._add_warning(msg)
+
+        # if gdf_recompute = True, it is recommended to use gnostic_filter = True to enhance robustness.
+        if self.gdf_recompute and not self.gnostic_filter:
+            msg = "Using gdf_recompute=True without gnostic_filter=True may reduce robustness. Consider enabling gnostic_filter if needed."
+            self._add_warning(msg)
 
     def _add_warning(self, message: str):
         self.params['warnings'].append(message)
@@ -162,7 +181,7 @@ class DataIntervals:
             # Check ordering constraint
             if not self.ordering_valid:
                 msg = ("Interval ordering constraint violated. "
-                       "Try setting 'wedf=False', increasing 'n_points', or adjusting thresholds for sensitivity.")
+                       "Try setting 'wedf=False', or setting 'gnostic_filter=True', or increasing 'n_points', or adjusting thresholds for sensitivity.")
                 self._add_warning(msg)
     
             # Update parameters and optionally plot
@@ -274,15 +293,59 @@ class DataIntervals:
         if np.std(window) < self.convergence_threshold:
             return True
         return False
+
+    def _get_z0s_main_cluster(self, z0s: np.ndarray, datums: np.ndarray) -> np.ndarray:
+        # try:
+        if self.verbose:
+            print("DataIntervals: Extracting main Z0 cluster...")
+        
+        # 4 less data points - skip clustering
+        if len(z0s) <= 4 or len(datums) < 4:
+            self._add_warning("Insufficient data points for clustering. Returning all values.")
+            return z0s, datums
+
+        # Fit ELDF to z0s for clustering
+        eldf_cluster = ELDF(catch=False, wedf=False, verbose=False)
+        eldf_cluster.fit(z0s)
+        cluster = DataCluster(gdf=eldf_cluster, verbose=self.verbose)
+        clb, cub = cluster.fit()
+
+        # z0s within cluster boundaries
+        in_cluster_mask = (z0s >= clb) & (z0s <= cub)
+        if not np.any(in_cluster_mask):
+            self._add_warning("No Z0 values found within cluster boundaries. Returning all values.")
+            return z0s, datums
+
+        z0s_main = z0s[in_cluster_mask]
+        datums_main = datums[in_cluster_mask]
+        return z0s_main, datums_main
     
+        # except Exception as e:
+            # self._add_warning(f"Cluster-based Z0 extraction failed: {e}. Using all Z0 values.")
+            # return np.array(self.search_results['z0']), np.array(self.search_results['datum'])
+
     def _extract_intervals_with_ordering(self):
         datums = np.array(self.search_results['datum'])
         z0s = np.array(self.search_results['z0'])
+
+        if self.gnostic_filter:
+            if self.verbose:
+                print("DataIntervals: Applying gnostic filtering to Z0 values...")
+            # MG cluster
+            z0s, datums = self._get_z0s_main_cluster(z0s, datums)
+
         # Smoothing
         if len(z0s) > 11:
             z0s_smooth = savgol_filter(z0s, 11, 3)
         else:
             z0s_smooth = z0s
+
+        # clean dict
+        self.search_results_clean = {
+            'datum': datums,
+            'z0': z0s_smooth
+            }
+
         # Window
         data_mean = np.mean(self.data)
         data_std = np.std(self.data)
@@ -389,8 +452,8 @@ class DataIntervals:
 
     def plot_intervals(self, figsize=(12, 8)):
         import matplotlib.pyplot as plt
-        datums = np.array(self.search_results['datum'])
-        z0s = np.array(self.search_results['z0'])
+        datums = np.array(self.search_results_clean['datum'])
+        z0s = np.array(self.search_results_clean['z0'])
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         sort_idx = np.argsort(datums)
         ax.scatter(datums[sort_idx], z0s[sort_idx], color='k', alpha=0.5, linewidth=1, label='Z0 Variation')
