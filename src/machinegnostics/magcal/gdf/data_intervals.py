@@ -14,7 +14,114 @@ from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF, DataCluster
 
 class DataIntervals:
     """
-    Robust interval estimation for GDF classes with adaptive search, diagnostics, and ordering constraint.
+    Robust Interval Estimation Engine for GDF Classes
+
+    The `DataIntervals` class provides robust, adaptive, and diagnostic interval estimation for 
+    Gnostics Distribution Function (GDF) classes such as ELDF, EGDF, QLDF, and QGDF. 
+    It is designed to estimate meaningful data intervals (such as tolerance and typical intervals) 
+    based on the behavior of the GDF's central parameter (Z0) as the data is extended, 
+    while enforcing ordering constraints and providing detailed diagnostics.
+
+    Key Features:
+    -------------
+    - **Adaptive Search:** 
+      Efficiently scans the data domain with a dense search near the central value (Z0) and 
+      sparser search near the boundaries, balancing computational cost and accuracy.
+    - **Robustness:** 
+      Supports optional recomputation of the GDF for each candidate datum, with optional 
+      gnostic filtering (clustering) to enhance robustness against outliers and noise.
+    - **Diagnostics:** 
+      Provides warnings and errors for suboptimal settings, ordering violations, and 
+      insufficient data, and stores detailed parameters and results for further analysis.
+    - **Ordering Constraint:** 
+      Ensures that the estimated intervals satisfy the natural ordering: 
+      ZL < Z0L < Z0 < Z0U < ZU, where ZL/ZU are typical data interval bounds and 
+      Z0L/Z0U are tolerance interval bounds.
+    - **Visualization:** 
+      Offers plotting methods to visualize the Z0 variation, estimated intervals, 
+      and data coverage.
+
+    Parameters
+    ----------
+    gdf : ELDF, EGDF, QLDF, or QGDF
+        The fitted GDF (Gnostics Distribution Function) object to analyze.
+    n_points : int, default=100
+        Number of search points for interval estimation (minimum 50).
+    dense_zone_fraction : float, default=0.4
+        Fraction of the search domain near Z0 to search densely (range: 0.1 to 0.8).
+    dense_points_fraction : float, default=0.7
+        Fraction of points allocated to the dense zone (range: 0.5 to 0.9).
+    convergence_window : int, default=15
+        Number of points in the moving window for convergence detection.
+    convergence_threshold : float, default=1e-6
+        Threshold for standard deviation of Z0 in the convergence window.
+    min_search_points : int, default=30
+        Minimum number of search points before checking for convergence.
+    boundary_margin_factor : float, default=0.001
+        Margin factor to avoid searching exactly at the boundaries.
+    extrema_search_tolerance : float, default=1e-6
+        Tolerance for detecting extrema in Z0 variation.
+    gdf_recompute : bool, default=False
+        If True, recompute the GDF for each candidate datum.
+    gnostic_filter : bool, default=False
+        If True, apply gnostic clustering to filter outlier Z0 values.
+    catch : bool, default=True
+        If True, catch and store warnings/errors internally.
+    verbose : bool, default=False
+        If True, print detailed progress and diagnostics.
+    flush : bool, default=False
+        If True, flush memory after fitting to save resources.
+
+    Attributes
+    ----------
+    ZL : float
+        Lower bound of the typical data interval.
+    Z0L : float
+        Lower bound of the tolerance interval (Z0-based).
+    Z0 : float
+        Central value (Z0) of the original GDF.
+    Z0U : float
+        Upper bound of the tolerance interval (Z0-based).
+    ZU : float
+        Upper bound of the typical data interval.
+    tolerance_interval : float
+        Width of the tolerance interval (Z0U - Z0L).
+    typical_data_interval : float
+        Width of the typical data interval (ZU - ZL).
+    ordering_valid : bool
+        Whether the ordering constraint (ZL < Z0L < Z0 < Z0U < ZU) is satisfied.
+    params : dict
+        Dictionary of parameters, warnings, errors, and results.
+    search_results : dict
+        Raw search results for datum values and corresponding Z0s.
+
+    Methods
+    -------
+    fit(plot=False)
+        Run the interval estimation process. Optionally plot results.
+    results() -> dict
+        Return a dictionary of interval results and bounds.
+    plot_intervals(figsize=(12, 8))
+        Plot the Z0 variation and estimated intervals.
+    plot(figsize=(12, 8))
+        Plot the GDF, PDF, and intervals on the data domain.
+
+    Usage Example
+    -------------
+    >>> eld = ELDF()
+    >>> eld.fit(data)
+    >>> di = DataIntervals(eld, n_points=200, gdf_recompute=True, gnostic_filter=True, verbose=True)
+    >>> di.fit(plot=True)
+    >>> print(di.results())
+    >>> di.plot_intervals()
+    >>> di.plot()
+
+    Notes
+    -----
+    - For best results, use with ELDF or QLDF and set 'wedf=False' in the GDF.
+    - Increasing 'n_points' improves accuracy but increases computation time.
+    - Enable 'gdf_recompute' and 'gnostic_filter' for maximum robustness, especially with noisy data.
+    - The class is designed for research and diagnostic use; adjust parameters for your data and application.
     """
     def __init__(self, gdf: Union[ELDF, EGDF, QLDF, QGDF],
                  n_points: int = 100,
@@ -165,6 +272,31 @@ class DataIntervals:
         self.ordering_valid = None
 
     def fit(self, plot: bool = False):
+        """
+        Run the interval estimation process for the fitted GDF.
+
+        This method performs adaptive interval scanning by extending the data with candidate values,
+        recomputing the GDF (if enabled), and tracking the variation of the central parameter Z0.
+        It then extracts the typical data interval and tolerance interval, checks the ordering constraint,
+        and updates the internal results and diagnostics.
+
+        Parameters
+        ----------
+        plot : bool, optional (default=False)
+            If True, automatically plot the interval analysis results after fitting.
+
+        Raises
+        ------
+        Exception
+            If the fitting process fails due to invalid arguments or internal errors.
+
+        Notes
+        -----
+        - For best results, ensure the GDF is already fitted to data before calling this method.
+        - The method updates the object's attributes with the estimated intervals and stores
+          diagnostics in the `params` attribute.
+        - If `flush=True` was set at initialization, intermediate data is cleared after fitting.
+        """
         import time
         start_time = time.time()
         try:
@@ -433,6 +565,26 @@ class DataIntervals:
         Ordering valid: {self.ordering_valid}""")
 
     def results(self) -> Dict:
+        """
+        Return a dictionary of estimated interval results and bounds.
+
+        Returns
+        -------
+        results : dict
+            A dictionary containing the following keys (values may be None if not available):
+                - 'LB', 'LSB', 'DLB', 'LCB': Lower bounds (various types, if available)
+                - 'ZL': Lower bound of the typical data interval
+                - 'Z0L': Lower bound of the tolerance interval (Z0-based)
+                - 'Z0': Central value (Z0) of the original GDF
+                - 'Z0U': Upper bound of the tolerance interval (Z0-based)
+                - 'ZU': Upper bound of the typical data interval
+                - 'UCB', 'DUB', 'USB', 'UB': Upper bounds (various types, if available)
+
+        Example
+        -------
+        >>> intervals = di.results()
+        >>> print(intervals['Z0L'], intervals['Z0U'])
+        """
         results = {
             'LB': float(self.LB) if self.LB is not None else None,
             'LSB': float(self.LSB) if self.LSB is not None else None,
@@ -451,6 +603,23 @@ class DataIntervals:
         return results
 
     def plot_intervals(self, figsize=(12, 8)):
+        """
+        Plot the Z0 variation and estimated intervals.
+
+        This method visualizes how the central parameter Z0 changes as the data is extended,
+        and marks the estimated typical data interval and tolerance interval on the plot.
+        It also indicates whether the ordering constraint is satisfied.
+
+        Parameters
+        ----------
+        figsize : tuple, optional (default=(12, 8))
+            Size of the matplotlib figure.
+
+        Notes
+        -----
+        - The plot shows the Z0 trajectory, interval boundaries, and highlights the ordering constraint status.
+        - Useful for diagnostics and for understanding the robustness of the interval estimation.
+        """
         import matplotlib.pyplot as plt
         datums = np.array(self.search_results_clean['datum'])
         z0s = np.array(self.search_results_clean['z0'])
@@ -493,6 +662,23 @@ class DataIntervals:
             print(f"  Ordering constraint: {'✓ SATISFIED' if self.ordering_valid else '✗ VIOLATED'}")
 
     def plot(self, figsize=(12, 8)):
+        """
+        Plot the GDF, PDF, and estimated intervals on the data domain.
+
+        This method visualizes the fitted GDF curve, the probability density function (if available),
+        and overlays the estimated typical data interval and tolerance interval.
+        It also marks the original data points and key interval boundaries.
+
+        Parameters
+        ----------
+        figsize : tuple, optional (default=(12, 8))
+            Size of the matplotlib figure.
+
+        Notes
+        -----
+        - The plot provides a comprehensive view of the data, the fitted distribution, and the intervals.
+        - Useful for reporting and for visually assessing the coverage and validity of the intervals.
+        """
         import matplotlib.pyplot as plt
         x_points = np.array(self.data)
         x_min, x_max = np.min(x_points), np.max(x_points)
