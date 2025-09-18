@@ -381,11 +381,11 @@ class IntervalAnalysis:
                 'verbose': self.verbose,
                 'flush': self.flush
                     }
-        self._di = DataIntervals(**di_kwargs)
-        self._di.fit()
+        self._intv_engine = DataIntervals(**di_kwargs)
+        self._intv_engine.fit()
 
         if self.catch:
-            self.params['DataIntervals'] = self._di.params.copy()
+            self.params['DataIntervals'] = self._intv_engine.params.copy()
         
         # fit status
         self._fitted = True
@@ -396,7 +396,7 @@ class IntervalAnalysis:
         if plot:
             if self.verbose:
                 print("IntervalAnalysis: Generating diagnostic plots...")
-            self._di.plot()
+            self._intv_engine.plot()
 
         if self.verbose:
             print("IntervalAnalysis: Fit process completed.")
@@ -430,7 +430,7 @@ class IntervalAnalysis:
         >>> results = ia.results()
         >>> print(results['Z0L'], results['Z0U'])
         """
-        data_certification = self._di.results()
+        data_certification = self._intv_engine.results()
         return data_certification
 
     def plot(self, GDF: bool = True, intervals: bool = True):
@@ -465,5 +465,5 @@ class IntervalAnalysis:
             if GDF:
                 self._eldf.plot()
             if intervals:
-                self._di.plot_intervals()
-                self._di.plot()
+                self._intv_engine.plot_intervals()
+                self._intv_engine.plot()
