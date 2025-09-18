@@ -21,7 +21,7 @@ from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.data_cluster import DataCluster
 from machinegnostics.magcal.gdf.data_membership import DataMembership
 from machinegnostics.magcal.gdf.data_intervals import DataIntervals
-
+from machinegnostics.magcal.gdf.marginal_intv_analysis import IntervalAnalysis
 
 # g correlation function
 # from machinegnostics.magcal.gmodulus import gmodulus
