@@ -746,7 +746,7 @@ class DataIntervals:
         if self.DLB is not None:
             ax1.axvline(x=self.gdf.DLB, color='purple', linestyle='-', linewidth=1.5, alpha=1, label=f'DLB={self.gdf.LB:.3f}')
         if self.DUB is not None:
-            ax1.axvline(x=self.gdf.DUB, color='brown', linestyle='-', linewidth=1.5, alpha=1, label=f'DUB={self.gdf.LB:.3f}')
+            ax1.axvline(x=self.gdf.DUB, color='brown', linestyle='-', linewidth=1.5, alpha=1, label=f'DUB={self.gdf.DUB:.3f}')
         # Rug plot for original data
         data_y_pos = -0.05
         ax1.scatter(x_points, [data_y_pos] * len(x_points), alpha=0.6, s=15, color='black', marker='|')
