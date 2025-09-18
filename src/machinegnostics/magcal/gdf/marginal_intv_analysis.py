@@ -127,7 +127,7 @@ class IntervalAnalysis:
                 UB: float = None,
                 S: str = 'auto',
                 z0_optimize: bool = True,
-                tolerance: float = 1e-9,
+                tolerance: float = 1e-5,
                 data_form: str = 'a',
                 n_points: int = 500,
                 homogeneous: bool = True,
