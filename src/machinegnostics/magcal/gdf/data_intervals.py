@@ -343,25 +343,43 @@ class DataIntervals:
         try:
             if self.verbose:
                 print("DataIntervals: Scanning intervals...")
-            # Adaptive search: dense near Z0, sparse near LB/UB
+
+            # Scan lower direction (Z0 -> LB)
             lower_points = self._generate_search_points('lower')
-            upper_points = self._generate_search_points('upper')
-            for datum in np.concatenate([lower_points, upper_points]):
+            if self.verbose:
+                print(f"  Starting lower scan: {len(lower_points)} points from Z0 → LB")
+            for i, datum in enumerate(lower_points, 1):
                 z0_val = self._compute_z0_with_extended_datum(datum)
                 self.search_results['datum'].append(datum)
                 self.search_results['z0'].append(z0_val)
                 self.search_results['success'].append(True)
-                if self.verbose:
-                    # print on 50th point
-                    if len(self.search_results['datum']) % 50 == 0:
-                        print(f"  Datum: {datum:.4f} | New Z0: {z0_val:.6f}")
+                if self.verbose and i % (self.n_points/10) == 0:
+                    print(f"    Lower scan [{i}/{len(lower_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
                 if self._check_convergence():
                     if self.verbose:
-                        print(f"DataIntervals: Early stopping at datum={datum:.4f}")
-                    break
+                        print(f"  Early stopping in lower scan at datum={datum:.4f}")
+                    return  # stop scanning entirely if convergence is reached
+
+            # Scan upper direction (Z0 -> UB)
+            upper_points = self._generate_search_points('upper')
+            if self.verbose:
+                print(f"  Starting upper scan: {len(upper_points)} points from Z0 → UB")
+            for i, datum in enumerate(upper_points, 1):
+                z0_val = self._compute_z0_with_extended_datum(datum)
+                self.search_results['datum'].append(datum)
+                self.search_results['z0'].append(z0_val)
+                self.search_results['success'].append(True)
+                if self.verbose and i % 50 == 0:
+                    print(f"    Upper scan [{i}/{len(upper_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
+                if self._check_convergence():
+                    if self.verbose:
+                        print(f"  Early stopping in upper scan at datum={datum:.4f}")
+                    return
+
         except Exception as e:
             self._add_error(f"DataIntervals: Scanning intervals failed: {e}")
             return
+
 
     def _generate_search_points(self, direction: str) -> np.ndarray:
         # Dense zone near Z0, sparse toward LB/UB
