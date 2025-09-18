@@ -14,6 +14,112 @@ import warnings
 from machinegnostics.magcal import ELDF, EGDF, DataHomogeneity, DataIntervals
 
 class IntervalAnalysis:
+    """
+    End-to-End Marginal Interval Analysis for Gnostic Distribution Functions (GDF)
+
+    The `IntervalAnalysis` class provides a robust, automated workflow for estimating meaningful data intervals
+    (such as tolerance and typical intervals) using Gnostic Distribution Functions (GDFs) like ELDF and EGDF.
+    It is designed for reliability, diagnostics, and adaptive interval estimation in scientific and engineering data analysis.
+
+    This class orchestrates the complete process:
+        - Fits an EGDF to the data for global distribution analysis and homogeneity testing.
+        - Optionally re-fits for non-homogeneous data and issues warnings if needed.
+        - Fits an ELDF for local distribution analysis.
+        - Computes robust data intervals using the DataIntervals engine, enforcing ordering constraints.
+        - Provides detailed diagnostics, warnings, and error tracking.
+        - Offers visualization methods for both the fitted distributions and the estimated intervals.
+
+    Parameters
+    ----------
+    DLB : float, optional
+        Data Lower Bound (absolute minimum possible value for the data).
+    DUB : float, optional
+        Data Upper Bound (absolute maximum possible value for the data).
+    LB : float, optional
+        Lower Probable Bound (practical lower limit for the distribution).
+    UB : float, optional
+        Upper Probable Bound (practical upper limit for the distribution).
+    S : float or str, default='auto'
+        Scale parameter for the distribution. Use 'auto' for automatic estimation.
+    z0_optimize : bool, default=True
+        Whether to optimize the central parameter Z0 during fitting.
+    tolerance : float, default=1e-9
+        Convergence tolerance for optimization.
+    data_form : str, default='a'
+        Data processing form: 'a' for additive, 'm' for multiplicative.
+    n_points : int, default=500
+        Number of points for distribution evaluation.
+    homogeneous : bool, default=True
+        Whether to assume data homogeneity (enables homogeneity testing).
+    catch : bool, default=True
+        If True, stores warnings/errors and intermediate results.
+    weights : np.ndarray, optional
+        Prior weights for data points.
+    wedf : bool, default=False
+        Use Weighted Empirical Distribution Function if True.
+    opt_method : str, default='L-BFGS-B'
+        Optimization method for parameter estimation.
+    verbose : bool, default=False
+        Print detailed progress and diagnostics if True.
+    max_data_size : int, default=1000
+        Maximum data size for smooth GDF generation.
+    flush : bool, default=True
+        Flush intermediate arrays after fitting to save memory.
+    dense_zone_fraction : float, default=0.4
+        Fraction of search domain near Z0 for dense interval search.
+    dense_points_fraction : float, default=0.7
+        Fraction of search points allocated to the dense zone.
+    convergence_window : int, default=15
+        Window size for convergence detection in interval search.
+    convergence_threshold : float, default=1e-6
+        Threshold for Z0 convergence in interval search.
+    min_search_points : int, default=30
+        Minimum search points before checking for convergence.
+    boundary_margin_factor : float, default=0.001
+        Margin factor to avoid searching exactly at the boundaries.
+    extrema_search_tolerance : float, default=1e-6
+        Tolerance for detecting extrema in Z0 variation.
+    gdf_recompute : bool, default=False
+        If True, recompute the GDF for each candidate datum in interval search.
+    gnostic_filter : bool, default=False
+        If True, apply gnostic clustering to filter outlier Z0 values in interval search.
+
+    Attributes
+    ----------
+    params : dict
+        Stores all warnings, errors, and diagnostic information from the analysis.
+
+    Methods
+    -------
+    fit(data, plot=False)
+        Run the complete interval analysis workflow on the input data.
+    results()
+        Return a dictionary of estimated interval results and bounds.
+    plot(GDF=True, intervals=True)
+        Visualize the fitted GDFs and the estimated intervals.
+
+    Usage Example
+    -------------
+    >>> from machinegnostics.magcal import IntervalAnalysis
+    >>> data = np.array([...])
+    >>> ia = IntervalAnalysis(verbose=True)
+    >>> ia.fit(data, plot=True)
+    >>> print(ia.results())
+    >>> ia.plot()
+
+    Notes
+    -----
+    - The class is designed for robust, end-to-end interval estimation and diagnostics.
+    - Homogeneity of the data is checked automatically; warnings are issued if violated.
+    - For best results, use with ELDF/EGDF and set 'wedf=False' for interval estimation.
+    - The class is suitable for scientific, engineering, and reliability applications.
+    - All warnings and errors are stored in the `params` attribute for later inspection.
+
+    See Also
+    --------
+    ELDF, EGDF, DataIntervals
+
+    """
     def __init__(self,
                 DLB: float = None,
                 DUB: float = None,
@@ -118,7 +224,42 @@ class IntervalAnalysis:
                 warnings.warn(warning_msg)
         return is_homogeneous
 
-    def fit(self, data: np.ndarray, plot: bool = False):
+    def fit(self, data: np.ndarray, plot: bool = False) -> dict:
+        """
+        Run the complete marginal interval analysis workflow on the input data. This method takes a 1D numpy array of data and automatically performs all necessary steps to estimate robust data intervals using gnostic distribution functions. It handles data validation, fits the required models, checks for homogeneity, and computes both tolerance and typical intervals with diagnostics. Optionally, it can generate diagnostic plots to help visualize the results. The method returns a dictionary containing the estimated interval bounds and relevant diagnostic information.
+
+
+        Parameters
+        ----------
+        data : np.ndarray
+            1D numpy array of input data for interval analysis. Must contain at least 4 elements and no NaN/Inf values.
+        plot : bool, default=False
+            If True, automatically generates diagnostic plots after fitting.
+
+        Returns
+        -------
+        results : dict
+            Dictionary containing estimated interval bounds, tolerance/typical intervals, and diagnostic information.
+
+        Raises
+        ------
+        TypeError
+            If the input data is not a numpy array.
+        ValueError
+            If the data is not 1D, contains fewer than 4 elements, or contains NaN/Inf values.
+
+        Notes
+        -----
+        - All warnings and errors encountered during fitting are stored in the `params` attribute.
+        - For best results, ensure the data is representative and free of gross outliers.
+        - The method sets the `_fitted` attribute to True upon successful completion.
+
+        Example
+        -------
+        >>> ia = IntervalAnalysis(verbose=True)
+        >>> ia.fit(data, plot=True)
+        >>> print(ia.results())
+        """
         if self.verbose:
             print("IntervalAnalysis: Starting fit process...")
 
@@ -259,12 +400,67 @@ class IntervalAnalysis:
 
         if self.verbose:
             print("IntervalAnalysis: Fit process completed.")
+        return self.results()
 
-    def results(self):
+    def results(self) -> dict:
+        """
+        Retrieve the estimated interval results and bounds from the analysis.
+
+        This method returns a dictionary containing the main results of the interval analysis,
+        including the estimated tolerance interval, typical data interval, and all relevant bounds.
+        It also includes diagnostic information and any warnings or errors encountered during fitting.
+
+        Returns
+        -------
+        results : dict
+            Dictionary with keys such as:
+                - 'ZL', 'Z0L', 'Z0', 'Z0U', 'ZU': Interval bounds
+                - 'tolerance_interval': Width of the tolerance interval (Z0U - Z0L)
+                - 'typical_data_interval': Width of the typical data interval (ZU - ZL)
+                - 'ordering_valid': Whether the interval ordering constraint is satisfied
+                - Additional diagnostic and parameter information
+
+        Notes
+        -----
+        - The structure of the returned dictionary matches that of the DataIntervals engine.
+        - If the analysis has not been fitted, this method may raise an AttributeError.
+
+        Example
+        -------
+        >>> results = ia.results()
+        >>> print(results['Z0L'], results['Z0U'])
+        """
         data_certification = self._di.results()
         return data_certification
 
     def plot(self, GDF: bool = True, intervals: bool = True):
+        """
+        Visualize the fitted GDFs (ELDF) and the estimated intervals.
+
+        This method generates diagnostic plots to help interpret the results of the interval analysis:
+            - If `GDF` is True, plots the fitted local distribution (ELDF) and its PDF/CDF.
+            - If `intervals` is True, plots the Z0 variation and the estimated intervals on the data domain.
+
+        Parameters
+        ----------
+        GDF : bool, default=True
+            If True, plot the fitted ELDF (local distribution function).
+        intervals : bool, default=True
+            If True, plot the estimated intervals and Z0 variation.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        - Requires matplotlib to be installed.
+        - Can be called after `fit()` to visualize the results interactively or in scripts.
+
+        Example
+        -------
+        >>> ia.plot(GDF=True, intervals=True)
+        """
         if hasattr(self, '_di'):
             if GDF:
                 self._eldf.plot()

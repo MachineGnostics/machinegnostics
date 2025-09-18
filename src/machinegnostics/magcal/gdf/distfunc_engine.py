@@ -482,7 +482,7 @@ class DistFuncEngine:
                 return 1e6
         
         # Set initial values
-        s_init = 1.0
+        s_init = 0.01
         lb_init = self.LB_init if self.LB_init is not None else bounds['LB_MIN'] * 10
         ub_init = self.UB_init if self.UB_init is not None else bounds['UB_MIN'] * 10
         
