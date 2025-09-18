@@ -207,7 +207,7 @@ class IntervalAnalysis:
             'tolerance': self.tolerance,
             'data_form': self.data_form,
             'n_points': self.n_points,
-            'homogeneous': True, # ELDF always assumes homogeneous data
+            'homogeneous': True if is_homogeneous else False, # ELDF always assumes homogeneous data
             'catch': self.catch,
             'weights': self.weights,
             'wedf': self.wedf,
