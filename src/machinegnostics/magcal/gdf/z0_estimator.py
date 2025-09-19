@@ -31,6 +31,7 @@ class Z0Estimator:
         - Comprehensive diagnostic information
         - Built-in visualization capabilities
         - Automatic Z0 assignment back to GDF object
+        - Estimate Z0 gnostic error properties (Residual Entropy, RRE)
     
     Attributes:
         gdf: The fitted GDF object (EGDF, ELDF, QLDF, or QGDF)
