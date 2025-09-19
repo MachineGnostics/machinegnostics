@@ -11,6 +11,7 @@ Machine Gnostics
 
 import numpy as np
 from typing import Union, Dict, Any, Optional
+from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 
 class Z0Estimator:
     """
@@ -172,7 +173,7 @@ class Z0Estimator:
     """
     
     def __init__(self,
-                 gdf_object,
+                 gdf_object: object,
                  optimize: bool = True,
                  verbose: bool = False):
         """
@@ -205,13 +206,34 @@ class Z0Estimator:
         self.gdf_type = self._detect_gdf_type()
         self.optimize = optimize
         self.verbose = verbose
-        
+
         # Determine what we're looking for
         self.find_median = self.gdf_type.lower() in ['qldf', 'qgdf']
         
         # Results storage
         self.z0 = None
         self.estimation_info = {}
+    
+    def _compute_error_properties_for_mean(self, z0):
+        # estimate q and q1
+        gc, q, q1 = self.gdf._calculate_gcq_at_given_zi(z0)
+
+        # fi and fj
+        fi_z0 = gc._fi(q, q1) # GME Gnostic Mean Estimating
+        fj_z0 = gc._fj(q, q1) # GMQ Gnostic Mean Quantifying
+
+        # entropy
+        i_e = np.mean(gc._ientropy(fj_z0))
+        j_e = np.mean(gc._jentropy(fj_z0))
+        self.residual_entropy = np.mean(gc._rentropy(i_e, j_e))
+
+        # RRE Relative Residual Entropy
+        self.RRE = np.mean((fj_z0 - fi_z0) / (fj_z0 + fi_z0))
+
+        # store to given gdf params
+        if hasattr(self.gdf, 'params'):
+            self.gdf.params['residual_entropy'] = float(self.residual_entropy)
+            self.gdf.params['RRE'] = float(self.RRE)
         
     def fit(self) -> float:
         """
@@ -240,10 +262,15 @@ class Z0Estimator:
             - The estimated Z0 is automatically assigned to the original GDF object
         """
         if self.find_median:
-            return self._fit_median()
+            self.z0 = self._fit_median()
         else:
-            return self._fit_pdf_maximum()
-    
+            self.z0 = self._fit_pdf_maximum()
+        
+        # error in mean
+        self._compute_error_properties_for_mean(self.z0)
+        return self.z0
+        
+
     def _fit_median(self) -> float:
         """Find Z0 where Q-distribution equals 0.5 (median)."""
         if self.verbose:

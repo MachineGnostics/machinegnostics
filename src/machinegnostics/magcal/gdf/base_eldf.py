@@ -657,4 +657,24 @@ class BaseELDF(BaseEGDF):
         
         return analysis_info
     
-    
+    def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
+        """Helper method to recalculate fidelities and irrelevances for current zi."""
+        # Convert to infinite domain
+        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        # is zi given then use it, else use self.zi
+        if zi is None:
+            zi_d = self.zi
+        else:
+            zi_d = zi
+
+        # Calculate R matrix
+        eps = np.finfo(float).eps
+        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
+
+        # Get characteristics
+        gc = GnosticsCharacteristics(R=R)
+        q, q1 = gc._get_q_q1(S=self.S_opt)
+        
+        # Store fidelities and irrelevances
+        self.fi = gc._fi(q=q, q1=q1)
+        self.hi = gc._hi(q=q, q1=q1)

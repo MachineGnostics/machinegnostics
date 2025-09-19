@@ -7,7 +7,7 @@ Machine Gnostics
 
 import numpy as np
 import warnings
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from scipy.optimize import minimize
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
@@ -757,6 +757,30 @@ class BaseDistFuncCompute(BaseDistFunc):
         # Store fidelities and irrelevances
         self.fi = gc._fi(q=q, q1=q1)
         self.hi = gc._hi(q=q, q1=q1)
+
+    
+    def _calculate_gcq_at_given_zi(self, data) -> Tuple[GnosticsCharacteristics, np.ndarray, np.ndarray]:
+        """Helper method to calculate q and q1 for current zi.
+        this will be used in z0estimator for some methods and error calculation
+        
+        returns: gc, q, q1
+        """
+        # conver to z domain with DLB and DUB
+        zi = DataConversion._convert_az(data, self.DLB, self.DUB) if self.data_form == 'a' else DataConversion._convert_mz(data, self.DLB, self.DUB)
+        # Convert to infinite domain
+        zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        # is data given then use it, else use self.zii
+        zi_d = zi
+
+        # Calculate R matrix
+        eps = np.finfo(float).eps
+        R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
+
+        # Get characteristics
+        gc = GnosticsCharacteristics(R=R)
+        q, q1 = gc._get_q_q1(S=self.S_opt)
+
+        return gc, q, q1
 
 # NOTE: put this method to specific class that needs it, e.g., ELDF, QLDF, EGDF, QGDF
     # # z0 compute

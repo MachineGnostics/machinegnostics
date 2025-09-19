@@ -567,17 +567,17 @@ class BaseQLDF(BaseQGDF):
         
         # Calculate third derivative at zi + dz
         self.zi = zi_plus
-        self._calculate_quantifying_fidelities_irrelevances_at_given_zi(self.zi)
+        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
         third_plus = self._get_qldf_third_derivative()
         
         # Calculate third derivative at zi - dz  
         self.zi = zi_minus
-        self._calculate_quantifying_fidelities_irrelevances_at_given_zi(self.zi)
+        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
         third_minus = self._get_qldf_third_derivative()
         
         # Restore original zi and recalculate fj, hj
         self.zi = original_zi
-        self._calculate_quantifying_fidelities_irrelevances_at_given_zi(self.zi)
+        self._calculate_fidelities_irrelevances_at_given_zi(self.zi)
         
         # Numerical derivative
         fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
@@ -622,7 +622,7 @@ class BaseQLDF(BaseQGDF):
         
         return np.array(derivatives)
 
-    def _calculate_quantifying_fidelities_irrelevances_at_given_zi(self, zi):
+    def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
         """Helper method to recalculate quantifying fidelities and irrelevances for current zi."""
         # Convert to infinite domain
         zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
