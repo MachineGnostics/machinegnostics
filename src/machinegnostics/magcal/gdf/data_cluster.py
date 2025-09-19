@@ -122,7 +122,7 @@ class DataCluster:
     >>> 
     >>> # Get results
     >>> results = cluster.results()
-    >>> print(f"CLB: {results['CLB']}, CUB: {results['CUB']}")
+    >>> print(f"CLB: {results['LCB']}, CUB: {results['UCB']}")
     >>> print(f"Cluster width: {results['cluster_width']}")
     >>> print(f"PDF shape: {results['pdf_shape']}")  # For QLDF
     
@@ -187,8 +187,8 @@ class DataCluster:
             'gdf_type': self.gdf_type,
             'derivative_threshold': self.derivative_threshold,
             'slope_percentile': self.slope_percentile,
-            'CLB': None,
-            'CUB': None,
+            'LCB': None,
+            'UCB': None,
             'Z0': None,
             'S_opt': None,
             'cluster_width': None,
@@ -200,8 +200,8 @@ class DataCluster:
             'warnings': []
         }
         
-        self.CLB = None
-        self.CUB = None
+        self.LCB = None
+        self.UCB = None
         self.z0 = None
         self.S_opt = None
         self._fitted = False
@@ -298,7 +298,7 @@ class DataCluster:
         
         if self.verbose:
             print(f"DataCluster: PDF normalization: {self.params['normalization_method']}")
-            print(f"DataCluster: Original PDF range: [{pdf_min:.3f}, {pdf_max:.3f}]")
+            # print(f"DataCluster: Original PDF range: [{pdf_min:.3f}, {pdf_max:.3f}]")
             print(f"DataCluster: Normalized PDF range: [{np.min(normalized_pdf):.3f}, {np.max(normalized_pdf):.3f}]")
         
         return normalized_pdf
@@ -525,9 +525,9 @@ class DataCluster:
                     break
             
             if left_candidates:
-                self.CLB = data_points[left_candidates[0]]
+                self.LCB = data_points[left_candidates[0]]
             if right_candidates:
-                self.CUB = data_points[right_candidates[0]]
+                self.UCB = data_points[right_candidates[0]]
                 
             self.params['method_used'] = 'normalized_derivative_eldf_egdf'
             
@@ -536,9 +536,9 @@ class DataCluster:
             left_candidates, right_candidates = self._detect_qldf_shape_and_boundaries(pdf_normalized, data_points)
             
             if left_candidates:
-                self.CLB = data_points[left_candidates[0]]
+                self.LCB = data_points[left_candidates[0]]
             if right_candidates:
-                self.CUB = data_points[right_candidates[0]]
+                self.UCB = data_points[right_candidates[0]]
                 
             shape = self.params.get('pdf_shape', 'unknown')
             self.params['method_used'] = f'qldf_{shape.lower()}_valley_detection'
@@ -586,48 +586,48 @@ class DataCluster:
                 self.params['method_used'] = 'normalized_slope_transition_qgdf'
             
             if left_candidates:
-                self.CLB = data_points[left_candidates[0]]
+                self.LCB = data_points[left_candidates[0]]
             if right_candidates:
-                self.CUB = data_points[right_candidates[0]]
+                self.UCB = data_points[right_candidates[0]]
 
         if self.verbose:
             method = self.params['method_used']
             print(f"DataCluster: Using method: {method}")
             if hasattr(self, 'params') and 'pdf_shape' in self.params:
                 print(f"DataCluster: PDF shape: {self.params['pdf_shape']}")
-            if self.CLB is not None:
-                print(f"DataCluster: Found CLB at {self.CLB:.3f}")
-            if self.CUB is not None:
-                print(f"DataCluster: Found CUB at {self.CUB:.3f}")
+            if self.LCB is not None:
+                print(f"DataCluster: Found CLB at {self.LCB:.3f}")
+            if self.UCB is not None:
+                print(f"DataCluster: Found CUB at {self.UCB:.3f}")
 
     def _fallback_to_data_bounds(self):
         dlb, dub = self._get_data_bounds()
         
-        if self.CLB is None:
-            self.CLB = dlb
+        if self.LCB is None:
+            self.LCB = dlb
             if self.verbose:
-                print(f"DataCluster: CLB set to data lower bound: {self.CLB:.3f}")
+                print(f"DataCluster: CLB set to data lower bound: {self.LCB:.3f}")
         
-        if self.CUB is None:
-            self.CUB = dub
+        if self.UCB is None:
+            self.UCB = dub
             if self.verbose:
-                print(f"DataCluster: CUB set to data upper bound: {self.CUB:.3f}")
+                print(f"DataCluster: CUB set to data upper bound: {self.UCB:.3f}")
 
     def _update_params(self):
         self.params.update({
-            'CLB': float(self.CLB) if self.CLB is not None else None,
-            'CUB': float(self.CUB) if self.CUB is not None else None,
+            'LCB': float(self.LCB) if self.LCB is not None else None,
+            'UCB': float(self.UCB) if self.UCB is not None else None,
             'Z0': float(self.z0) if self.z0 is not None else None,
             'S_opt': float(self.S_opt) if self.S_opt is not None else None,
-            'cluster_width': float(self.CUB - self.CLB) if (self.CLB is not None and self.CUB is not None) else None,
-            'clustering_successful': self.CLB is not None and self.CUB is not None
+            'cluster_width': float(self.UCB - self.LCB) if (self.LCB is not None and self.UCB is not None) else None,
+            'clustering_successful': self.LCB is not None and self.UCB is not None
         })
         
         if hasattr(self.gdf, 'params'):
             cluster_params = {
                 'data_cluster': {
-                    'CLB': self.params['CLB'],
-                    'CUB': self.params['CUB'],
+                    'LCB': self.params['LCB'],
+                    'UCB': self.params['UCB'],
                     'cluster_width': self.params['cluster_width'],
                     'clustering_successful': self.params['clustering_successful'],
                     'method_used': self.params['method_used'],
@@ -668,7 +668,7 @@ class DataCluster:
         
         Side Effects
         ------------
-        - Sets self.CLB and self.CUB with detected boundaries
+        - Sets self.LCB and self.UCB with detected boundaries
         - Updates self.params with complete analysis results
         - Stores normalized and original PDF data
         - Adds cluster parameters to original GDF object
@@ -706,7 +706,7 @@ class DataCluster:
             self._find_boundaries_normalized_method(self.pdf_normalized, data_points)
             
             # Fallback to data bounds if needed
-            if self.CLB is None or self.CUB is None:
+            if self.LCB is None or self.UCB is None:
                 if self.verbose:
                     print("DataCluster: Normalized method incomplete, using data bounds as fallback")
                 self._fallback_to_data_bounds()
@@ -721,10 +721,10 @@ class DataCluster:
                 self.plot()
             
             if self.verbose:
-                print(f"DataCluster: Final boundaries: CLB={self.CLB:.3f}, CUB={self.CUB:.3f}")
+                print(f"DataCluster: Final boundaries: CLB={self.LCB:.3f}, CUB={self.UCB:.3f}")
                 print("DataCluster: Clustering: SUCCESSFUL")
             
-            return self.CLB, self.CUB
+            return self.LCB, self.UCB
             
         except Exception as e:
             error_msg = f"Error during cluster analysis: {str(e)}"
@@ -746,8 +746,8 @@ class DataCluster:
             Complete analysis results with the following keys:
             
             **Boundary Results:**
-            - 'CLB' : float or None - Cluster Lower Boundary
-            - 'CUB' : float or None - Cluster Upper Boundary  
+            - 'LCB' : float or None - Cluster Lower Boundary
+            - 'UCB' : float or None - Cluster Upper Boundary  
             - 'cluster_width' : float or None - Distance between boundaries
             - 'clustering_successful' : bool - Overall success status
             
@@ -781,8 +781,8 @@ class DataCluster:
         >>> results = cluster.results()
         >>> 
         >>> # Access boundary information
-        >>> print(f"Lower boundary: {results['CLB']}")
-        >>> print(f"Upper boundary: {results['CUB']}")
+        >>> print(f"Lower boundary: {results['LCB']}")
+        >>> print(f"Upper boundary: {results['UCB']}")
         >>> print(f"Cluster width: {results['cluster_width']}")
         >>> 
         >>> # Check method and shape information
@@ -862,19 +862,19 @@ class DataCluster:
                 ax1.axvline(x=self.z0, color='red', linestyle='-', linewidth=2, alpha=0.7, label=f'Z0={self.z0:.3f}')
             
             # Plot boundaries
-            if self.CLB is not None:
-                ax1.axvline(x=self.CLB, color='green', linestyle=':', linewidth=2, label=f'CLB={self.CLB:.3f}')
-            if self.CUB is not None:
-                ax1.axvline(x=self.CUB, color='green', linestyle=':', linewidth=2, label=f'CUB={self.CUB:.3f}')
+            if self.LCB is not None:
+                ax1.axvline(x=self.LCB, color='green', linestyle=':', linewidth=2, label=f'CLB={self.LCB:.3f}')
+            if self.UCB is not None:
+                ax1.axvline(x=self.UCB, color='green', linestyle=':', linewidth=2, label=f'CUB={self.UCB:.3f}')
             
             # Shade regions based on GDF type
             dlb, dub = self._get_data_bounds()
-            if self.CLB is not None and self.CUB is not None:
+            if self.LCB is not None and self.UCB is not None:
                 if self.gdf_type in ['eldf', 'egdf']:
-                    ax1.axvspan(self.CLB, self.CUB, alpha=0.2, color='lightgreen', label='Main Cluster')
+                    ax1.axvspan(self.LCB, self.UCB, alpha=0.2, color='lightgreen', label='Main Cluster')
                 else:
-                    ax1.axvspan(dlb, self.CLB, alpha=0.2, color='lightgreen', label='Main Cluster')
-                    ax1.axvspan(self.CUB, dub, alpha=0.2, color='lightgreen')
+                    ax1.axvspan(dlb, self.LCB, alpha=0.2, color='lightgreen', label='Main Cluster')
+                    ax1.axvspan(self.UCB, dub, alpha=0.2, color='lightgreen')
             
             # Add shape info to title for QLDF
             title = f'{self.gdf_type.upper()} Normalized Cluster Detection'
@@ -905,10 +905,10 @@ class DataCluster:
                 ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3, label='Zero Line')
             
             # Plot boundaries on derivative plot
-            if self.CLB is not None:
-                ax2.axvline(x=self.CLB, color='green', linestyle=':', linewidth=2, alpha=0.7)
-            if self.CUB is not None:
-                ax2.axvline(x=self.CUB, color='green', linestyle=':', linewidth=2, alpha=0.7)
+            if self.LCB is not None:
+                ax2.axvline(x=self.LCB, color='green', linestyle=':', linewidth=2, alpha=0.7)
+            if self.UCB is not None:
+                ax2.axvline(x=self.UCB, color='green', linestyle=':', linewidth=2, alpha=0.7)
             
             # Plot Z0 on derivative plot
             if self.z0 is not None:

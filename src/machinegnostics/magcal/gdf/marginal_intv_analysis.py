@@ -11,7 +11,7 @@ Machine Gnostics
 
 import numpy as np
 import warnings
-from machinegnostics.magcal import ELDF, EGDF, DataHomogeneity, DataIntervals
+from machinegnostics.magcal import ELDF, EGDF, DataHomogeneity, DataIntervals, DataCluster, DataMembership
 
 class IntervalAnalysis:
     """
@@ -146,7 +146,10 @@ class IntervalAnalysis:
                 boundary_margin_factor: float = 0.001,
                 extrema_search_tolerance: float = 0.000001,
                 gdf_recompute: bool = False,
-                gnostic_filter: bool = False):
+                gnostic_filter: bool = False,
+                cluster_bounds: bool = True,
+                membership_bounds: bool = True
+                ):
         
         self.DLB = DLB
         self.DUB = DUB
@@ -174,6 +177,8 @@ class IntervalAnalysis:
         self.extrema_search_tolerance = extrema_search_tolerance
         self.gdf_recompute = gdf_recompute
         self.gnostic_filter = gnostic_filter
+        self.cluster_bounds = cluster_bounds
+        self.membership_bounds = membership_bounds
         self._fitted = False
 
         self.params = {}
@@ -223,6 +228,38 @@ class IntervalAnalysis:
             else:
                 warnings.warn(warning_msg)
         return is_homogeneous
+
+    def _get_cluster_bounds(self):
+        # clustering bounds if required
+        if self.cluster_bounds:
+            if self.verbose:
+                print("IntervalAnalysis: Cluster bound estimation...")
+            self._data_cluster = DataCluster(gdf=self._eldf, verbose=self.verbose, catch=self.catch)
+            self.LCB, self.UCB = self._data_cluster.fit()
+            if self.catch:
+                self.params['DataCluster'] = self._data_cluster.params.copy()
+                print(f"IntervalAnalysis: Updated LCB={self.LCB}, UCB={self.UCB} based on clustering.")
+        else:
+            self.LCB, self.UCB = None, None
+            if self.verbose:
+                print("IntervalAnalysis: Skipping clustering for bound estimation.")
+                self.LCB, self.UCB = None, None
+
+    def _get_membership_bounds(self):
+        # membership bounds if required
+        if self.membership_bounds:
+            if self.verbose:
+                print("IntervalAnalysis: Estimating data membership bounds...")
+            self._data_membership = DataMembership(egdf=self._egdf, verbose=self.verbose, catch=self.catch)
+            self.LSB, self.USB = self._data_membership.fit()
+            if self.catch:
+                self.params['DataMembership'] = self._data_membership.params.copy()
+                print(f"IntervalAnalysis: Updated DLB={self.DLB}, DUB={self.DUB} based on membership.")
+        else:
+            self.LSB, self.USB = None, None
+            if self.verbose:
+                print("IntervalAnalysis: Skipping membership bound estimation.")
+                self.LSB, self.USB = None, None
 
     def fit(self, data: np.ndarray, plot: bool = False) -> dict:
         """
@@ -362,6 +399,18 @@ class IntervalAnalysis:
         if self.catch:
             self.params['ELDF'] = self._eldf.params.copy()
 
+        # get clustering bounds if required
+        self._get_cluster_bounds()
+
+        # get membership bounds if required
+        if is_homogeneous:
+            self._get_membership_bounds()
+        else:
+            self.LSB, self.USB = None, None
+            if self.verbose:
+                self._add_warning("Skipping membership bound estimation due to non-homogeneous data.")
+                self.LSB, self.USB = None, None
+
         # estimate intervals with DataIntervals, minimum compute settings
         if self.verbose:
             print("IntervalAnalysis: Estimating data intervals...")
@@ -384,6 +433,17 @@ class IntervalAnalysis:
         self._intv_engine = DataIntervals(**di_kwargs)
         self._intv_engine.fit()
 
+        # z0 and intervals
+        self.Z0 = getattr(self._intv_engine, 'Z0', None)
+        self.Z0L = getattr(self._intv_engine, 'Z0L', None)
+        self.Z0U = getattr(self._intv_engine, 'Z0U', None)
+        self.ZL = getattr(self._intv_engine, 'ZL', None)
+        self.ZU = getattr(self._intv_engine, 'ZU', None)
+        self.DLB = getattr(self._eldf, 'DLB', self.DLB)
+        self.DUB = getattr(self._eldf, 'DUB', self.DUB)
+        self.LB = getattr(self._eldf, 'LB', self.LB)
+        self.UB = getattr(self._eldf, 'UB', self.UB)
+
         if self.catch:
             self.params['DataIntervals'] = self._intv_engine.params.copy()
         
@@ -404,34 +464,41 @@ class IntervalAnalysis:
 
     def results(self) -> dict:
         """
-        Retrieve the estimated interval results and bounds from the analysis.
-
-        This method returns a dictionary containing the main results of the interval analysis,
-        including the estimated tolerance interval, typical data interval, and all relevant bounds.
-        It also includes diagnostic information and any warnings or errors encountered during fitting.
+        Return a dictionary of estimated interval results and bounds.
 
         Returns
         -------
         results : dict
-            Dictionary with keys such as:
-                - 'ZL', 'Z0L', 'Z0', 'Z0U', 'ZU': Interval bounds
-                - 'tolerance_interval': Width of the tolerance interval (Z0U - Z0L)
-                - 'typical_data_interval': Width of the typical data interval (ZU - ZL)
-                - 'ordering_valid': Whether the interval ordering constraint is satisfied
-                - Additional diagnostic and parameter information
-
-        Notes
-        -----
-        - The structure of the returned dictionary matches that of the DataIntervals engine.
-        - If the analysis has not been fitted, this method may raise an AttributeError.
+            A dictionary containing the following keys (values may be None if not available):
+                - 'LB', 'LSB', 'DLB', 'LCB': Lower bounds (various types, if available)
+                - 'ZL': Lower bound of the typical data interval
+                - 'Z0L': Lower bound of the tolerance interval (Z0-based)
+                - 'Z0': Central value (Z0) of the original GDF
+                - 'Z0U': Upper bound of the tolerance interval (Z0-based)
+                - 'ZU': Upper bound of the typical data interval
+                - 'UCB', 'DUB', 'USB', 'UB': Upper bounds (various types, if available)
 
         Example
         -------
-        >>> results = ia.results()
-        >>> print(results['Z0L'], results['Z0U'])
+        >>> intervals = di.results()
+        >>> print(intervals['Z0L'], intervals['Z0U'])
         """
-        data_certification = self._intv_engine.results()
-        return data_certification
+        results = {
+            'LB': float(self.LB) if self.LB is not None else None,
+            'LSB': float(self.LSB) if self.LSB is not None else None,
+            'DLB': float(self.DLB) if self.DLB is not None else None,
+            'LCB': float(self.LCB) if self.LCB is not None else None,
+            'ZL': float(self.ZL) if self.ZL is not None else None,
+            'Z0L': float(self.Z0L) if self.Z0L is not None else None,
+            'Z0': float(self.Z0) if self.Z0 is not None else None,
+            'Z0U': float(self.Z0U) if self.Z0U is not None else None,
+            'ZU': float(self.ZU) if self.ZU is not None else None,
+            'UCB': float(self.UCB) if self.UCB is not None else None,
+            'DUB': float(self.DUB) if self.DUB is not None else None,
+            'USB': float(self.USB) if self.USB is not None else None,
+            'UB': float(self.UB) if self.UB is not None else None
+        }
+        return results
 
     def plot(self, GDF: bool = True, intervals: bool = True):
         """
