@@ -13,27 +13,127 @@ import warnings
 from machinegnostics.magcal import ELDF, EGDF, DataCluster, DataHomogeneity
 
 class ClusterAnalysis:
-    '''
-    Cluster Analysis for bound estimation.
+    """
+    ClusterAnalysis - End-to-End Clustering-Based Bound Estimation for Interval Analysis
+
+    The `ClusterAnalysis` class provides a high-level, automated workflow for estimating the main cluster bounds of a dataset using Gnostic Distribution Functions (GDFs) and advanced clustering analysis. It is designed for robust, interpretable, and reproducible interval estimation in scientific, engineering, and data science applications.
+
+    This class orchestrates the entire process of:
+      1. Fitting a GDF (typically ELDF/EGDF) to the data,
+      2. Assessing data homogeneity,
+      3. Performing cluster boundary detection using the DataCluster algorithm,
+      4. Returning interpretable lower and upper cluster bounds (LCB, UCB) for the main data cluster.
+
+    **Key Features:**
+      - Fully automated pipeline for cluster-based bound estimation
+      - Integrates GDF fitting, homogeneity testing, and cluster analysis
+      - Supports both local (ELDF) and global (EGDF) GDFs
+      - Handles weighted data, bounded/unbounded domains, and advanced parameterization
+      - Detailed error/warning logging and reproducible parameter tracking
+      - Optional memory-efficient operation via flushing intermediate results
+      - Visualization support for both GDF and cluster analysis results
 
     Parameters
     ----------
-    gdf : ELDF
-        An instance of the ELDF class containing the data.
-    verbose : bool, optional
-        If True, prints detailed logs during processing. Default is False.
-    catch : bool, optional
-        If True, stores intermediate results for further analysis. Default is False.
-    cluster_bounds : bool, optional
-        If True, performs clustering to estimate bounds. Default is True.
+    verbose : bool, optional (default=False)
+        If True, prints detailed logs and progress information during processing.
+    catch : bool, optional (default=True)
+        If True, stores intermediate results and diagnostic information for further analysis.
+    derivative_threshold : float, optional (default=0.01)
+        Threshold for derivative-based cluster boundary detection (used by DataCluster).
+    slope_percentile : int, optional (default=70)
+        Percentile threshold for slope-based boundary detection (used by DataCluster).
+    DLB : float, optional
+        Data Lower Bound. If None, inferred from data.
+    DUB : float, optional
+        Data Upper Bound. If None, inferred from data.
+    LB : float, optional
+        Lower probable bound for the distribution.
+    UB : float, optional
+        Upper probable bound for the distribution.
+    S : float or str, optional (default='auto')
+        Scale parameter for the GDF. Use 'auto' for automatic estimation.
+    varS : bool, optional (default=False)
+        If True, allows variable scale parameter during optimization.
+    z0_optimize : bool, optional (default=True)
+        If True, optimizes the location parameter Z0 during fitting.
+    tolerance : float, optional (default=1e-5)
+        Convergence tolerance for optimization.
+    data_form : str, optional (default='a')
+        Data processing form: 'a' for additive, 'm' for multiplicative.
+    n_points : int, optional (default=1000)
+        Number of points for GDF evaluation and PDF generation.
+    homogeneous : bool, optional (default=True)
+        If True, assumes data is homogeneous; triggers warnings if not.
+    weights : np.ndarray, optional
+        Prior weights for data points. If None, uniform weights are used.
+    wedf : bool, optional (default=False)
+        If True, uses Weighted Empirical Distribution Function.
+    opt_method : str, optional (default='L-BFGS-B')
+        Optimization method for parameter estimation.
+    max_data_size : int, optional (default=1000)
+        Maximum data size for smooth GDF generation.
+    flush : bool, optional (default=False)
+        If True, flushes intermediate results after fitting to save memory.
 
     Attributes
     ----------
     LCB : float or None
-        Lower cluster bound estimated from the data.
+        Lower Cluster Bound estimated from the data (main cluster lower edge).
     UCB : float or None
-        Upper cluster bound estimated from the data.
-    '''
+        Upper Cluster Bound estimated from the data (main cluster upper edge).
+    params : dict
+        Dictionary containing all parameters, intermediate results, errors, and warnings.
+    _fitted : bool
+        Indicates whether the analysis has been successfully completed.
+
+    Methods
+    -------
+    fit(data: np.ndarray, plot: bool = False) -> tuple
+        Runs the full cluster analysis pipeline on the input data.
+        Returns (LCB, UCB) as the main cluster bounds.
+    results() -> dict
+        Returns a dictionary with the estimated bounds and key results.
+    plot() -> None
+        Visualizes the fitted GDF and cluster analysis results (if not flushed).
+
+    Workflow
+    --------
+    1. Initialize ClusterAnalysis with desired parameters (no data required).
+    2. Call `fit(data)` to perform the complete analysis and estimate cluster bounds.
+    3. Access results via `results()` or visualize with `plot()`.
+
+    Example
+    -------
+    >>> from machinegnostics.magcal.gdf import ClusterAnalysis
+    >>> data = np.random.normal(0, 1, 1000)
+    >>> ca = ClusterAnalysis(verbose=True)
+    >>> LCB, UCB = ca.fit(data)
+    >>> print(f"Main cluster bounds: LCB={LCB:.3f}, UCB={UCB:.3f}")
+    >>> ca.plot()
+    >>> results = ca.results()
+    >>> print(results)
+
+    Notes
+    -----
+    - The class is designed for robust, interpretable cluster-based bound estimation.
+    - Works best with local GDFs (ELDF); global GDFs (EGDF) are supported but less flexible for clustering.
+    - If `homogeneous=True` but the data is found to be heterogeneous, a warning is issued.
+    - All intermediate parameters, errors, and warnings are tracked in `params` for reproducibility.
+    - For large datasets or memory-constrained environments, set `flush=True` to save memory (but disables plotting).
+
+    Raises
+    ------
+    RuntimeError
+        If results or plot are requested before fitting.
+    Exception
+        If any step in the pipeline fails (errors are logged in `params`).
+
+    References
+    ----------
+    - Gnostic Distribution Function theory and clustering methods (see mathematical gnostics literature).
+    - For details on the underlying algorithms, see the documentation for ELDF, EGDF, and DataCluster classes.
+    """
 
     def __init__(self,
                 verbose: bool = False,
@@ -124,14 +224,47 @@ class ClusterAnalysis:
             print(f'ClusterAnalysis: Error: {error}')
 
     def fit(self, data: np.ndarray, plot: bool = False) -> tuple:
-        '''
-        Fit the Cluster Analysis model to estimate bounds.
+        """
+        Fit the ClusterAnalysis model to the input data and estimate main cluster bounds.
+
+        This method performs a comprehensive, automated clustering-based interval analysis on the provided data.
+        It integrates Gnostic Distribution Function (GDF) fitting, homogeneity assessment, and advanced cluster boundary detection
+        to robustly estimate the lower and upper bounds (LCB, UCB) of the main data cluster.
+
+        The process is designed to be robust, interpretable, and reproducible, handling both homogeneous and heterogeneous data,
+        supporting weighted and bounded datasets, and providing detailed diagnostics and error handling.
+        All intermediate results, warnings, and errors are tracked in the `params` attribute for transparency.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Input data array for interval analysis. Should be 1D and numeric.
+        plot : bool, optional (default=False)
+            If True, generates plots for the fitted GDF and cluster analysis.
 
         Returns
         -------
         tuple
-            A tuple containing the lower and upper cluster bounds (LCB, UCB).
-        '''
+            (LCB, UCB): The estimated lower and upper bounds of the main data cluster.
+            Returns (None, None) if fitting fails.
+
+        Notes
+        -----
+        - If the data is found to be heterogeneous but `homogeneous=True`, a warning is issued.
+        - If `flush=True`, intermediate objects are deleted after fitting to save memory (disables plotting).
+        - All errors and warnings are logged in `params` for reproducibility and debugging.
+
+        Raises
+        ------
+        Exception
+            Any error during the fitting process is caught, logged, and (LCB, UCB) is set to (None, None).
+
+        Example
+        -------
+        >>> ca = ClusterAnalysis(verbose=True)
+        >>> LCB, UCB = ca.fit(data)
+        >>> print(f"Cluster bounds: LCB={LCB}, UCB={UCB}")
+        """
         try:
             kwrgs_egdf = {
                 "DLB": self.DLB,
@@ -258,33 +391,59 @@ class ClusterAnalysis:
             return None, None
 
     def results(self) -> dict:
-        '''
+        """
         Get the results of the Cluster Analysis.
 
         Returns
         -------
         dict
-            A dictionary containing the estimated bounds.
-        '''
+            A dictionary containing the estimated lower and upper cluster bounds:
+            {
+                'LCB': float,
+                'UCB': float
+            }
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been fitted yet.
+
+        Notes
+        -----
+        - Call this method after `fit()` to retrieve the main cluster bounds.
+        - The returned values are floats or None if fitting failed.
+        """
         if not self._fitted:
             raise RuntimeError("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
         return {
             'LCB': float(self.LCB),
             'UCB': float(self.UCB)
         }
-    
+
     def plot(self) -> None:
-        '''
+        """
         Plot the ELDF and DataCluster results.
+
+        This method visualizes the fitted Empirical Local Distribution Function (ELDF)
+        and the detected cluster boundaries from DataCluster. It is only available if
+        the model has been fitted and intermediate data has not been flushed.
 
         Returns
         -------
         None
-        '''
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been fitted yet, or if `flush=True` was set and intermediate data is unavailable.
+
+        Notes
+        -----
+        - Call this method after `fit()` to visualize the results.
+        - If `flush=True` was set during initialization, plotting is disabled to save memory.
+        """
         if not self._fitted:
             raise RuntimeError("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
-        
-        # if flush is True, raise error
         if self.flush:
             raise RuntimeError("ClusterAnalysis: Data has been flushed. Cannot plot. Please set 'flush' to False during initialization to enable plotting.")
 
