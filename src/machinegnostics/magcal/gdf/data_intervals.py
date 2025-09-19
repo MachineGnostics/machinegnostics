@@ -530,6 +530,19 @@ class DataIntervals:
             self.ordering_valid = True
         else:
             self._find_valid_extrema_with_ordering(datums_win, z0s_win)
+
+        # is still invalid? then replace incorrect bounds with z0
+        if not self.ordering_valid:
+            if self.Z0 < self.Z0L:
+                self.Z0L = self.Z0
+            if self.Z0 > self.Z0U:
+                self.Z0U = self.Z0
+            if self.ZL > self.Z0L:
+                self.ZL = self.Z0L
+            if self.ZU < self.Z0U:
+                self.ZU = self.Z0U
+            if self.verbose:
+                print("DataIntervals: Adjusted bounds to enforce ordering constraint.")
         self.tolerance_interval = self.Z0U - self.Z0L
         self.typical_data_interval = self.ZU - self.ZL
 
