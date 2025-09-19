@@ -207,6 +207,8 @@ class DataIntervals:
             self.USB = getattr(gdf, 'USB', None)
             self.LCB = getattr(gdf, 'LCB', None)
             self.UCB = getattr(gdf, 'UCB', None)
+            self.RRE = self.gdf.params.get('RRE', None)
+            self.residual_entropy = self.gdf.params.get('residual_entropy', None)
             self.gdf_name = type(gdf).__name__
             if self.catch:
                 self.params['gdf_type'] = self.gdf_name
@@ -220,6 +222,8 @@ class DataIntervals:
                 self.params['opt_method'] = self.opt_method
                 self.params['is_homogeneous'] = self.is_homogeneous
                 self.params['data_range'] = [float(np.min(self.data)), float(np.max(self.data))]
+                self.params['RRE'] = self.RRE
+                self.params['residual_entropy'] = self.residual_entropy
 
             if self.verbose:
                 print(f"DataIntervals: Initialized with {self.params['gdf_type']} | Data size: {self.params['data_size']} | Z0: {self.Z0:.6f}")
