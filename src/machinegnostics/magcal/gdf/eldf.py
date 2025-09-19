@@ -308,7 +308,7 @@ class ELDF(BaseELDF):
 
     def plot(self, 
              plot_smooth: bool = True, 
-             plot: str = 'eldf', 
+             plot: str = 'both', 
              bounds: bool = True,
              extra_df: bool = True,
              figsize: tuple = (12, 8)):
