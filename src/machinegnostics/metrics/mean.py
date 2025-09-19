@@ -23,6 +23,14 @@ def mean(data: np.ndarray,
     -----------
     data : np.ndarray
         Input data array.
+    S : float, optional
+        Scaling parameter for ELDF. Default is 1.
+    z0_optimize : bool, optional
+        Whether to optimize z0 in ELDF. Default is True.
+    data_form : str, optional
+        Data form for ELDF. Default is 'a'. 'a' for additive, 'm' for multiplicative.
+    tolerance : float, optional
+        Tolerance for ELDF fitting. Default is 1e-6.
 
     Returns:
     --------
