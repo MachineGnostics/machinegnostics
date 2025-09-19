@@ -11,6 +11,7 @@ import numpy as np
 from typing import Optional, Union, Dict
 from scipy.signal import savgol_filter, find_peaks
 from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF, DataCluster
+from machinegnostics.metrics.std import std
 
 class DataIntervals:
     """
@@ -319,12 +320,14 @@ class DataIntervals:
                 msg = ("Interval ordering constraint violated. "
                        "Try setting 'wedf=False', or setting 'gnostic_filter=True', or increasing 'n_points', or adjusting thresholds for sensitivity.")
                 self._add_warning(msg)
-    
+
+            # std interval
+            self.LSD, self.USD= std(self.data, S=self.S_opt, z0_optimize=self.z0_optimize, data_form=self.gdf.data_form, tolerance=self.tolerance)
             # Update parameters and optionally plot
             self._update_params()
             if plot:
                 self.plot()
-                self.plot_intervals()
+                self.plot_intervals()          
     
             # Optionally flush memory
             if self.flush:
@@ -579,11 +582,13 @@ class DataIntervals:
             'LSB': self.LSB,
             'DLB': self.DLB,
             'LCB': self.LCB,
+            'LSD': self.LSD,
             'ZL': self.ZL,
             'Z0L': self.Z0L,
             'Z0': self.Z0,
             'Z0U': self.Z0U,
             'ZU': self.ZU,
+            'USD': self.USD,
             'UCB': self.UCB,
             'DUB': self.DUB,
             'USB': self.USB,
@@ -625,11 +630,13 @@ class DataIntervals:
             'LSB': float(self.LSB) if self.LSB is not None else None,
             'DLB': float(self.DLB) if self.DLB is not None else None,
             'LCB': float(self.LCB) if self.LCB is not None else None,
+            'LSD': float(self.LSD) if self.LSD is not None else None,
             'ZL': float(self.ZL) if self.ZL is not None else None,
             'Z0L': float(self.Z0L) if self.Z0L is not None else None,
             'Z0': float(self.Z0) if self.Z0 is not None else None,
             'Z0U': float(self.Z0U) if self.Z0U is not None else None,
             'ZU': float(self.ZU) if self.ZU is not None else None,
+            'USD': float(self.USD) if self.USD is not None else None,
             'UCB': float(self.UCB) if self.UCB is not None else None,
             'DUB': float(self.DUB) if self.DUB is not None else None,
             'USB': float(self.USB) if self.USB is not None else None,
@@ -749,21 +756,36 @@ class DataIntervals:
         ax1.axvspan(self.Z0L, self.Z0U, alpha=0.20, color='lightgreen', label=f'Tolerance Interval \n[Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
 
         # Critical vertical lines
-        ax1.axvline(x=self.ZL, color='purple', linestyle='--', linewidth=2, alpha=0.8, label=f'ZL={self.ZL:.3f}')
+        ax1.axvline(x=self.ZL, color='orange', linestyle='-.', linewidth=2, alpha=0.8, label=f'ZL={self.ZL:.3f}')
         ax1.axvline(x=self.Z0, color='magenta', linestyle='-.', linewidth=1, alpha=0.9, label=f'Z0={self.Z0:.3f}')
         ax1.axvline(x=self.ZU, color='orange', linestyle='--', linewidth=2, alpha=0.8, label=f'ZU={self.ZU:.3f}')
         ax1.axvline(x=self.Z0L, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
         ax1.axvline(x=self.Z0U, color='grey', linestyle='-', linewidth=1.5, alpha=0.7, zorder=0)
         # Data bounds
         if self.LB is not None:
-            ax1.axvline(x=self.gdf.LB, color='purple', linestyle='--', linewidth=1, alpha=1, label=f'LB={self.gdf.LB:.3f}')
+            ax1.axvline(x=self.gdf.LB, color='purple', linestyle='-.', linewidth=1, alpha=1, label=f'LB={self.gdf.LB:.3f}')
         if self.UB is not None:
-            ax1.axvline(x=self.gdf.UB, color='brown', linestyle='--', linewidth=1, alpha=1, label=f'UB={self.gdf.UB:.3f}')
+            ax1.axvline(x=self.gdf.UB, color='purple', linestyle='--', linewidth=1, alpha=1, label=f'UB={self.gdf.UB:.3f}')
         # DLB and DUB bounds
         if self.DLB is not None:
-            ax1.axvline(x=self.gdf.DLB, color='purple', linestyle='-', linewidth=1.5, alpha=1, label=f'DLB={self.gdf.LB:.3f}')
+            ax1.axvline(x=self.gdf.DLB, color='brown', linestyle='-.', linewidth=1.5, alpha=1, label=f'DLB={self.gdf.LB:.3f}')
         if self.DUB is not None:
-            ax1.axvline(x=self.gdf.DUB, color='brown', linestyle='-', linewidth=1.5, alpha=1, label=f'DUB={self.gdf.DUB:.3f}')
+            ax1.axvline(x=self.gdf.DUB, color='brown', linestyle='--', linewidth=1.5, alpha=1, label=f'DUB={self.gdf.DUB:.3f}')
+        # LSB and USB bounds
+        if self.LSB is not None:
+            ax1.axvline(x=self.gdf.LSB, color='red', linestyle='-.', linewidth=1, alpha=1, label=f'LSB={self.gdf.LSB:.3f}')
+        if self.USB is not None:
+            ax1.axvline(x=self.gdf.USB, color='red', linestyle='--', linewidth=1, alpha=1, label=f'USB={self.gdf.USB:.3f}')
+        # LCB and UCB bounds
+        if self.LCB is not None:
+            ax1.axvline(x=self.gdf.LCB, color='blue', linestyle='-', linewidth=1, alpha=1, label=f'LCB={self.gdf.LCB:.3f}')
+        if self.UCB is not None:
+            ax1.axvline(x=self.gdf.UCB, color='blue', linestyle='--', linewidth=1, alpha=1, label=f'UCB={self.gdf.UCB:.3f}')
+        # LSD and USD bounds
+        if self.LSD is not None:
+            ax1.axvline(x=self.LSD, color='cyan', linestyle='-.', linewidth=1, alpha=1, label=f'LSD={self.LSD:.3f}')
+        if self.USD is not None:
+            ax1.axvline(x=self.USD, color='cyan', linestyle='--', linewidth=1, alpha=1, label=f'USD={self.USD:.3f}')
         # Rug plot for original data
         data_y_pos = -0.05
         ax1.scatter(x_points, [data_y_pos] * len(x_points), alpha=0.6, s=15, color='black', marker='|')
