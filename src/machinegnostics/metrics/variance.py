@@ -46,11 +46,15 @@ def variance(data: np.ndarray,
     >>> import numpy as np
     >>> data = np.array([1, 2, 3, 4, 5])
     >>> mg.variance(data)
-    2.5
+    0.002685330177795109
     """
     # Validate input
     if not isinstance(data, np.ndarray):
         raise TypeError("Input must be a numpy array.")
+    if data.ndim != 1:
+        raise ValueError("Input data must be a one-dimensional array.")
+    if len(data) == 0:
+        raise ValueError("Input data array is empty.")
 
     # Compute eldf
     eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)

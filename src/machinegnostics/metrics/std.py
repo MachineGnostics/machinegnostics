@@ -52,9 +52,10 @@ def std(data: np.ndarray,
     # Validate input
     if not isinstance(data, np.ndarray):
         raise TypeError("Input must be a numpy array.")
-    
     if data.ndim != 1:
-        raise ValueError("Input array must be one-dimensional.")
+        raise ValueError("Input data must be a one-dimensional array.")
+    if len(data) == 0:
+        raise ValueError("Input data array is empty.")
     
     # mean
     m = mean(data, S=S, z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance)

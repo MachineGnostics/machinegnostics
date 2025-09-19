@@ -48,7 +48,11 @@ def mean(data: np.ndarray,
     # Validate input
     if not isinstance(data, np.ndarray):
         raise TypeError("Input must be a numpy array.")
-
+    if data.ndim != 1:
+        raise ValueError("Input data must be a one-dimensional array.")
+    if len(data) == 0:
+        raise ValueError("Input data array is empty.")
+    
     # Compute eldf
     eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)
     eldf.fit(data, plot=False)
