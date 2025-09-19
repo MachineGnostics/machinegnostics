@@ -528,7 +528,7 @@ class IntervalAnalysis:
         -------
         >>> ia.plot(GDF=True, intervals=True)
         """
-        if hasattr(self, '_di'):
+        if hasattr(self, '_intv_engine') and hasattr(self, '_eldf'):
             if GDF:
                 self._eldf.plot()
             if intervals:
