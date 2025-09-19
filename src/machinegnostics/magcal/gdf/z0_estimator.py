@@ -11,7 +11,6 @@ Machine Gnostics
 
 import numpy as np
 from typing import Union, Dict, Any, Optional
-from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 
 class Z0Estimator:
     """
