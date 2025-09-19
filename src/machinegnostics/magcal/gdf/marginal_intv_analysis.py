@@ -334,10 +334,10 @@ class IntervalAnalysis:
         # check homogeneity
         if self.verbose:
             print("IntervalAnalysis: Checking data homogeneity...")
-        is_homogeneous = self._check_egdf_homogeneity(self._egdf)
+        is_homogeneous_1 = self._check_egdf_homogeneity(self._egdf)
 
         # data must be homogeneous
-        if not is_homogeneous:
+        if not is_homogeneous_1:
             kwargs_h = {
             'DLB': self.DLB,
             'DUB': self.DUB,
@@ -362,11 +362,12 @@ class IntervalAnalysis:
             if self.catch:
                 self.params['EGDF_non_homogeneous'] = self._egdf.params.copy()
         # check homogeneity
-        is_homogeneous = self._check_egdf_homogeneity(self._egdf)
+        is_homogeneous_2 = self._check_egdf_homogeneity(self._egdf)
 
         # final check on homogeneity, raise warning, that cannot converted to homogeneous, check data
-        if not is_homogeneous:
+        if not is_homogeneous_2:
             warning_msg = "Data is not homogeneous after re-estimation."
+            warning_msg += "Switching S=1, to improve stability of interval analysis. Advised to remove outliers and re-run."
             self._add_warning(warning_msg)
             if self.catch:
                 self.params['warnings'].append(warning_msg)
@@ -380,12 +381,12 @@ class IntervalAnalysis:
             'DUB': self.DUB,
             'LB': self.LB,
             'UB': self.UB,
-            'S': self.S,
+            'S': self.S if (is_homogeneous_1 and self.S == 'auto') else 1, # for non-homogeneous data, set S=1
             'z0_optimize': self.z0_optimize,
             'tolerance': self.tolerance,
             'data_form': self.data_form,
             'n_points': self.n_points,
-            'homogeneous': True if is_homogeneous else False, # ELDF always assumes homogeneous data
+            'homogeneous': self.homogeneous, # ELDF always assumes homogeneous data
             'catch': self.catch,
             'weights': self.weights,
             'wedf': self.wedf,
@@ -403,7 +404,7 @@ class IntervalAnalysis:
         self._get_cluster_bounds()
 
         # get membership bounds if required
-        if is_homogeneous:
+        if is_homogeneous_2:
             self._get_membership_bounds()
         else:
             self.LSB, self.USB = None, None
