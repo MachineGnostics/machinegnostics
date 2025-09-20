@@ -125,7 +125,13 @@ class BaseELDF(BaseEGDF):
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
-            self._compute_z0(optimize=self.z0_optimize)         
+            self._compute_z0(optimize=self.z0_optimize)
+
+            # step 9: varS
+            if self.varS:
+                self._varS_calculation()
+                self._compute_final_results_varS()
+                self._generate_smooth_curves_varS()         
             
             if self.verbose:
                 print("ELDF fitting completed successfully.")
@@ -197,15 +203,6 @@ class BaseELDF(BaseEGDF):
         self.fi = fi
         self.hi = hi
 
-        # varS
-        if self.varS:
-            fi_m = np.sum(self.fi * self.weights, axis=0) / np.sum(self.weights)
-            scale = ScaleParam()
-            self.S_var = scale._gscale_loc(fi_m) * self.S_opt
-            eldf_values, fi, hi = self._compute_eldf_core(self.S_var, self.LB_opt, self.UB_opt)
-            self.fi = fi
-            self.hi = hi
-
         self.eldf = eldf_values
         self.pdf = self._compute_eldf_pdf(self.fi, self.hi)
         
@@ -214,7 +211,7 @@ class BaseELDF(BaseEGDF):
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
                 'zi': self.zi.copy(),
-                'S_var': self.S_var.copy() if self.varS else None
+                # 'S_var': self.S_var.copy() if self.varS else None
             })
 
     def _compute_eldf_pdf(self, fi, hi):
@@ -229,35 +226,14 @@ class BaseELDF(BaseEGDF):
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis - ELDF."""
         try:
-            # Generate smooth ELDF and PDF
-            if self.varS:
-                if self.verbose:
-                    print("Generating smooth curves with varying S...")
+            if self.verbose and not self.varS:
+                print("Generating smooth curves without varying S...")
 
-                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                    self.S_opt, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-                # svar
-                scale = ScaleParam()
-                S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0)) * self.S_opt
-                # re-evaluate ELDF with smoothed variance
-                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                    S_var_smooth, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-
-                smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi)
-
-            else:
-                if self.verbose:
-                    print("Generating smooth curves without varying S...")
-
-                smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                    self.S_opt, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-                smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
+            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                self.S_opt, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
         
             self.eldf_points = smooth_eldf
             self.pdf_points = smooth_pdf
@@ -275,7 +251,7 @@ class BaseELDF(BaseEGDF):
                     'zi_points': self.zi_n.copy()
                 })
             
-            if self.verbose:
+            if self.verbose and not self.varS:
                 print(f"Generated smooth curves with {self.n_points} points.")
                 
         except Exception as e:
@@ -678,3 +654,82 @@ class BaseELDF(BaseEGDF):
         # Store fidelities and irrelevances
         self.fi = gc._fi(q=q, q1=q1)
         self.hi = gc._hi(q=q, q1=q1)
+
+    def _varS_calculation(self):
+        """Calculate varS if enabled."""
+        if self.verbose:
+            print("Calculating varS for ELDF...")
+        # estimate fi hi at z0
+        gc, q, q1 = self._calculate_gcq_at_given_zi(self.z0)
+
+        fi_z0 = gc._fi(q=q, q1=q1)
+
+        scale = ScaleParam()
+        self.S_var = scale._gscale_loc(fi_z0) * self.S_opt
+        return self.S_var
+
+    def _compute_final_results_varS(self):
+        """Compute the final results for the ELDF model."""
+        # Implement final results computation logic here
+        # zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        # self.zi = zi_d
+
+        eldf_values, fi, hi = self._compute_eldf_core(self.S_var, self.LB_opt, self.UB_opt)
+        self.fi = fi
+        self.hi = hi
+
+        self.eldf = eldf_values
+        self.pdf = self._compute_eldf_pdf(self.fi, self.hi)
+        
+        if self.catch:
+            self.params.update({
+                'eldf': self.eldf.copy(),
+                'pdf': self.pdf.copy(),
+                'zi': self.zi.copy(),
+                'S_var': self.S_var.copy() if self.varS else None
+            })
+
+    def _generate_smooth_curves_varS(self):
+        """Generate smooth curves for plotting and analysis - ELDF."""
+        try:
+            if self.verbose:
+                print("Generating smooth curves with varying S...")
+
+            smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
+                self.S_var, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
+        
+            self.eldf_points = smooth_eldf
+            self.pdf_points = smooth_pdf
+            
+            # Mark as generated
+            self._computation_cache['smooth_curves_generated'] = True
+            
+            if self.catch:
+                self.params.update({
+                    'eldf_points': self.eldf_points.copy(),
+                    'pdf_points': self.pdf_points.copy(),
+                    'zi_points': self.zi_n.copy()
+                })
+            
+            if self.verbose:
+                print(f"Generated smooth curves with {self.n_points} points.")
+        
+        except Exception as e:
+            # log error
+            error_msg = f"Smooth curve generation failed: {e}"
+            self.params['errors'].append({
+                'method': '_generate_smooth_curves_varS',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+
+            if self.verbose:
+                print(f"Warning: Could not generate smooth curves: {e}")
+
+            # Create fallback points using original data
+            self.eldf_points = self.eldf.copy() if hasattr(self, 'eldf') else None
+            self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
+            self._computation_cache['smooth_curves_generated'] = False
