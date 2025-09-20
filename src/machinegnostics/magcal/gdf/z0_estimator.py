@@ -347,13 +347,15 @@ class Z0Estimator:
             print(f"Z0Estimator: Discrete global maximum: PDF={global_max_value:.6f} at x={global_max_location:.6f} (index {global_max_idx})")
         
         if self.optimize:
-            self.z0 = self._find_z0_advanced_pdf_max(global_max_idx, di_points, pdf_points)
-            
-            if self.verbose:
-                method_used = self._get_last_method_used()
-                print(f"Z0Estimator: Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
-        else:
-            self.z0 = global_max_location
+            z0_candidate = self._find_z0_advanced_pdf_max(global_max_idx, di_points, pdf_points)
+            # Check if advanced method is close to discrete maximum
+            if abs(z0_candidate - global_max_location) > 1e-6:
+                if self.verbose:
+                    print(f"Z0Estimator: Advanced method z0 ({z0_candidate}) differs from discrete max ({global_max_location}), using discrete max.")
+                self.z0 = global_max_location
+                self.estimation_info['z0_method'] = 'discrete_pdf_maximum'
+            else:
+                self.z0 = z0_candidate
             
             # Store simple estimation info
             self.estimation_info = {
