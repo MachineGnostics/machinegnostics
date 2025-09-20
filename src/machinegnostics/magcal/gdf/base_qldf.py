@@ -209,7 +209,9 @@ class BaseQLDF(BaseQGDF):
         if self.varS:
             fj_m = np.sum(self.fj * self.weights, axis=0) / np.sum(self.weights)
             scale = ScaleParam()
-            self.S_var = scale._gscale_loc(fj_m) # NOTE fi or fj?
+            self.S_var = np.abs(scale._gscale_loc(fj_m) * self.S_opt) # NOTE fi or fj?
+            # cap value for minimum S_var array
+            self.S_var = np.maximum(self.S_var, 0.1)
             qldf_values, fj, hj = self._compute_qldf_core(self.S_var, self.LB_opt, self.UB_opt)
             self.fj = fj
             self.hj = hj
@@ -262,7 +264,9 @@ class BaseQLDF(BaseQGDF):
                 )
                 # svar
                 scale = ScaleParam()
-                S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fj, axis=0))
+                S_var_smooth = np.abs(scale._gscale_loc(np.mean(self.smooth_fj, axis=0)) * self.S_opt)
+                # cap value for minimum S_var_smooth array
+                S_var_smooth = np.maximum(S_var_smooth, 0.1)
                 # re-evaluate QLDF with smoothed variance
                 smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
                     S_var_smooth, self.LB_opt, self.UB_opt,
