@@ -201,7 +201,7 @@ class BaseELDF(BaseEGDF):
         if self.varS:
             fi_m = np.sum(self.fi * self.weights, axis=0) / np.sum(self.weights)
             scale = ScaleParam()
-            self.S_var = scale._gscale_loc(fi_m)
+            self.S_var = scale._gscale_loc(fi_m) * self.S_opt
             eldf_values, fi, hi = self._compute_eldf_core(self.S_var, self.LB_opt, self.UB_opt)
             self.fi = fi
             self.hi = hi
@@ -240,7 +240,7 @@ class BaseELDF(BaseEGDF):
                 )
                 # svar
                 scale = ScaleParam()
-                S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0))
+                S_var_smooth = scale._gscale_loc(np.mean(self.smooth_fi, axis=0)) * self.S_opt
                 # re-evaluate ELDF with smoothed variance
                 smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
                     S_var_smooth, self.LB_opt, self.UB_opt,
