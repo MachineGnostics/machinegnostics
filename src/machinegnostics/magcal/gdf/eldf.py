@@ -154,6 +154,7 @@ class ELDF(BaseELDF):
             ValueError: If max_data_size is not positive.
 
         Examples:
+
             >>> eldf = ELDF()
             >>> eldf = ELDF(DLB=0, DUB=5)
             >>> eldf = ELDF(data_form='m')
@@ -199,6 +200,7 @@ class ELDF(BaseELDF):
             ConvergenceError: If the algorithm cannot find a suitable solution.
 
         Usage Example:
+
             >>> eldf = ELDF()
             >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
             >>> eldf.fit(data)
@@ -256,6 +258,7 @@ class ELDF(BaseELDF):
             MemoryError: If plotting large datasets exceeds available memory.
 
         Usage Example:
+
             >>> eldf.plot()
             >>> eldf.plot(plot='pdf', bounds=True)
             >>> eldf.plot(plot='both', bounds=True, extra_df=True, figsize=(16, 10))
@@ -279,6 +282,7 @@ class ELDF(BaseELDF):
             MemoryError: If results contain very large arrays that exceed available memory.
 
         Usage Example:
+        
             >>> eldf = ELDF(verbose=True)
             >>> eldf.fit(data)
             >>> results = eldf.results()

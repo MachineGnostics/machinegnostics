@@ -199,6 +199,7 @@ class QLDF(BaseQLDF):
             ConvergenceError: If Z0 identification fails to converge.
 
         Usage Example:
+
             >>> qldf = QLDF()
             >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
             >>> qldf.fit(data)
@@ -256,6 +257,7 @@ class QLDF(BaseQLDF):
             MemoryError: If plotting large datasets exceeds available memory.
 
         Usage Example:
+
             >>> qldf.plot()
             >>> qldf.plot(plot='pdf', bounds=True)
             >>> qldf.plot(plot='both', bounds=True, extra_df=True, figsize=(16, 10))
@@ -279,6 +281,7 @@ class QLDF(BaseQLDF):
             MemoryError: If results contain very large arrays that exceed available memory.
 
         Usage Example:
+        
             >>> qldf = QLDF(verbose=True)
             >>> qldf.fit(data)
             >>> results = qldf.results()

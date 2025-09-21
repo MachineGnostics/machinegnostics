@@ -151,6 +151,7 @@ class QGDF(BaseQGDF):
             ValueError: If max_data_size is not positive.
 
         Examples:
+
             >>> qgdf = QGDF()
             >>> qgdf = QGDF(DLB=0, DUB=5)
             >>> qgdf = QGDF(data_form='m')
@@ -195,6 +196,7 @@ class QGDF(BaseQGDF):
             ConvergenceError: If Z0 identification fails to converge.
 
         Usage Example:
+
             >>> qgdf = QGDF()
             >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
             >>> qgdf.fit(data)
@@ -251,6 +253,7 @@ class QGDF(BaseQGDF):
             MemoryError: If plotting large datasets exceeds available memory.
 
         Usage Example:
+
             >>> qgdf.plot()
             >>> qgdf.plot(plot='pdf', bounds=True)
             >>> qgdf.plot(plot='both', bounds=True, extra_df=True, figsize=(16, 10))
@@ -274,6 +277,7 @@ class QGDF(BaseQGDF):
             MemoryError: If results contain very large arrays that exceed available memory.
 
         Usage Example:
+        
             >>> qgdf = QGDF(verbose=True)
             >>> qgdf.fit(data)
             >>> results = qgdf.results()
