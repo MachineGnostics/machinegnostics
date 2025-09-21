@@ -8,6 +8,8 @@ Machine Gnostics
 
 import numpy as np
 import warnings
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from typing import Dict, Any
 from scipy.optimize import minimize
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
@@ -103,10 +105,15 @@ class BaseEGDF(BaseDistFuncCompute):
 
         # Validate all inputs
         self._validate_inputs()
+
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized with parameters: %s", self.__dict__)
         
 
     def _compute_egdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
         """Core EGDF computation with caching."""
+        self.logger.info("Starting core EGDF computation.")
         # Use provided data or default to instance data
         if zi_data is None:
             zi_data = self.z
@@ -133,6 +140,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _estimate_egdf_from_moments(self, fidelities, irrelevances):
         """Estimate EGDF from fidelities and irrelevances."""
+        self.logger.info("Estimating EGDF from moments.")
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
@@ -172,6 +180,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _calculate_pdf_from_moments(self, fidelities, irrelevances): # PDF
         """Calculate first derivative of EGDF (which is the PDF) from stored fidelities and irrelevances."""
+        self.logger.info("Calculating PDF from moments.")
         if fidelities is None or irrelevances is None:
             raise ValueError("Fidelities and irrelevances must be calculated before first derivative estimation.")
         
@@ -202,6 +211,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _calculate_final_results(self):
         """Calculate final EGDF and PDF with optimized parameters."""
+        self.logger.info("Calculating final EGDF and PDF with optimized parameters.")
         # Convert to infinite domain
         # zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
@@ -217,6 +227,7 @@ class BaseEGDF(BaseDistFuncCompute):
         self.pdf = self._calculate_pdf_from_moments(fi, hi)
         
         if self.catch:
+            self.logger.info("Catching parameters for later use.")
             self.params.update({
                 'egdf': self.egdf.copy(),
                 'pdf': self.pdf.copy(),
@@ -225,6 +236,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis."""
+        self.logger.info("Generating smooth curves for EGDF and PDF.")
         try:
             # Generate smooth EGDF and PDF
             smooth_egdf, self.smooth_fi, self.smooth_hi = self._compute_egdf_core(
@@ -244,25 +256,25 @@ class BaseEGDF(BaseDistFuncCompute):
             self._computation_cache['smooth_curves_generated'] = True
             
             if self.catch:
+                self.logger.info("Catching parameters for later use.")
                 self.params.update({
                     'egdf_points': self.egdf_points.copy(),
                     'pdf_points': self.pdf_points.copy(),
                     'zi_points': self.zi_n.copy()
                 })
-            
-            if self.verbose:
-                print(f"Generated smooth curves with {self.n_points} points.")
-                
+
+            self.logger.info(f"Generated smooth curves with {self.n_points} points.")
+
         except Exception as e:
             # Log the error
             error_msg = f"Could not generate smooth curves: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_generate_smooth_curves',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            if self.verbose:
-                print(f"Warning: Could not generate smooth curves: {e}")
+            self.logger.warning(f"Could not generate smooth curves: {e}")
             # Create fallback points using original data
             self.egdf_points = self.egdf.copy() if hasattr(self, 'egdf') else None
             self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
@@ -271,29 +283,36 @@ class BaseEGDF(BaseDistFuncCompute):
     
     def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """Enhanced plotting with better organization."""
+        self.logger.info("Starting plot generation.")
+        
         import matplotlib.pyplot as plt
 
         if plot_smooth and (len(self.data) > self.max_data_size) and self.verbose:
-            print(f"Warning: Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
+            self.logger.warning(f"Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
 
         if not self.catch:
-            print("Plot is not available with argument catch=False")
+            self.logger.warning("Plot is not available with argument catch=False")
             return
         
         if not self._fitted:
+            self.logger.error("Must fit EGDF before plotting.")
             raise RuntimeError("Must fit EGDF before plotting.")
         
         # Validate plot parameter
         if plot not in ['gdf', 'pdf', 'both']:
+            self.logger.error("Invalid plot parameter. Must be 'gdf', 'pdf', or 'both'.")
             raise ValueError("plot parameter must be 'gdf', 'pdf', or 'both'")
         
         # Check data availability
         if plot in ['gdf', 'both'] and self.params.get('egdf') is None:
+            self.logger.error("EGDF must be calculated before plotting GDF")
             raise ValueError("EGDF must be calculated before plotting GDF")
         if plot in ['pdf', 'both'] and self.params.get('pdf') is None:
+            self.logger.error("PDF must be calculated before plotting PDF")
             raise ValueError("PDF must be calculated before plotting PDF")
         
         # Prepare data
+        self.logger.info("Preparing data for plotting.")    
         x_points = self.data
         egdf_plot = self.params.get('egdf')
         pdf_plot = self.params.get('pdf')
@@ -336,6 +355,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _plot_egdf(self, ax, x_points, egdf_plot, plot_smooth, extra_df, wedf, ksdf):
         """Plot EGDF components."""
+        self.logger.info("Plotting EGDF.")
         if plot_smooth and hasattr(self, 'egdf_points') and self.egdf_points is not None:
             ax.plot(x_points, egdf_plot, 'o', color='blue', label='EGDF', markersize=4)
             ax.plot(self.di_points_n, self.egdf_points, color='blue', 
@@ -358,8 +378,8 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _plot_pdf(self, ax, x_points, pdf_plot, plot_smooth, is_secondary=False):
         """Plot PDF components."""
+        self.logger.info("Plotting PDF.")
         color = 'red'
-
         if plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None:
             ax.plot(x_points, pdf_plot, 'o', color=color, label='PDF', markersize=4)
             ax.plot(self.di_points_n, self.pdf_points, color=color, 
@@ -424,7 +444,9 @@ class BaseEGDF(BaseDistFuncCompute):
     # =============================================================================
     def _get_egdf_second_derivative(self):
         """Calculate second derivative of EGDF from stored fidelities and irrelevances."""
+        self.logger.info("Calculating second derivative of EGDF.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before second derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
@@ -452,11 +474,14 @@ class BaseEGDF(BaseDistFuncCompute):
         d2 = -1 / (d**(1.5)) * (2 * (term1 - term2) + term3)
         second_derivative = d2 / (self.S_opt**2)
         # second_derivative = second_derivative / self.zi**2 
+        self.logger.info("Second derivative calculation completed.")
         return second_derivative.flatten()
 
     def _get_egdf_third_derivative(self):
         """Calculate third derivative of EGDF from stored fidelities and irrelevances."""
+        self.logger.info("Calculating third derivative of EGDF.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before third derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
@@ -524,11 +549,14 @@ class BaseEGDF(BaseDistFuncCompute):
         d3p = -2 * term1 - term2
         third_derivative = 2 * d3p / (self.S_opt**3)
         # third_derivative = third_derivative / (self.zi**3)
+        self.logger.info("Third derivative calculation completed.")
         return third_derivative.flatten()
 
     def _get_egdf_fourth_derivative(self):
         """Calculate fourth derivative of EGDF using numerical differentiation."""
+        self.logger.info("Calculating fourth derivative of EGDF using numerical differentiation.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
         
         # For fourth derivative, use numerical differentiation as it's complex
@@ -557,11 +585,15 @@ class BaseEGDF(BaseDistFuncCompute):
         
         # Numerical derivative
         fourth_derivative = (third_plus - third_minus) / (2 * dz) * self.zi
-        
+
+        self.logger.info("Fourth derivative calculation completed.")
         return fourth_derivative.flatten()
 
     def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
         """Helper method to recalculate fidelities and irrelevances for current zi."""
+        self.logger.info("Recalculating fidelities and irrelevances for given zi.")
+        if self.LB_opt is None or self.UB_opt is None or self.S_opt is None:
+            self.logger.error("Optimized parameters LB_opt, UB_opt, and S_opt must be set before recalculating fidelities and irrelevances.")
         # Convert to infinite domain
         zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         # is zi given then use it, else use self.zi
@@ -584,6 +616,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _get_results(self)-> dict:
         """Return fitting results."""
+        self.logger.info("Retrieving fitting results.")
         if not self._fitted:
             raise RuntimeError("Must fit EGDF before getting results.")
         
@@ -599,61 +632,67 @@ class BaseEGDF(BaseDistFuncCompute):
     
     def _fit_egdf(self, plot:bool = True):
         """Main fitting process with improved organization."""
+        self.logger.info("Starting EGDF fitting process.")
         try:
-            if self.verbose:
-                print("Starting EGDF fitting process...")
-            
             # Step 1: Data preprocessing
+            self.logger.info("Starting data preprocessing.")
             self.data = np.sort(self.data)
             self._estimate_data_bounds()
             self._transform_data_to_standard_domain()
             self._estimate_weights()
             
             # Step 2: Bounds estimation
+            self.logger.info("Starting bounds estimation.")
             self._estimate_initial_probable_bounds()
             self._generate_evaluation_points()
             
             # Step 3: Get distribution function values for optimization
+            self.logger.info("Getting distribution function values for optimization.")
             self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
             
             # Step 4: Parameter optimization
+            self.logger.info("Starting parameter optimization.")
             self._determine_optimization_strategy()
             
             # Step 5: Calculate final EGDF and PDF
+            self.logger.info("Calculating final EGDF and PDF.")
             self._calculate_final_results()
             
             # Step 6: Generate smooth curves for plotting and analysis
+            self.logger.info("Generating smooth curves for plotting and analysis.")
             self._generate_smooth_curves()
             
             # Step 7: Transform bounds back to original domain
+            self.logger.info("Transforming bounds back to original domain.")
             self._transform_bounds_to_original_domain()
             
             # Mark as fitted (Step 8 is now optional via marginal_analysis())
             self._fitted = True
 
             # Compute Z0 point
+            self.logger.info("Computing Z0 point.")
             self._compute_z0()
 
-            if self.verbose:
-                print("EGDF fitting completed successfully.")
+            self.logger.info("EGDF fitting completed successfully.")
 
             if plot:
+                self.logger.info("Plotting results.")
                 self._plot()
 
             # clean up computation cache
-            if self.flush:  
+            if self.flush:
+                self.logger.info("Cleaning up computation cache.")
                 self._cleanup_computation_cache()
                 
         except Exception as e:
             error_msg = f"EGDF fitting failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_fit_egdf',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            
-            if self.verbose:
-                print(f"Error during EGDF fitting: {e}")
+            self.logger.info(f"Error during EGDF fitting: {e}")
             raise e
         
     # z0 compute
@@ -668,14 +707,15 @@ class BaseEGDF(BaseDistFuncCompute):
             If False, use simple linear search on existing points.
             If None, uses the instance's z0_optimize setting.
         """
+        self.logger.info("Starting Z0 computation.")
         if self.z is None:
+            self.logger.error("Data must be transformed (self.z) before Z0 estimation.")
             raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
         
         # Use provided optimize parameter or fall back to instance setting
         use_optimize = optimize if optimize is not None else self.z0_optimize
-        
-        if self.verbose:
-            print('EGDF: Computing Z0 point using Z0Estimator...')
+
+        self.logger.info("EGDF: Computing Z0 point using Z0Estimator...")
 
         try:
             # Create Z0Estimator instance with proper constructor signature
@@ -697,27 +737,28 @@ class BaseEGDF(BaseDistFuncCompute):
                     'z0_estimation_info': estimation_info
                 })
             
-            if self.verbose:
-                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
-                print(f'EGDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+            method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
+            self.logger.info(f'EGDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
 
         except Exception as e:
             # Log the error
             error_msg = f"Z0 estimation failed: {str(e)}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_compute_z0',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
 
-            if self.verbose:
-                print(f"Warning: Z0Estimator failed with error: {e}")
-                print("Falling back to simple maximum finding...")
-            
+            self.logger.warning(f"Warning: Z0Estimator failed with error: {e}")
+            self.logger.info("Falling back to simple maximum finding...")
+
             # Fallback to simple maximum finding
+            self.logger.info("Using fallback method for Z0 computation.")
             self._compute_z0_fallback()
             
             if self.catch:
+                self.logger.info("Catching fallback Z0 parameters for later use.")
                 self.params.update({
                     'z0': float(self.z0),
                     'z0_method': 'fallback_simple_maximum',
@@ -728,18 +769,19 @@ class BaseEGDF(BaseDistFuncCompute):
         """
         Fallback method for Z0 computation using simple maximum finding.
         """
+        self.logger.info("Starting fallback Z0 computation.")
+
         if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
+            self.logger.error("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
             raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
         
-        if self.verbose:
-            print('Using fallback method for Z0 point...')
+        self.logger.info('Using fallback method for Z0 point...')
         
         # Find index with maximum PDF
         max_idx = np.argmax(self.pdf_points)
         self.z0 = self.di_points_n[max_idx]
 
-        if self.verbose:
-            print(f"Z0 point (fallback method): {self.z0:.6f}")
+        self.logger.info(f"Z0 point (fallback method): {self.z0:.6f}")
 
     def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
         """
@@ -755,7 +797,9 @@ class BaseEGDF(BaseDistFuncCompute):
         Dict[str, Any]
             Z0 analysis information
         """
+        self.logger.info("Starting Z0 analysis.")
         if not hasattr(self, 'z0') or self.z0 is None:
+            self.logger.error("Z0 must be computed before analysis. Call fit() first.")
             raise ValueError("Z0 must be computed before analysis. Call fit() first.")
         
         # Create Z0Estimator for analysis
@@ -774,5 +818,6 @@ class BaseEGDF(BaseDistFuncCompute):
         # Create visualization
         z0_estimator.plot_z0_analysis(figsize=figsize)
         
+        self.logger.info("Z0 analysis completed.")
         return analysis_info
     
