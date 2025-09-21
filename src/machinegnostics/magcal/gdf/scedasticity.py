@@ -171,9 +171,6 @@ class DataScedasticity:
         self.model.fit(x, y)
         self.residuals = y - self.model.predict(x)
 
-        # split residuals into two halves
-        left_half, right_half = self._split_residuals()
-
         # calculate variance ratio
         self.variance_ratio = self._variance_ratio()
 
