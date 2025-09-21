@@ -113,7 +113,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _compute_egdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
         """Core EGDF computation with caching."""
-        self.logger.info("Starting core EGDF computation.")
+        # self.logger.info("Starting core EGDF computation.")
         # Use provided data or default to instance data
         if zi_data is None:
             zi_data = self.z
@@ -140,7 +140,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _estimate_egdf_from_moments(self, fidelities, irrelevances):
         """Estimate EGDF from fidelities and irrelevances."""
-        self.logger.info("Estimating EGDF from moments.")
+        # self.logger.info("Estimating EGDF from moments.")
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
