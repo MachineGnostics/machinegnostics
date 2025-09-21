@@ -9,6 +9,8 @@ import numpy as np
 import warnings
 from typing import Dict, Any, Tuple
 from scipy.optimize import minimize
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.gdf.base_df import BaseDistFunc
 from machinegnostics.magcal.data_conversion import DataConversion
@@ -100,6 +102,9 @@ class BaseDistFuncCompute(BaseDistFunc):
             'smooth_curves_generated': False
         }
         
+        # log
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized with parameters: %s", self.__dict__)
     # =============================================================================
     # VALIDATION AND INITIALIZATION
     # =============================================================================
@@ -107,9 +112,11 @@ class BaseDistFuncCompute(BaseDistFunc):
     def _validate_inputs(self):
         """Comprehensive input validation with error and warning logging."""
         try:
+            self.logger.info("Validating inputs.")
             # Data validation
             if not isinstance(self.data, np.ndarray):
                 error_msg = "Data must be a numpy array."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -120,6 +127,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
             if self.data.size == 0:
                 error_msg = "Data array cannot be empty."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -131,6 +139,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             if not np.isfinite(self.data).all():
                 non_finite_count = np.sum(~np.isfinite(self.data))
                 error_msg = f"Data must contain only finite values. Found {non_finite_count} non-finite values."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -143,6 +152,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # Data dimensional validation
             if self.data.ndim != 1:
                 error_msg = f"Data must be a 1-dimensional array. Got {self.data.ndim}-dimensional array."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -155,6 +165,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             for bound, name in [(self.DLB, 'DLB'), (self.DUB, 'DUB'), (self.LB, 'LB'), (self.UB, 'UB')]:
                 if bound is not None and (not isinstance(bound, (int, float)) or not np.isfinite(bound)):
                     error_msg = f"{name} must be a finite numeric value or None."
+                    self.logger.error(error_msg)
                     self.params['errors'].append({
                         'method': '_validate_inputs',
                         'error': error_msg,
@@ -168,6 +179,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # Bounds logical validation
             if self.DLB is not None and self.DUB is not None and self.DLB >= self.DUB:
                 error_msg = f"DLB ({self.DLB}) must be less than DUB ({self.DUB}) when both are provided."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -179,6 +191,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
             if self.LB is not None and self.UB is not None and self.LB >= self.UB:
                 error_msg = f"LB ({self.LB}) must be less than UB ({self.UB}) when both are provided."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -191,6 +204,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # S parameter validation
             if not isinstance(self.S, (int, float, str)):
                 error_msg = "S must be a numeric positive value or 'auto'."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -202,6 +216,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
             if isinstance(self.S, (int, float)) and self.S <= 0:
                 error_msg = f"S must be positive when specified as a number. Got {self.S}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -213,6 +228,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # S string validation when it's a string
             if isinstance(self.S, str) and self.S.lower() != 'auto':
                 error_msg = f"When S is a string, it must be 'auto'. Got '{self.S}'."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -224,6 +240,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # varS parameter validation
             if not isinstance(self.varS, bool):
                 error_msg = "varS must be a boolean value. VarS can be only true for 'ELDF' and 'QLDF'."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -236,6 +253,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # varS can be only true with S = 'auto'
             if self.varS and self.S != 'auto':
                 error_msg = f"varS can only be true when S is set to 'auto'. Got S='{self.S}', varS={self.varS}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -248,6 +266,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # Tolerance validation
             if not isinstance(self.tolerance, (int, float)) or self.tolerance <= 0:
                 error_msg = f"Tolerance must be a positive numeric value. Got {self.tolerance}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -260,29 +279,41 @@ class BaseDistFuncCompute(BaseDistFunc):
             # Tolerance range validation with warnings
             if self.tolerance > 1.0:
                 warning_msg = f"tolerance ({self.tolerance}) is unusually large."
+                self.logger.warning(warning_msg)
                 self.params['warnings'].append({
                     'method': '_validate_inputs',
                     'message': warning_msg,
                     'severity': 'medium',
                     'tolerance_value': float(self.tolerance)
                 })
-                if self.verbose:
-                    print(f"Warning: {warning_msg}")
-                    
+                self.logger.info(f"Warning: {warning_msg}")
+
             if self.tolerance < 1e-10:
                 warning_msg = f"tolerance ({self.tolerance}) is very small and may cause numerical issues."
+                self.logger.warning(warning_msg)
                 self.params['warnings'].append({
                     'method': '_validate_inputs',
                     'message': warning_msg,
                     'severity': 'high',
                     'tolerance_value': float(self.tolerance)
                 })
-                if self.verbose:
-                    print(f"Warning: {warning_msg}")
-            
+                self.logger.info(f"Warning: {warning_msg}")
+
+            if self.tolerance < 1e-10:
+                warning_msg = f"tolerance ({self.tolerance}) is very small and may cause numerical issues."
+                self.logger.warning(warning_msg)
+                self.params['warnings'].append({
+                    'method': '_validate_inputs',
+                    'message': warning_msg,
+                    'severity': 'high',
+                    'tolerance_value': float(self.tolerance)
+                })
+                self.logger.info(f"Warning: {warning_msg}")
+
             # data_form validation
             if self.data_form not in ['a', 'm']:
                 error_msg = f"data_form must be 'a' for additive or 'm' for multiplicative. Got '{self.data_form}'."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -294,6 +325,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # n_points validation
             if not isinstance(self.n_points, int) or self.n_points <= 0:
                 error_msg = f"n_points must be a positive integer. Got {self.n_points}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -306,19 +338,20 @@ class BaseDistFuncCompute(BaseDistFunc):
             # n_points reasonable range validation with warning
             if self.n_points > 10000:
                 warning_msg = f"n_points ({self.n_points}) is very large and may impact performance."
+                self.logger.warning(warning_msg)
                 self.params['warnings'].append({
                     'method': '_validate_inputs',
                     'message': warning_msg,
                     'severity': 'medium',
                     'n_points_value': self.n_points
                 })
-                if self.verbose:
-                    print(f"Warning: {warning_msg}")
+                self.logger.warning(f"Warning: {warning_msg}")
             
             # Weights validation
             if self.weights is not None:
                 if not isinstance(self.weights, np.ndarray):
                     error_msg = "weights must be a numpy array."
+                    self.logger.error(error_msg)
                     self.params['errors'].append({
                         'method': '_validate_inputs',
                         'error': error_msg,
@@ -329,6 +362,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                     
                 if len(self.weights) != len(self.data):
                     error_msg = f"Weights must have the same length as data. Got weights length {len(self.weights)}, data length {len(self.data)}."
+                    self.logger.error(error_msg)
                     self.params['errors'].append({
                         'method': '_validate_inputs',
                         'error': error_msg,
@@ -341,6 +375,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 if not np.all(self.weights >= 0):
                     negative_count = np.sum(self.weights < 0)
                     error_msg = f"All weights must be non-negative. Found {negative_count} negative weights."
+                    self.logger.error(error_msg)
                     self.params['errors'].append({
                         'method': '_validate_inputs',
                         'error': error_msg,
@@ -353,6 +388,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 if not np.isfinite(self.weights).all():
                     non_finite_weights = np.sum(~np.isfinite(self.weights))
                     error_msg = f"All weights must be finite values. Found {non_finite_weights} non-finite weights."
+                    self.logger.error(error_msg)
                     self.params['errors'].append({
                         'method': '_validate_inputs',
                         'error': error_msg,
@@ -364,6 +400,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # z0_optimize validation
             if not isinstance(self.z0_optimize, bool):
                 error_msg = f"z0_optimize must be a boolean value. Got {type(self.z0_optimize).__name__}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -377,6 +414,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             valid_methods = ['L-BFGS-B', 'SLSQP', 'TNC', 'trust-constr', 'Powell', 'COBYLA']
             if not isinstance(self.opt_method, str):
                 error_msg = f"opt_method must be a string. Got {type(self.opt_method).__name__}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -388,6 +426,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 
             if self.opt_method not in valid_methods:
                 error_msg = f"opt_method must be one of {valid_methods}. Got '{self.opt_method}'."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -400,6 +439,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # max_data_size validation
             if not isinstance(self.max_data_size, int) or self.max_data_size <= 0:
                 error_msg = f"max_data_size must be a positive integer. Got {self.max_data_size}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -412,6 +452,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # flush parameter validation
             if not isinstance(self.flush, bool):
                 error_msg = f"flush must be a boolean value. Got {type(self.flush).__name__}."
+                self.logger.error(error_msg)
                 self.params['errors'].append({
                     'method': '_validate_inputs',
                     'error': error_msg,
@@ -424,6 +465,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             # if length of data exceeds max_data_size, set flush to True with warning
             if len(self.data) > self.max_data_size and not self.flush:
                 warning_msg = f"Data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, setting 'flush=True'."
+                self.logger.warning(warning_msg)
                 self.params['warnings'].append({
                     'method': '_validate_inputs',
                     'message': warning_msg,
@@ -433,9 +475,8 @@ class BaseDistFuncCompute(BaseDistFunc):
                     'action_taken': 'flush_set_to_true'
                 })
                 self.flush = True
-                if self.verbose:
-                    print(f"Warning: {warning_msg}")
-            
+                self.logger.info(warning_msg)
+
             # Boolean parameters validation
             boolean_params = [
                 (self.homogeneous, 'homogeneous'),
@@ -459,11 +500,13 @@ class BaseDistFuncCompute(BaseDistFunc):
         
         except Exception as e:
             if self.verbose:
-                print(f"Input validation failed: {str(e)}")
+                self.logger.error(f"Input validation failed: {str(e)}")
             raise
         
     def _store_initial_params(self):
         """Store initial parameters for reference."""
+        self.logger.info("Storing initial parameters.")
+
         self.params.update({
             'data': np.sort(self.data).copy(),
             'DLB': self.DLB,
@@ -494,12 +537,14 @@ class BaseDistFuncCompute(BaseDistFunc):
     
     def _get_data_converter(self):
         """Get or create cached data converter."""
+        self.logger.info("Retrieving data converter.")
         if self._computation_cache['data_converter'] is None:
             self._computation_cache['data_converter'] = DataConversion()
         return self._computation_cache['data_converter']
 
     def _estimate_data_bounds(self):
         """Estimate data bounds (DLB and DUB) if not provided."""
+        self.logger.info("Estimating data bounds.")
         if self.DLB is None:
             self.DLB = np.min(self.data)
         if self.DUB is None:
@@ -514,6 +559,7 @@ class BaseDistFuncCompute(BaseDistFunc):
 
     def _estimate_weights(self):
         """Process and normalize weights."""
+        self.logger.info("Estimating and normalizing weights.")
         if self.weights is None:
             self.weights = np.ones_like(self.data, dtype=float)
         else:
@@ -528,6 +574,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         
         # Apply gnostic weights for non-homogeneous data
         if not self.homogeneous:
+            self.logger.info("Applying gnostic weights for non-homogeneous data.")
             gw = GnosticsWeights()
             self.gweights = gw._get_gnostic_weights(self.z)
             self.weights = self.gweights * self.weights
@@ -540,6 +587,7 @@ class BaseDistFuncCompute(BaseDistFunc):
 
     def _transform_data_to_standard_domain(self):
         """Transform data to standard z-domain."""
+        self.logger.info("Transforming data to standard z-domain.")
         dc = self._get_data_converter()
         
         if self.data_form == 'a':
@@ -552,6 +600,7 @@ class BaseDistFuncCompute(BaseDistFunc):
 
     def _generate_evaluation_points(self):
         """Generate points for smooth evaluation."""
+        self.logger.info("Generating evaluation points.")
         self.di_points_n = np.linspace(self.DLB, self.DUB, self.n_points)
 
         dc = self._get_data_converter()
@@ -573,6 +622,7 @@ class BaseDistFuncCompute(BaseDistFunc):
     def _estimate_initial_probable_bounds(self):
         """Estimate initial probable bounds (LB and UB)."""
         dc = self._get_data_converter()
+        self.logger.info("Estimating initial probable bounds (LB and UB).")
         
         # Estimate LB if not provided
         if self.LB is None:
@@ -613,7 +663,9 @@ class BaseDistFuncCompute(BaseDistFunc):
     
     def _get_distribution_function_values(self, use_wedf=True):
         """Get WEDF or KS points for optimization."""
+        self.logger.info("Computing distribution function values.")
         if use_wedf:
+            self.logger.info("Using WEDF for distribution function computation.")
             wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB, verbose=self.verbose)
             # if smooth:
             #     df_values = wedf_.fit(self.di_points_n)
@@ -623,22 +675,22 @@ class BaseDistFuncCompute(BaseDistFunc):
             if self.catch:
                 self.params['wedf'] = df_values.copy()
             
-            if self.verbose:
-                print("WEDF values computed.")
+            self.logger.info("WEDF values computed.")
             return df_values
         else:
+            self.logger.info("Using KS points for distribution function computation.")
             # n_points = self.n_points if smooth else len(self.data)
             df_values = self._generate_ks_points(len(self.data))
             
             if self.catch:
                 self.params['ksdf'] = df_values.copy()
             
-            if self.verbose:
-                print("KS points computed.")
+            self.logger.info("KS points computed.")
             return df_values
 
     def _generate_ks_points(self, N):
         """Generate Kolmogorov-Smirnov points."""
+        self.logger.info("Generating Kolmogorov-Smirnov points.")
         if N <= 0:
             raise ValueError("N must be a positive integer.")
         
@@ -652,9 +704,9 @@ class BaseDistFuncCompute(BaseDistFunc):
 
     def _determine_optimization_strategy(self, egdf: bool = True):
         """Determine optimization strategy for S, LB, and UB."""
+        self.logger.info("Determining optimization strategy for S, LB, and UB.")
         try:
-            if self.verbose:
-                print("Initializing optimization Engine...")
+            self.logger.info("Initializing optimization Engine...")
                 
             # For EGDF and QGDF optimization
             engine = DistFuncEngine(
@@ -681,14 +733,15 @@ class BaseDistFuncCompute(BaseDistFunc):
 
         except Exception as e:
             error_msg = f"Optimization strategy determination failed: {str(e)}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_determine_optimization_strategy',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            if self.verbose:
-                print(f"Error: {error_msg}")
+            self.logger.error(error_msg)
             # Fallback to initial values
+            self.logger.info("Falling back to initial values for S, LB, and UB.")
             self.S_opt = self.S if isinstance(self.S, (int, float)) else 1.0
             self.LB_opt = self.LB_init
             self.UB_opt = self.UB_init
@@ -697,6 +750,8 @@ class BaseDistFuncCompute(BaseDistFunc):
     def _transform_bounds_to_original_domain(self):
         """Transform optimized bounds back to original domain."""
         dc = self._get_data_converter()
+
+        self.logger.info("Transforming optimized bounds back to original domain.")
         
         if self.data_form == 'a':
             self.LB = dc._convert_za(self.LB_opt, self.DLB, self.DUB)
@@ -710,6 +765,8 @@ class BaseDistFuncCompute(BaseDistFunc):
     
     def _cleanup_computation_cache(self):
         """Clean up temporary computation cache to free memory."""
+
+        self.logger.info("Cleaning up computation cache.")
         self._computation_cache = {
             'data_converter': None,
             'characteristics_computer': None,
@@ -732,12 +789,13 @@ class BaseDistFuncCompute(BaseDistFunc):
         if self.catch:
             self.params['computation_cache_cleared'] = True
 
-        if self.verbose:
-            print("Computation cache cleaned up.")
+        self.logger.info("Computation cache cleaned up.")
 
 
     def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
         """Helper method to recalculate fidelities and irrelevances for current zi."""
+        self.logger.info("Calculating fidelities and irrelevances at given zi.")
+
         # Convert to infinite domain
         zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         # is zi given then use it, else use self.zi
@@ -765,6 +823,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         
         returns: gc, q, q1
         """
+        self.logger.info("Calculating GnosticsCharacteristics, q, and q1 at given zi.")
         # conver to z domain with DLB and DUB
         zi = DataConversion._convert_az(data, self.DLB, self.DUB) if self.data_form == 'a' else DataConversion._convert_mz(data, self.DLB, self.DUB)
         # Convert to infinite domain
