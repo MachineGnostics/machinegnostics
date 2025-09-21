@@ -10,21 +10,13 @@ from machinegnostics.magcal.gdf.base_qgdf import BaseQGDF
 
 class QGDF(BaseQGDF):
     """
-    QGDF - Quantifying Global Distribution Function.
+    Short Description: Quantifying Global Distribution Function.
 
-    A comprehensive class for quantifying and analyzing global distribution functions for given data.
-    This class provides methods to fit global distribution functions and visualize results with optional bounds and weighting capabilities.
-
-    The QGDF class supports both additive and multiplicative data forms and can handle bounded and
-    unbounded data distributions. It provides automatic parameter estimation and flexible 
-    visualization options for global distribution analysis.
-
-    The Quantifying Global Distribution Function (QGDF) is a gnostic-probabilistic model that quantifies the underlying global distribution of data points while accounting for various constraints and bounds. 
-    It uses gnostic optimization techniques to find the best-fitting parameters and can handle weighted data for improved accuracy in specific applications.
+    Detailed Description: The QGDF class quantifies and analyzes global distribution functions for given data. It supports both additive and multiplicative data forms, handles bounded and unbounded distributions, and provides automatic parameter estimation and visualization options. This class is designed for robust optimization and memory-efficient processing of large datasets.
 
     Key Features:
         - Automatic parameter estimation with customizable bounds
-        - Global Z0 point (PDF minimum) identification
+        - Global Z0 point identification
         - Support for weighted data points
         - Multiple data processing forms (additive/multiplicative)
         - Comprehensive visualization capabilities
@@ -38,9 +30,7 @@ class QGDF(BaseQGDF):
         UB (float): Upper Probable Bound - practical upper limit for the distribution.
         S (float or str): Scale parameter for the distribution. Set to 'auto' for automatic estimation.
         z0_optimize (bool): Whether to optimize the location parameter z0 during fitting (default: True).
-        data_form (str): Form of the data processing:
-            - 'a': Additive form (default) - treats data linearly
-            - 'm': Multiplicative form - applies logarithmic transformation
+        data_form (str): Form of the data processing ('a' for additive, 'm' for multiplicative).
         n_points (int): Number of points to generate in the distribution function (default: 500).
         catch (bool): Whether to store intermediate calculated values (default: True).
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
@@ -55,18 +45,50 @@ class QGDF(BaseQGDF):
 
     Methods:
         fit(data): Fit the Quantifying Global Distribution Function to the data.
-        plot(plot_smooth=True, plot='both', bounds=True, extra_df=True, figsize=(12,8)): 
-            Visualize the fitted distribution.
+        plot(plot_smooth=True, plot='both', bounds=True, extra_df=True, figsize=(12,8)): Visualize the fitted distribution.
         results(): Get the fitting results as a dictionary.
 
-    Examples:
+    Usage Example:
         >>> import numpy as np
         >>> from machinegnostics.magcal import QGDF
-        >>> data = np.array([ -13.5, 0, 1. ,   2. ,   3. ,   4. ,   5. ,   6. ,   7. ,   8. , 9. ,  10.,])
+        >>> data = np.array([ -13.5, 0, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.])
         >>> qgdf = QGDF()
         >>> qgdf.fit(data)
         >>> qgdf.plot()
         >>> print(qgdf.params)
+
+    Workflow:
+        1. Initialize QGDF with desired parameters (no data required).
+        2. Call fit(data) to estimate the distribution parameters.
+        3. Use plot() to visualize the results.
+
+    Performance Tips:
+        - Use data_form='m' for multiplicative/log-normal data.
+        - Set appropriate bounds to improve convergence.
+        - Use catch=False for large datasets to save memory.
+        - Adjust n_points based on visualization needs vs. performance.
+        - Use verbose=True to monitor optimization progress.
+
+    Common Use Cases:
+        - Risk analysis and reliability engineering.
+        - Quality control and process optimization.
+        - Financial modeling and market analysis.
+        - Environmental data analysis.
+        - Biostatistics and epidemiological studies.
+
+    Notes:
+        - Bounds (DLB, DUB, LB, UB) are optional but can improve estimation accuracy.
+        - When S='auto', the scale parameter is automatically estimated from the data.
+        - The weights array must have the same length as the data array.
+        - Setting catch=False can save memory for large datasets but prevents access to intermediate results or detailed plots.
+
+    Raises:
+        ValueError: If data array is empty or contains invalid values.
+        ValueError: If weights array length doesn't match data array length.
+        ValueError: If bounds are specified incorrectly (e.g., LB > UB).
+        ValueError: If invalid parameters are provided (negative tolerance, invalid data_form, etc.).
+        RuntimeError: If the fitting process fails to converge.
+        OptimizationError: If the optimization algorithm encounters numerical issues.
     """
 
     def __init__(self,
@@ -153,45 +175,31 @@ class QGDF(BaseQGDF):
 
     def fit(self, data: np.ndarray, plot: bool = False):
         """
-        Fit the Quantifying Global Distribution Function to the provided data.
+        Short Description: Fit the Quantifying Global Distribution Function to the provided data.
 
-        This method performs the core estimation process for the QGDF. 
-        The fitting process involves finding the optimal parameters that best describe the underlying 
-        global distribution of the data while respecting any specified bounds and constraints.
-
-        The fitting process:
-            1. Validates and preprocesses the data according to the specified data_form
-            2. Sets up optimization constraints based on bounds
-            3. Transforms data to standard domain for optimization
-            4. Runs numerical optimization to find best-fit parameters
-            5. Calculates final QGDF and PDF with optimized parameters
-            6. Identifies global Z0 point (PDF minimum) if enabled
-            7. Validates and stores the results
+        Detailed Description: This method performs the core estimation process for the QGDF. It validates and preprocesses the data, sets up optimization constraints, runs numerical optimization, and calculates the final QGDF and PDF with optimized parameters. The QGDF provides a unique global representation of the data distribution.
 
         Parameters:
             data (np.ndarray): Input data array for distribution estimation. Must be a 1D numpy array.
-            plot (bool, optional): Whether to automatically plot the fitted distribution after fitting.
+            plot (bool, optional): Whether to automatically plot the fitted distribution after fitting. Default is False.
 
         Returns:
-            None. Fitted parameters are stored in self.params.
+            None: The fitted parameters are stored in the `params` attribute.
 
         Raises:
             RuntimeError: If the optimization process fails to converge.
             ValueError: If the data array is empty, contains only NaN values, or has invalid dimensions.
-            ValueError: If weights array is provided but has different length than data array.
+            ValueError: If weights array is provided but has a different length than the data array.
             OptimizationError: If the underlying optimization algorithm encounters numerical issues.
             ConvergenceError: If Z0 identification fails to converge.
 
-        Examples:
+        Usage Example:
             >>> qgdf = QGDF()
             >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
             >>> qgdf.fit(data)
             >>> print("Fitting completed")
             >>> print(f"Fitted parameters: {qgdf.params}")
             >>> qgdf.fit(data, plot=True)
-            >>> results = qgdf.results()
-            >>> print(f"Optimal scale: {results['S_opt']}")
-            >>> print(f"Bounds: LB={results['LB']}, UB={results['UB']}")
         """
         super().__init__(
             data=data,
@@ -217,27 +225,22 @@ class QGDF(BaseQGDF):
 
     def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """
-        Visualize the fitted Quantifying Global Distribution Function and related plots.
+        Short Description: Visualize the fitted Quantifying Global Distribution Function and related plots.
 
-        This method generates comprehensive visualizations of the fitted global distribution function,
-        including the main QGDF curve, probability density function (PDF), and optional additional
-        distribution functions. The plotting functionality provides insights into the quality
-        of the fit and the characteristics of the underlying distribution.
+        Detailed Description: This method generates visualizations of the fitted global distribution function, including the main QGDF curve, probability density function (PDF), and optional additional distribution functions. It provides insights into the quality of the fit and the characteristics of the underlying distribution.
 
         Parameters:
-            plot_smooth (bool, optional): Whether to plot a smooth interpolated curve for the
-                                        distribution function. Default is True.
+            plot_smooth (bool, optional): Whether to plot a smooth interpolated curve for the distribution function. Default is True.
             plot (str, optional): Type of plot to generate. Default is 'both'. Options include:
-                                - 'qgdf': Global Distribution Function (main curve)
-                                - 'pdf': Probability Density Function
-                                - 'both': Both QGDF and PDF in the same plot
+                - 'qgdf': Global Distribution Function (main curve).
+                - 'pdf': Probability Density Function.
+                - 'both': Both QGDF and PDF in the same plot.
             bounds (bool, optional): Whether to display bound lines on the plot. Default is True.
-            extra_df (bool, optional): Whether to include additional distribution functions in
-                                     the plot for comparison. Default is True.
+            extra_df (bool, optional): Whether to include additional distribution functions in the plot for comparison. Default is True.
             figsize (tuple, optional): Figure size as (width, height) in inches. Default is (12, 8).
 
         Returns:
-            None. Displays the plot.
+            None: Displays the plot.
 
         Raises:
             RuntimeError: If fit() has not been called before plotting.
@@ -246,7 +249,7 @@ class QGDF(BaseQGDF):
             PlottingError: If there are issues with the plot generation process.
             MemoryError: If plotting large datasets exceeds available memory.
 
-        Examples:
+        Usage Example:
             >>> qgdf.plot()
             >>> qgdf.plot(plot='pdf', bounds=True)
             >>> qgdf.plot(plot='both', bounds=True, extra_df=True, figsize=(16, 10))
@@ -255,11 +258,9 @@ class QGDF(BaseQGDF):
 
     def results(self) -> dict:
         """
-        Retrieve the fitted parameters and comprehensive results from the QGDF fitting process.
+        Short Description: Retrieve the fitted parameters and comprehensive results from the QGDF fitting process.
 
-        This method provides access to all key results obtained after fitting the Quantifying Global Distribution Function (QGDF) to the data. 
-        It returns a comprehensive dictionary containing fitted parameters, global distribution characteristics, optimization results, 
-        and diagnostic information for complete distribution analysis.
+        Detailed Description: This method provides access to all key results obtained after fitting the Quantifying Global Distribution Function (QGDF) to the data. It returns a dictionary containing fitted parameters, global distribution characteristics, optimization results, and diagnostic information for complete distribution analysis.
 
         Returns:
             dict: Fitted parameters and results.
@@ -271,7 +272,7 @@ class QGDF(BaseQGDF):
             ValueError: If internal state is inconsistent for result retrieval.
             MemoryError: If results contain very large arrays that exceed available memory.
 
-        Examples:
+        Usage Example:
             >>> qgdf = QGDF(verbose=True)
             >>> qgdf.fit(data)
             >>> results = qgdf.results()

@@ -10,24 +10,18 @@ from machinegnostics.magcal.gdf.base_qldf import BaseQLDF
 
 class QLDF(BaseQLDF):
     """
-    QLDF - Quantifying Local Distribution Function.
+    Short Description: Quantifying Local Distribution Function.
 
-    A comprehensive class for quantifying and analyzing local distribution characteristics around critical points (inliers) in given data.
-    This class provides methods to fit local distribution functions with focus on identifying and analyzing points of minimum 
-    probability density (Z0 points) and their local neighborhood behavior.
-
-    The QLDF class specializes in local distribution analysis, making it particularly valuable for identifying critical points,
-    local minima in probability density, and understanding localized distribution behavior. Unlike global distribution methods,
-    QLDF focuses on detailed characterization of specific regions within the data distribution.
+    Detailed Description: The QLDF class quantifies and analyzes local distribution characteristics around critical points in data. It focuses on identifying local minima in probability density (Z0 points) and their neighborhood behavior. This class is optimized for detailed local distribution analysis and memory-efficient processing.
 
     Key Features:
-        - Automatic Z0 point identification (global PDF minimum)
-        - Local distribution characterization around critical points
-        - Advanced interpolation methods for precise Z0 estimation
-        - Support for weighted data analysis
-        - Memory-efficient processing for large datasets
-        - Comprehensive visualization of local distribution features
-        - Robust optimization with multiple solver options
+        - Automatic Z0 point identification (global PDF minimum).
+        - Local distribution characterization around critical points.
+        - Advanced interpolation methods for precise Z0 estimation.
+        - Support for weighted data analysis.
+        - Memory-efficient processing for large datasets.
+        - Comprehensive visualization of local distribution features.
+        - Robust optimization with multiple solver options.
 
     Attributes:
         DLB (float): Data Lower Bound - absolute minimum value the data can take.
@@ -38,9 +32,7 @@ class QLDF(BaseQLDF):
         varS (bool): Whether to use variable scale parameter during optimization (default: False).
         z0_optimize (bool): Whether to optimize the location parameter z0 during fitting (default: True).
         tolerance (float): Convergence tolerance for optimization (default: 1e-5).
-        data_form (str): Form of the data processing:
-            - 'a': Additive form (default) - treats data linearly
-            - 'm': Multiplicative form - applies logarithmic transformation
+        data_form (str): Form of the data processing ('a' for additive, 'm' for multiplicative).
         n_points (int): Number of points to generate in the distribution function (default: 500).
         homogeneous (bool): Whether to assume data homogeneity (default: True).
         catch (bool): Whether to store intermediate calculated values (default: True).
@@ -54,18 +46,50 @@ class QLDF(BaseQLDF):
 
     Methods:
         fit(data): Fit the Quantifying Local Distribution Function to the data.
-        plot(plot_smooth=True, plot='both', bounds=True, extra_df=True, figsize=(12,8)): 
-            Visualize the fitted local distribution.
+        plot(plot_smooth=True, plot='both', bounds=True, extra_df=True, figsize=(12,8)): Visualize the fitted local distribution.
         results(): Get the fitting results as a dictionary.
 
-    Examples:
+    Usage Example:
         >>> import numpy as np
         >>> from machinegnostics.magcal import QLDF
-        >>> data = np.array([ -13.5, 0, 1. ,   2. ,   3. ,   4. ,   5. ,   6. ,   7. ,   8. , 9. ,  10.,])
+        >>> data = np.array([ -13.5, 0, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.])
         >>> qldf = QLDF()
         >>> qldf.fit(data)
         >>> qldf.plot()
         >>> print(qldf.params)
+
+    Workflow:
+        1. Initialize QLDF with desired parameters (no data required).
+        2. Call fit(data) to estimate the distribution parameters.
+        3. Use plot() to visualize the results.
+
+    Performance Tips:
+        - Use data_form='m' for multiplicative/log-normal data.
+        - Set appropriate bounds to improve convergence.
+        - Use catch=False for large datasets to save memory.
+        - Adjust n_points based on visualization needs vs. performance.
+        - Use verbose=True to monitor optimization progress.
+
+    Common Use Cases:
+        - Peak detection and modal analysis in data distributions.
+        - Local density estimation for clustering applications.
+        - Risk analysis focusing on critical value identification.
+        - Quality control with emphasis on specification limits.
+        - Financial modeling with focus on maximum likelihood points.
+
+    Notes:
+        - Bounds (DLB, DUB, LB, UB) are optional but can improve estimation accuracy.
+        - When S='auto', the scale parameter is automatically estimated from the data.
+        - The weights array must have the same length as the data array.
+        - Setting catch=False can save memory for large datasets but prevents access to intermediate results or detailed plots.
+
+    Raises:
+        ValueError: If data array is empty or contains invalid values.
+        ValueError: If weights array length doesn't match data array length.
+        ValueError: If bounds are specified incorrectly (e.g., LB > UB).
+        ValueError: If invalid parameters are provided (negative tolerance, invalid data_form, etc.).
+        RuntimeError: If the fitting process fails to converge.
+        OptimizationError: If the optimization algorithm encounters numerical issues.
     """
 
     def __init__(self,
@@ -155,45 +179,31 @@ class QLDF(BaseQLDF):
 
     def fit(self, data: np.ndarray, plot: bool = False):
         """
-        Fit the Quantifying Local Distribution Function to the provided data.
+        Short Description: Fit the Quantifying Local Distribution Function to the provided data.
 
-        This method performs the core estimation process for the QLDF. 
-        The fitting process involves finding the optimal parameters that best describe the underlying 
-        local distribution of the data while respecting any specified bounds and constraints.
-
-        The fitting process:
-            1. Validates and preprocesses the data according to the specified data_form
-            2. Sets up optimization constraints based on bounds
-            3. Transforms data to standard domain for optimization
-            4. Runs numerical optimization to find best-fit parameters
-            5. Calculates final QLDF and PDF with optimized parameters
-            6. Identifies local Z0 point (PDF minimum) if enabled
-            7. Validates and stores the results
+        Detailed Description: This method performs the core estimation process for the QLDF. It validates and preprocesses the data, sets up optimization constraints, runs numerical optimization, and calculates the final QLDF and PDF with optimized parameters.
 
         Parameters:
             data (np.ndarray): Input data array for distribution estimation. Must be a 1D numpy array.
-            plot (bool, optional): Whether to automatically plot the fitted distribution after fitting.
+            plot (bool, optional): Whether to automatically plot the fitted distribution after fitting. Default is False.
 
         Returns:
-            None. Fitted parameters are stored in self.params.
+            None: The fitted parameters are stored in the `params` attribute.
 
         Raises:
             RuntimeError: If the optimization process fails to converge.
             ValueError: If the data array is empty, contains only NaN values, or has invalid dimensions.
-            ValueError: If weights array is provided but has different length than data array.
+            ValueError: If weights array is provided but has a different length than the data array.
             OptimizationError: If the underlying optimization algorithm encounters numerical issues.
             ConvergenceError: If Z0 identification fails to converge.
 
-        Examples:
+        Usage Example:
             >>> qldf = QLDF()
             >>> data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
             >>> qldf.fit(data)
             >>> print("Fitting completed")
             >>> print(f"Fitted parameters: {qldf.params}")
             >>> qldf.fit(data, plot=True)
-            >>> results = qldf.results()
-            >>> print(f"Optimal scale: {results['S_opt']}")
-            >>> print(f"Bounds: LB={results['LB']}, UB={results['UB']}")
         """
         super().__init__(
             data=data,
@@ -220,27 +230,22 @@ class QLDF(BaseQLDF):
 
     def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """
-        Visualize the fitted Quantifying Local Distribution Function and related plots.
+        Short Description: Visualize the fitted Quantifying Local Distribution Function and related plots.
 
-        This method generates comprehensive visualizations of the fitted local distribution function,
-        including the main QLDF curve, probability density function (PDF), and optional additional
-        distribution functions. The plotting functionality provides insights into the quality
-        of the fit and the characteristics of the underlying distribution.
+        Detailed Description: This method generates visualizations of the fitted local distribution function, including the main QLDF curve, probability density function (PDF), and optional additional distribution functions. It provides insights into the quality of the fit and the characteristics of the underlying distribution.
 
         Parameters:
-            plot_smooth (bool, optional): Whether to plot a smooth interpolated curve for the
-                                        distribution function. Default is True.
+            plot_smooth (bool, optional): Whether to plot a smooth interpolated curve for the distribution function. Default is True.
             plot (str, optional): Type of plot to generate. Default is 'both'. Options include:
-                                - 'qldf': Local Distribution Function (main curve)
-                                - 'pdf': Probability Density Function
-                                - 'both': Both QLDF and PDF in the same plot
+                - 'qldf': Local Distribution Function (main curve).
+                - 'pdf': Probability Density Function.
+                - 'both': Both QLDF and PDF in the same plot.
             bounds (bool, optional): Whether to display bound lines on the plot. Default is True.
-            extra_df (bool, optional): Whether to include additional distribution functions in
-                                     the plot for comparison. Default is True.
+            extra_df (bool, optional): Whether to include additional distribution functions in the plot for comparison. Default is True.
             figsize (tuple, optional): Figure size as (width, height) in inches. Default is (12, 8).
 
         Returns:
-            None. Displays the plot.
+            None: Displays the plot.
 
         Raises:
             RuntimeError: If fit() has not been called before plotting.
@@ -249,7 +254,7 @@ class QLDF(BaseQLDF):
             PlottingError: If there are issues with the plot generation process.
             MemoryError: If plotting large datasets exceeds available memory.
 
-        Examples:
+        Usage Example:
             >>> qldf.plot()
             >>> qldf.plot(plot='pdf', bounds=True)
             >>> qldf.plot(plot='both', bounds=True, extra_df=True, figsize=(16, 10))
@@ -258,11 +263,9 @@ class QLDF(BaseQLDF):
 
     def results(self) -> dict:
         """
-        Retrieve the fitted parameters and comprehensive results from the QLDF fitting process.
+        Short Description: Retrieve the fitted parameters and comprehensive results from the QLDF fitting process.
 
-        This method provides access to all key results obtained after fitting the Quantifying Local Distribution Function (QLDF) to the data. 
-        It returns a comprehensive dictionary containing fitted parameters, local distribution characteristics, optimization results, 
-        and diagnostic information for complete distribution analysis.
+        Detailed Description: This method provides access to all key results obtained after fitting the Quantifying Local Distribution Function (QLDF) to the data. It returns a dictionary containing fitted parameters, local distribution characteristics, optimization results, and diagnostic information for complete distribution analysis.
 
         Returns:
             dict: Fitted parameters and results.
@@ -274,7 +277,7 @@ class QLDF(BaseQLDF):
             ValueError: If internal state is inconsistent for result retrieval.
             MemoryError: If results contain very large arrays that exceed available memory.
 
-        Examples:
+        Usage Example:
             >>> qldf = QLDF(verbose=True)
             >>> qldf.fit(data)
             >>> results = qldf.results()
