@@ -8,6 +8,8 @@ Machine Gnostics
 
 import numpy as np
 import warnings
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from scipy.optimize import minimize
 from typing import Dict, Any
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
@@ -85,83 +87,101 @@ class BaseELDF(BaseEGDF):
         # Validate all inputs
         # self._validate_inputs()
 
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
+
         # if S is float or int and is greater than 2, warn user
         if (isinstance(self.S, float) or isinstance(self.S, int)) and self.S > 2:
+            self.logger.warning("S is greater than 2, which may not suitable for local distribution estimation. Consider using in range [0, 2]")
             warnings.warn("S is greater than 2, which may not suitable for local distribution estimation. Consider using in range [0, 2]", UserWarning)
 
         
 
     def _fit_eldf(self, plot: bool = True):
         """Fit the ELDF model to the data."""
+        self.logger.info("Starting ELDF fitting process...")
         try:
-            if self.verbose:
-                print("Starting ELDF fitting process...")
-
             # Step 1: Data preprocessing
+            self.logger.info("Preprocessing data...")
             self.data = np.sort(self.data)
             self._estimate_data_bounds()
             self._transform_data_to_standard_domain()
             self._estimate_weights()
             
             # Step 2: Bounds estimation
+            self.logger.info("Estimating initial probable bounds...")
             self._estimate_initial_probable_bounds()
             self._generate_evaluation_points()
             
             # Step 3: Get distribution function values for optimization
+            self.logger.info("Getting distribution function values...")
             self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
             
             # Step 4: Parameter optimization
+            self.logger.info("Optimizing parameters...")
             self._determine_optimization_strategy()
             
             # Step 5: Calculate final ELDF and PDF
+            self.logger.info("Computing final ELDF and PDF values...")
             self._compute_final_results()
             
             # Step 6: Generate smooth curves for plotting and analysis
+            self.logger.info("Generating smooth curves for analysis...")
             self._generate_smooth_curves()
             
             # Step 7: Transform bounds back to original domain
+            
             self._transform_bounds_to_original_domain()
+            self.logger.info("Transformed bounds back to original data domain.")
             # Mark as fitted (Step 8 is now optional via marginal_analysis())
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
+            self.logger.info("Estimating Z0...")
             self._compute_z0(optimize=self.z0_optimize)
 
             # step 9: varS
             if self.varS:
+                self.logger.info("Estimating varying S...")
                 self._varS_calculation()
+                self.logger.info("Computing final results for varying S...")
                 self._compute_final_results_varS()
+                self.logger.info("Generating smooth curves for varying S...")
                 self._generate_smooth_curves_varS()
 
             # Step 10: Z0 re-estimate with varS if enabled
             if self.varS:
+                self.logger.info("Re-estimating Z0 with varying S...")
                 self._compute_z0(optimize=self.z0_optimize)         
             
-            if self.verbose:
-                print("ELDF fitting completed successfully.")
+            self.logger.info("ELDF fitting completed successfully.")
 
             if plot:
+                self.logger.info("Plotting results...")
                 self._plot()
             
             # clean up computation cache
             if self.flush:  
+                self.logger.info("Cleaning up computation cache...")
                 self._cleanup_computation_cache()
                     
         except Exception as e:
             # log error
             error_msg = f"ELDF fitting failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_fit_eldf',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            if self.verbose:
-                print(f"Error during ELDF fitting: {e}")
+            self.logger.info(f"Error during ELDF fitting: {e}")
             raise e
 
 
     def _compute_eldf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
         """Core computation for the ELDF model."""
+        self.logger.info("Computing core ELDF values...")
         # Use provided data or default to instance data
         if zi_data is None:
             zi_data = self.z
@@ -186,6 +206,7 @@ class BaseELDF(BaseEGDF):
 
     def _estimate_eldf_from_moments(self, fidelity, irrelevance):
         """Estimate the ELDF from moments."""
+        self.logger.info("Estimating ELDF from moments...")
         weights = self.weights.reshape(-1, 1)
 
         mean_irrelevance = np.sum(weights * irrelevance, axis=0) / np.sum(weights)
@@ -196,6 +217,7 @@ class BaseELDF(BaseEGDF):
 
     def _compute_final_results(self):
         """Compute the final results for the ELDF model."""
+        self.logger.info("Computing final ELDF and PDF results...")
         # Implement final results computation logic here
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         self.zi = zi_d
@@ -211,6 +233,7 @@ class BaseELDF(BaseEGDF):
         self.pdf = self._compute_eldf_pdf(self.fi, self.hi)
         
         if self.catch:
+            self.logger.info("Catching parameters...")
             self.params.update({
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
@@ -220,6 +243,7 @@ class BaseELDF(BaseEGDF):
 
     def _compute_eldf_pdf(self, fi, hi):
         """Compute the PDF for the ELDF model."""
+        self.logger.info("Computing PDF from ELDF moments...")
         weights = self.weights.reshape(-1, 1)
 
         # fi_mean
@@ -229,9 +253,9 @@ class BaseELDF(BaseEGDF):
 
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis - ELDF."""
+        self.logger.info("Generating smooth curves for ELDF...")
         try:
-            if self.verbose and not self.varS:
-                print("Generating smooth curves without varying S...")
+            self.logger.info("Generating smooth curves without varying S...")
 
             smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
                 self.S_opt, self.LB_opt, self.UB_opt,
@@ -249,26 +273,26 @@ class BaseELDF(BaseEGDF):
             self._computation_cache['smooth_curves_generated'] = True
             
             if self.catch:
+                self.logger.info("Catching parameters...")
                 self.params.update({
                     'eldf_points': self.eldf_points.copy(),
                     'pdf_points': self.pdf_points.copy(),
                     'zi_points': self.zi_n.copy()
                 })
-            
-            if self.verbose and not self.varS:
-                print(f"Generated smooth curves with {self.n_points} points.")
-                
+
+            self.logger.info(f"Generated smooth curves with {self.n_points} points.")
+
         except Exception as e:
             # log error
             error_msg = f"Smooth curve generation failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_generate_smooth_curves',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
 
-            if self.verbose:
-                print(f"Warning: Could not generate smooth curves: {e}")
+            self.logger.warning(f"Could not generate smooth curves: {e}")
 
             # Create fallback points using original data
             self.eldf_points = self.eldf.copy() if hasattr(self, 'eldf') else None
@@ -278,13 +302,14 @@ class BaseELDF(BaseEGDF):
     
     def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """Enhanced plotting with better organization."""
+        self.logger.info("Preparing to plot ELDF and PDF...")
         import matplotlib.pyplot as plt
     
         if plot_smooth and (len(self.data) > self.max_data_size) and self.verbose:
-            print(f"Warning: Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
-    
+            self.logger.warning(f"Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
+
         if not self.catch:
-            print("Plot is not available with argument catch=False")
+            self.logger.warning("Plot is not available with argument catch=False")
             return
         
         if not self._fitted:
@@ -343,6 +368,7 @@ class BaseELDF(BaseEGDF):
     
     def _plot_pdf(self, ax, x_points, pdf_plot, plot_smooth, is_secondary=False):
         """Plot PDF components."""
+        self.logger.info("Plotting PDF...")
         import numpy as np  # Add numpy import
         color = 'red'
 
@@ -365,6 +391,7 @@ class BaseELDF(BaseEGDF):
 
     def _plot_eldf(self, ax, x_points, eldf_plot, plot_smooth, extra_df, wedf, ksdf):
         """Plot ELDF components."""
+        self.logger.info("Plotting ELDF...")
         if plot_smooth and hasattr(self, 'eldf_points') and self.eldf_points is not None:
             ax.plot(x_points, eldf_plot, 'o', color='blue', label='ELDF', markersize=4)
             ax.plot(self.di_points_n, self.eldf_points, color='blue', 
@@ -387,6 +414,7 @@ class BaseELDF(BaseEGDF):
 
     def _add_plot_formatting(self, ax1, plot, bounds):
         """Add formatting, bounds, and legends to plot."""
+        self.logger.info("Adding plot formatting and bounds...")
         ax1.set_xlabel('Data Points')
         
         # Add bounds if requested
@@ -427,6 +455,7 @@ class BaseELDF(BaseEGDF):
 
     def _get_eldf_second_derivative(self, fi, hi):
         """Calculate second derivative of ELDF from stored fidelities and irrelevances."""
+        self.logger.info("Calculating second derivative of ELDF...")
         if fi is None or hi is None:
             fi = self.fi
             hi = self.hi
@@ -449,6 +478,7 @@ class BaseELDF(BaseEGDF):
     
     def _get_eldf_third_derivative(self, fi, hi):
         """Calculate third derivative of ELDF from stored fidelities and irrelevances."""
+        self.logger.info("Calculating third derivative of ELDF...")
         if fi is None or hi is None:
                 fi = self.fi
                 hi = self.hi
@@ -475,6 +505,7 @@ class BaseELDF(BaseEGDF):
     
     def _get_eldf_fourth_derivative(self, fi, hi):
         """Calculate fourth derivative of ELDF from stored fidelities and irrelevances."""
+        self.logger.info("Calculating fourth derivative of ELDF...")
         if fi is None or hi is None:
             fi = self.fi
             hi = self.hi
@@ -508,6 +539,7 @@ class BaseELDF(BaseEGDF):
     
     def _get_results(self)-> dict:
         """Return fitting results."""
+        self.logger.info("Retrieving ELDF fitting results...")
         if not self._fitted:
             raise RuntimeError("Must fit ELDF before getting results.")
         
@@ -529,14 +561,15 @@ class BaseELDF(BaseEGDF):
             If False, use simple linear search on existing points.
             If None, uses the instance's z0_optimize setting.
         """
+        self.logger.info("Computing Z0 point using Z0Estimator...")
         if self.z is None:
+            self.logger.error("Data must be transformed (self.z) before Z0 estimation.")
             raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
         
         # Use provided optimize parameter or fall back to instance setting
         use_optimize = optimize if optimize is not None else self.z0_optimize
-        
-        if self.verbose:
-            print('ELDF: Computing Z0 point using Z0Estimator...')
+
+        self.logger.info('ELDF: Computing Z0 point using Z0Estimator...')
 
         try:
             # Create Z0Estimator instance with proper constructor signature
@@ -558,23 +591,22 @@ class BaseELDF(BaseEGDF):
                     'z0_estimation_info': estimation_info
                 })
             
-            if self.verbose:
-                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
-                print(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
-                
+            method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
+            self.logger.info(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+
         except Exception as e:
             # Log the error
             error_msg = f"Z0 estimation failed: {str(e)}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_compute_z0',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
 
-            if self.verbose:
-                print(f"Warning: Z0Estimator failed with error: {e}")
-                print("Falling back to simple maximum finding...")
-            
+            self.logger.warning(f"Warning: Z0Estimator failed with error: {e}")
+            self.logger.info("Falling back to simple maximum finding...")
+
             # Fallback to simple maximum finding
             self._compute_z0_fallback()
             
@@ -589,18 +621,19 @@ class BaseELDF(BaseEGDF):
         """
         Fallback method for Z0 computation using simple maximum finding.
         """
+        self.logger.info("Using fallback method for Z0 point...")
+
         if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
+            self.logger.error("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
             raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
         
-        if self.verbose:
-            print('Using fallback method for Z0 point...')
+        self.logger.info('Using fallback method for Z0 point...')
         
         # Find index with maximum PDF
         max_idx = np.argmax(self.pdf_points)
         self.z0 = self.di_points_n[max_idx]
 
-        if self.verbose:
-            print(f"Z0 point (fallback method): {self.z0:.6f}")
+        self.logger.info(f"Z0 point (fallback method): {self.z0:.6f}")
 
     def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
         """
@@ -616,7 +649,9 @@ class BaseELDF(BaseEGDF):
         Dict[str, Any]
             Z0 analysis information
         """
+        self.logger.info("Analyzing Z0 estimation results...")
         if not hasattr(self, 'z0') or self.z0 is None:
+            self.logger.error("Z0 must be computed before analysis. Call fit() first.")
             raise ValueError("Z0 must be computed before analysis. Call fit() first.")
         
         # Create Z0Estimator for analysis
@@ -639,6 +674,7 @@ class BaseELDF(BaseEGDF):
     
     def _calculate_fidelities_irrelevances_at_given_zi(self, zi):
         """Helper method to recalculate fidelities and irrelevances for current zi."""
+        self.logger.info("Calculating fidelities and irrelevances at given zi...")
         # Convert to infinite domain
         zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         # is zi given then use it, else use self.zi
@@ -680,6 +716,7 @@ class BaseELDF(BaseEGDF):
         S0, sigma : floats
             Estimated parameters.
         """
+        self.logger.info("Estimating S0 and sigma...")
         s_local = np.asarray(s_local)
 
         def objective(params):
@@ -701,10 +738,10 @@ class BaseELDF(BaseEGDF):
     
     def _varS_calculation(self):
         """Calculate varS if enabled."""
+        self.logger.info("Calculating varying S (varS)...")
         from machinegnostics import variance
 
-        if self.verbose:
-            print("Calculating varS for ELDF...")
+        self.logger.info("Calculating varS for ELDF...")
         # estimate fi hi at z0
         gc, q, q1 = self._calculate_gcq_at_given_zi(self.z0)
 
@@ -727,6 +764,7 @@ class BaseELDF(BaseEGDF):
 
     def _compute_final_results_varS(self):
         """Compute the final results for the ELDF model."""
+        self.logger.info("Computing final ELDF and PDF results with varying S...")
         # Implement final results computation logic here
         # zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         # self.zi = zi_d
@@ -739,6 +777,7 @@ class BaseELDF(BaseEGDF):
         self.pdf = self._compute_eldf_pdf(self.fi, self.hi)
         
         if self.catch:
+            self.logger.info("Catching parameters with varying S...")
             self.params.update({
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
@@ -748,9 +787,9 @@ class BaseELDF(BaseEGDF):
 
     def _generate_smooth_curves_varS(self):
         """Generate smooth curves for plotting and analysis - ELDF."""
+        self.logger.info("Generating smooth curves for ELDF with varying S...")
         try:
-            if self.verbose:
-                print("Generating smooth curves with varying S...")
+            self.logger.info("Generating smooth curves with varying S...")
 
             smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
                 self.S_var, self.LB_opt, self.UB_opt,
@@ -770,21 +809,20 @@ class BaseELDF(BaseEGDF):
                     'pdf_points': self.pdf_points.copy(),
                     'zi_points': self.zi_n.copy()
                 })
-            
-            if self.verbose:
-                print(f"Generated smooth curves with {self.n_points} points.")
-        
+
+            self.logger.info(f"Generated smooth curves with {self.n_points} points.")
+
         except Exception as e:
             # log error
             error_msg = f"Smooth curve generation failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_generate_smooth_curves_varS',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
 
-            if self.verbose:
-                print(f"Warning: Could not generate smooth curves: {e}")
+            self.logger.warning(f"Could not generate smooth curves: {e}")
 
             # Create fallback points using original data
             self.eldf_points = self.eldf.copy() if hasattr(self, 'eldf') else None
