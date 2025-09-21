@@ -108,12 +108,12 @@ class Z0Estimator:
     
     Advanced Methods (when optimize=True):
         
-        For Q-distributions (median finding):
+    For Q-distributions (median finding):
         - Spline interpolation with root finding
         - Linear interpolation between bracketing points
         - Polynomial fitting with root solving
         
-        For E-distributions (PDF maximum finding):
+    For E-distributions (PDF maximum finding):
         - Spline optimization over entire domain
         - Polynomial fitting with critical point analysis
         - Refined interpolation with fine grid search
