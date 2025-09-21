@@ -104,7 +104,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         
         # log
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
-        self.logger.debug(f"{self.__class__.__name__} initialized with parameters: %s", self.__dict__)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
     # =============================================================================
     # VALIDATION AND INITIALIZATION
     # =============================================================================

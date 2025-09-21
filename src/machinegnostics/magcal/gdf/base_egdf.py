@@ -108,7 +108,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
         # logger
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
-        self.logger.debug(f"{self.__class__.__name__} initialized with parameters: %s", self.__dict__)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
         
 
     def _compute_egdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
