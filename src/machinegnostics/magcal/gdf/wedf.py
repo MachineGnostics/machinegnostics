@@ -1,4 +1,6 @@
+from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
+import logging
 
 class WEDF:
     """
@@ -8,7 +10,7 @@ class WEDF:
     when dealing with repeated values or data points of varying importance.
     """
     
-    def __init__(self, data, weights=None, data_lb=None, data_ub=None):
+    def __init__(self, data, weights=None, data_lb=None, data_ub=None, verbose=False):
         """
         Initialize the WEDF with data points and optional weights.
         
@@ -22,7 +24,12 @@ class WEDF:
             Lower bound for the data range
         data_ub : float, optional
             Upper bound for the data range
+        verbose : bool, optional
+            If True, set logging level to DEBUG. Default is False.
         """
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized with parameters: %s", self.__dict__)
+
         # Convert inputs to numpy arrays and sort data
         self.data = np.asarray(data)
         if data_lb is None:
@@ -34,10 +41,13 @@ class WEDF:
         else:
             self.data_ub = data_ub
         if self.data_lb >= self.data_ub:
+            self.logger.error("data_lb must be less than data_ub")
             raise ValueError("data_lb must be less than data_ub")
         if self.data.size == 0:
+            self.logger.error("data must contain at least one element")
             raise ValueError("data must contain at least one element")
         if not np.issubdtype(self.data.dtype, np.number):
+            self.logger.error("data must be numeric")
             raise ValueError("data must be numeric")
         
         # Sort data and corresponding weights
@@ -84,6 +94,7 @@ class WEDF:
         float or ndarray
             WEDF values at the given points
         """
+        self.logger.info("Fitting WEDF at given points.")
         z = np.asarray(z)
         single_value = z.ndim == 0
         
@@ -101,7 +112,8 @@ class WEDF:
                 # Find the index of the largest data point less than z
                 idx = np.searchsorted(self.data, point) - 1
                 result[i] = self.wedf_values[idx]
-                
+        
+        self.logger.info("WEDF fitting completed.")
         return result[0] if single_value else result
     
     def plot(self, ax=None):
@@ -139,7 +151,7 @@ class WEDF:
             return ax
             
         except ImportError:
-            print("Matplotlib is required for plotting.")
+            self.logger.warning("Matplotlib is required for plotting.")
             return None
         
     def generate_ks_points(self, num_points=None):

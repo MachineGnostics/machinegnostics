@@ -614,7 +614,7 @@ class BaseDistFuncCompute(BaseDistFunc):
     def _get_distribution_function_values(self, use_wedf=True):
         """Get WEDF or KS points for optimization."""
         if use_wedf:
-            wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB)
+            wedf_ = WEDF(self.data, weights=self.weights, data_lb=self.DLB, data_ub=self.DUB, verbose=self.verbose)
             # if smooth:
             #     df_values = wedf_.fit(self.di_points_n)
             # else:
