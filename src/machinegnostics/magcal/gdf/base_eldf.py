@@ -131,7 +131,11 @@ class BaseELDF(BaseEGDF):
             if self.varS:
                 self._varS_calculation()
                 self._compute_final_results_varS()
-                self._generate_smooth_curves_varS()         
+                self._generate_smooth_curves_varS()
+
+            # Step 10: Z0 re-estimate with varS if enabled
+            if self.varS:
+                self._compute_z0(optimize=self.z0_optimize)         
             
             if self.verbose:
                 print("ELDF fitting completed successfully.")
@@ -655,8 +659,50 @@ class BaseELDF(BaseEGDF):
         self.fi = gc._fi(q=q, q1=q1)
         self.hi = gc._hi(q=q, q1=q1)
 
+    def _estimate_s0_sigma(self, z0, s_local, s_global, mode="sum"):
+        """
+        Estimate S0 and sigma given z0 (float), s_local (array), and s_global (float).
+        
+        Parameters
+        ----------
+        z0 : float
+            Mean value of the data.
+        s_local : array-like
+            Local scale parameters.
+        s_global : float
+            Global scale parameter.
+        mode : str
+            "mean" -> match average predicted to s_global
+            "sum"  -> match sum predicted to s_global
+        
+        Returns
+        -------
+        S0, sigma : floats
+            Estimated parameters.
+        """
+        s_local = np.asarray(s_local)
+
+        def objective(params):
+            S0, sigma = params
+            preds = S0 * np.exp(sigma * z0) * s_local
+            if mode == "mean":
+                target = preds.mean()
+            elif mode == "sum":
+                target = preds.sum()
+            else:
+                raise ValueError("mode must be 'mean' or 'sum'")
+            return (s_global - target) ** 2
+
+        # Initial guess
+        p0 = [1.0, 0.0]
+
+        res = minimize(objective, p0, method="Nelder-Mead")
+        return res.x[0], res.x[1]
+    
     def _varS_calculation(self):
         """Calculate varS if enabled."""
+        from machinegnostics import variance
+
         if self.verbose:
             print("Calculating varS for ELDF...")
         # estimate fi hi at z0
@@ -665,7 +711,18 @@ class BaseELDF(BaseEGDF):
         fi_z0 = gc._fi(q=q, q1=q1)
 
         scale = ScaleParam()
-        self.S_var = scale._gscale_loc(fi_z0) * self.S_opt
+        self.S_local = scale._gscale_loc(fi_z0)
+
+        # # s0 # NOTE for future exploration
+        # self.S0, self.sigma = self._estimate_s0_sigma(
+        #     z0=self.z0,
+        #     s_local=fi_z0,
+        #     s_global=self.S_opt,
+        #     mode="sum"
+        # )
+
+        # Svar
+        self.S_var = self.S_local * self.S_opt
         return self.S_var
 
     def _compute_final_results_varS(self):
