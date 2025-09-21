@@ -48,6 +48,16 @@ class DataScedasticity:
         variance_ratio (float): Ratio of gnostic variances between data splits.
         is_homoscedastic (bool): True if data is homoscedastic under gnostic test, else False.
 
+    Example:
+        >>> import numpy as np
+        >>> from machinegnostics.magcal import DataScedasticity
+        >>> x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        >>> y = np.array([2.1, 4.2, 6.1, 8.3, 10.2, 12.1, 14.2, 16.1, 18.2, 20.1])
+        >>> sced = DataScedasticity()
+        >>> is_homo = sced.fit(x, y)
+        >>> print(f"Is data homoscedastic? {is_homo}")
+        >>> print(f"Variance ratio: {sced.variance_ratio}")
+
     Note:
         This class is intended for users interested in gnostic data analysis. Results and interpretations
         may not align with classical statistical methods. For more details on gnostic variance and regression,
