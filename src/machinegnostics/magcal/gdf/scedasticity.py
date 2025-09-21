@@ -6,9 +6,9 @@ This module to check for homoscedasticity and heteroscedasticity in data.
 Author: Nirmal Parmar
 Machine Gnostics
 '''
-
 import numpy as np
-
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class DataScedasticity:
     """
@@ -87,12 +87,16 @@ class DataScedasticity:
                                      history=history)
         self.residuals = None
         self.params = {}
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug("DataScedasticity initialized with parameters: %s", self.__dict__)
+
 
     def _split_residuals(self):
         """
         Split residuals into two halves based on the median of x. zip x and residuals.
         sorted(zip(x, residuals))
         """
+        self.logger.info("Splitting residuals based on median of x.")
         median_x = np.median(self.x)
         left_half = [(xi, ri) for xi, ri in zip(self.x, self.residuals) if xi <= median_x]
         right_half = [(xi, ri) for xi, ri in zip(self.x, self.residuals) if xi > median_x]
@@ -105,14 +109,15 @@ class DataScedasticity:
         Returns:
             float: Variance ratio of the squared residuals.
         """
-
         from machinegnostics import variance
+        self.logger.info("Calculating variance ratio.")
         left_half, right_half = self._split_residuals()
         left_residuals = np.array([ri for xi, ri in left_half])
         right_residuals = np.array([ri for xi, ri in right_half])
         var_left = variance(left_residuals ** 2)
         var_right = variance(right_residuals ** 2)
 
+        self.logger.debug(f"Left variance: {var_left}, Right variance: {var_right}")
         # cap values between [1, 1e-9]
         var_left = float(var_left)
         var_right = float(np.maximum(var_right, 1e-9)) # to avoid division by zero
@@ -124,6 +129,7 @@ class DataScedasticity:
             variance_ratio = var_left / var_right
 
         # params
+        self.logger.info(f"Variance ratio calculated: {variance_ratio}")
         self.params['var_left'] = var_left
         self.params['var_right'] = var_right
         self.params['variance_ratio'] = variance_ratio
@@ -141,6 +147,7 @@ class DataScedasticity:
             bool: True if homoscedastic, False if heteroscedastic.
         """
         if self.variance_ratio is None:
+            self.logger.error("Variance ratio not calculated. Please run fit() first.")
             raise ValueError("Variance ratio not calculated. Please run fit() first.")
         return abs(self.variance_ratio - 1) < threshold
 
@@ -168,15 +175,23 @@ class DataScedasticity:
             This is not a standard statistical test. For details on the gnostic approach, see the
             Machine Gnostics documentation.
         """
+        self.logger.info("Fitting DataScedasticity model...")
         self.x = x
         self.y = y
+
+        self.logger.info("Fitting gnostic regression model.")
         self.model.fit(x, y)
+        self.logger.debug(f"Model calculations complete.")
+
+        self.logger.info("Calculating residuals.")  
         self.residuals = y - self.model.predict(x)
 
         # calculate variance ratio
+        self.logger.info("Calculating variance ratio.")
         self.variance_ratio = self._variance_ratio()
 
         # check
+        self.logger.info("Checking homoscedasticity.")
         self.is_homoscedastic = self._is_homoscedastic()
-
+        self.logger.info(f"Homoscedasticity check result - is_homoscedastic: {self.is_homoscedastic}")
         return self.is_homoscedastic
