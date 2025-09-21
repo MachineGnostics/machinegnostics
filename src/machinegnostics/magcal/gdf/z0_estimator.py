@@ -10,15 +10,17 @@ Machine Gnostics
 """
 
 import numpy as np
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from typing import Union, Dict, Any, Optional
 
 class Z0Estimator:
     """
-    Universal Z0 estimator for all GDF (Generalized Distribution Function) types.
+    Universal Z0 estimator for all GDF (Gnostics Distribution Function) types.
     
     This class automatically detects the distribution type and finds the appropriate Z0 point:
     - For EGDF/ELDF: Finds the point where PDF reaches its global maximum
-    - For QLDF/QGDF: Finds the point where the distribution function equals 0.5 (median)
+    - For QLDF/QGDF: Finds the point where the distribution function equals 0.5
     
     The estimator uses multiple advanced methods including spline optimization, polynomial fitting,
     refined interpolation, and parabolic interpolation to achieve high accuracy.
@@ -58,7 +60,7 @@ class Z0Estimator:
         print(f"Z0 at PDF maximum: {z0}")
         ```
         
-        2. Q-distributions Usage (finds median - 0.5 point):
+        2. Q-distributions Usage:
         ```python
         from machinegnostics.magcal import QLDF
         from machinegnostics.magcal import Z0Estimator
@@ -213,8 +215,16 @@ class Z0Estimator:
         # Results storage
         self.z0 = None
         self.estimation_info = {}
+
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
     
     def _compute_error_properties_for_mean(self, z0):
+        """
+        Compute error properties at the given Z0 point.
+        """
+        self.logger.info("Computing error properties at Z0.")
         # estimate q and q1
         gc, q, q1 = self.gdf._calculate_gcq_at_given_zi(z0)
 
@@ -234,7 +244,8 @@ class Z0Estimator:
         if hasattr(self.gdf, 'params'):
             self.gdf.params['residual_entropy'] = float(self.residual_entropy)
             self.gdf.params['RRE'] = float(self.RRE)
-        
+        self.logger.info(f"Computed Residual Entropy: {self.residual_entropy}, RRE: {self.RRE}")
+
     def fit(self) -> float:
         """
         Estimate the Z0 point.
@@ -261,26 +272,31 @@ class Z0Estimator:
             - Advanced methods adapt to the target type automatically
             - The estimated Z0 is automatically assigned to the original GDF object
         """
+        self.logger.info("Fitting Z0 estimator.")
         if self.find_median:
+            self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
             self.z0 = self._fit_median()
         else:
+            self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")  
             self.z0 = self._fit_pdf_maximum()
         
         # error in mean
+        self.logger.info("Computing error properties at estimated Z0.")
         self._compute_error_properties_for_mean(self.z0)
+        self.logger.info(f"Estimated Z0: {self.z0:.6f}")
         return self.z0
         
 
     def _fit_median(self) -> float:
         """Find Z0 where Q-distribution equals 0.5 (median)."""
-        if self.verbose:
-            print(f"Z0Estimator: Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
-        
+        self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
+
         # Get distribution function points and data points
         dist_points = self._get_distribution_points()
         di_points = self._get_di_points()
         
         if len(dist_points) == 0:
+            self.logger.error("No distribution function data available for Z0 estimation")
             raise ValueError("No distribution function data available for Z0 estimation")
         
         # Find the point closest to 0.5
@@ -289,16 +305,14 @@ class Z0Estimator:
         closest_idx = np.argmin(diff_from_target)
         closest_value = dist_points[closest_idx]
         closest_location = di_points[closest_idx]
-        
-        if self.verbose:
-            print(f"Z0Estimator: Discrete closest to 0.5: {self.gdf_type.upper()}={closest_value:.6f} at x={closest_location:.6f} (index {closest_idx})")
-        
+
+        self.logger.info(f"Discrete closest to 0.5: {self.gdf_type.upper()}={closest_value:.6f} at x={closest_location:.6f} (index {closest_idx})")
+
         if self.optimize:
             self.z0 = self._find_z0_advanced_median(closest_idx, di_points, dist_points, target_value)
             
-            if self.verbose:
-                method_used = self._get_last_method_used()
-                print(f"Z0Estimator: Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
+            method_used = self._get_last_method_used()
+            self.logger.info(f"Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
         else:
             self.z0 = closest_location
             
@@ -312,10 +326,9 @@ class Z0Estimator:
                 'gdf_type': self.gdf_type,
                 'target_type': 'median (0.5)'
             }
-            
-            if self.verbose:
-                print(f"Z0Estimator: Simple estimation: Using discrete closest to 0.5 at Z0={self.z0:.6f}")
-        
+
+            self.logger.info(f"Simple estimation: Using discrete closest to 0.5 at Z0={self.z0:.6f}")
+
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
         if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
@@ -325,14 +338,14 @@ class Z0Estimator:
     
     def _fit_pdf_maximum(self) -> float:
         """Find Z0 where PDF reaches maximum (existing logic for EGDF/ELDF)."""
-        if self.verbose:
-            print(f"Z0Estimator: Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")
-        
+        self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")
+
         # Get PDF and data points
         pdf_points = self._get_pdf_points()
         di_points = self._get_di_points()
         
         if len(pdf_points) == 0:
+            self.logger.error("No PDF data available for Z0 estimation")
             raise ValueError("No PDF data available for Z0 estimation")
         
         # Find the global maximum in the discrete data
@@ -342,16 +355,14 @@ class Z0Estimator:
         
         global_max_value = pdf_points[global_max_idx]
         global_max_location = di_points[global_max_idx]
-        
-        if self.verbose:
-            print(f"Z0Estimator: Discrete global maximum: PDF={global_max_value:.6f} at x={global_max_location:.6f} (index {global_max_idx})")
-        
+
+        self.logger.info(f"Discrete global maximum: PDF={global_max_value:.6f} at x={global_max_location:.6f} (index {global_max_idx})")
+
         if self.optimize:
             z0_candidate = self._find_z0_advanced_pdf_max(global_max_idx, di_points, pdf_points)
             # Check if advanced method is close to discrete maximum
             if abs(z0_candidate - global_max_location) > 1e-6:
-                if self.verbose:
-                    print(f"Z0Estimator: Advanced method z0 ({z0_candidate}) differs from discrete max ({global_max_location}), using discrete max.")
+                self.logger.info(f"Advanced method z0 ({z0_candidate}) differs from discrete max ({global_max_location}), using discrete max.")
                 self.z0 = global_max_location
                 self.estimation_info['z0_method'] = 'discrete_pdf_maximum'
             else:
@@ -366,10 +377,9 @@ class Z0Estimator:
                 'gdf_type': self.gdf_type,
                 'target_type': 'pdf_maximum'
             }
-            
-            if self.verbose:
-                print(f"Z0Estimator: Simple estimation: Using discrete PDF maximum at Z0={self.z0:.6f}")
-        
+
+            self.logger.info(f"Simple estimation: Using discrete PDF maximum at Z0={self.z0:.6f}")
+
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
         if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
@@ -399,6 +409,7 @@ class Z0Estimator:
             >>> print(f"Method: {info['z0_method']}")
             >>> print(f"Target: {info['target_type']}")
         """
+        self.logger.info("Retrieving estimation information.")
         if not self.estimation_info:
             return {"error": "No estimation performed yet. Call fit() first."}
         return self.estimation_info.copy()
@@ -415,14 +426,15 @@ class Z0Estimator:
             figsize (tuple, optional): Figure size as (width, height) in inches.
                                      Defaults to (12, 6).
         """
+        self.logger.info("Creating Z0 analysis plots.")
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            print("Z0Estimator: Matplotlib not available. Cannot create plots.")
+            self.logger.error("Matplotlib not available. Cannot create plots.")
             return
             
         if self.z0 is None:
-            print("Z0Estimator: No Z0 estimation available. Call fit() first.")
+            self.logger.error("No Z0 estimation available. Call fit() first.")
             return
         
         pdf_points = self._get_pdf_points()
@@ -479,6 +491,7 @@ class Z0Estimator:
     
     def _plot_info_panel(self, ax):
         """Plot estimation information panel."""
+        self.logger.info("Creating Z0 estimation information panel.")
         target_desc = "Median (0.5)" if self.find_median else "PDF Maximum"
         info_text = f"Z0 Estimation Info:\n"
         info_text += f"Value: {self.z0:.6f}\n"
@@ -493,6 +506,8 @@ class Z0Estimator:
     
     def _find_middle_of_flat_region(self, values, extremum_idx, find_min=True):
         """Find the middle point of a flat region (for PDF maximum finding)."""
+        self.logger.info("Checking for flat region around extremum index.")
+
         n_points = len(values)
         extremum_value = values[extremum_idx]
         
@@ -514,7 +529,7 @@ class Z0Estimator:
                 middle_idx = similar_indices[len(similar_indices) // 2]
                 if self.verbose:
                     region_type = "minimum" if find_min else "maximum"
-                    print(f"Z0Estimator: Flat {region_type} region detected. Using middle point at index {middle_idx}")
+                    self.logger.info(f"Flat {region_type} region detected. Using middle point at index {middle_idx}")
                 return middle_idx
             else:
                 # Multiple regions - find the one containing original extremum_idx
@@ -537,9 +552,11 @@ class Z0Estimator:
     
     def _validate_gdf_object(self, gdf_object):
         if not hasattr(gdf_object, '_fitted'):
+            self.logger.error("GDF object must have '_fitted' attribute")
             raise ValueError("GDF object must have '_fitted' attribute")
         
         if not gdf_object._fitted:
+            self.logger.error("GDF object must be fitted before Z0 estimation")
             raise ValueError("GDF object must be fitted before Z0 estimation")
         
         # Check for required data based on distribution type
@@ -551,12 +568,14 @@ class Z0Estimator:
                            (hasattr(gdf_object, 'qgdf_points') and gdf_object.qgdf_points is not None) or \
                            (hasattr(gdf_object, 'qldf_points') and gdf_object.qldf_points is not None)
             if not has_dist_data:
+                self.logger.error("Q-distribution object must contain distribution function data")
                 raise ValueError("Q-distribution object must contain distribution function data")
         else:
             # For E-distributions, need PDF data
             has_pdf_points = hasattr(gdf_object, 'pdf_points') and gdf_object.pdf_points is not None
             has_pdf = hasattr(gdf_object, 'pdf') and gdf_object.pdf is not None
             if not (has_pdf_points or has_pdf):
+                self.logger.error("E-distribution object must contain PDF data")
                 raise ValueError("E-distribution object must contain PDF data")
         
         # Check for data points
@@ -564,12 +583,14 @@ class Z0Estimator:
         has_data = hasattr(gdf_object, 'data') and gdf_object.data is not None
         
         if not (has_di_points or has_data):
+            self.logger.error("GDF object must contain data points (di_points_n or data attribute)")
             raise ValueError("GDF object must contain data points (di_points_n or data attribute)")
     
     def _detect_gdf_type(self):
         return self._detect_gdf_type_from_object(self.gdf)
     
     def _detect_gdf_type_from_object(self, gdf_object):
+        """Detect the type of GDF distribution from the object class name."""
         class_name = gdf_object.__class__.__name__.lower()
         
         if 'egdf' in class_name:
@@ -618,12 +639,11 @@ class Z0Estimator:
                     return result
             except Exception as e:
                 if self.verbose:
-                    print(f"Z0Estimator: Method {method.__name__} failed: {e}")
+                    self.logger.error(f"Method {method.__name__} failed: {e}")
                 continue
         
         # All advanced methods failed - use discrete closest
-        if self.verbose:
-            print("Z0Estimator: All advanced methods failed. Using discrete closest to 0.5.")
+        self.logger.info("All advanced methods failed. Using discrete closest to 0.5.")
         
         self.estimation_info['z0'] = closest_location
         return closest_location
@@ -662,12 +682,12 @@ class Z0Estimator:
                     return result
             except Exception as e:
                 if self.verbose:
-                    print(f"Z0Estimator: Method {method.__name__} failed: {e}")
+                    self.logger.error(f"Method {method.__name__} failed: {e}")
                 continue
         
         # All advanced methods failed - use discrete maximum
         if self.verbose:
-            print("Z0Estimator: All advanced methods failed. Using discrete PDF maximum.")
+            self.logger.info("All advanced methods failed. Using discrete PDF maximum.")
         
         self.estimation_info['z0'] = max_location
         return max_location
@@ -679,7 +699,7 @@ class Z0Estimator:
             from scipy.optimize import brentq
         except ImportError:
             if self.verbose:
-                print("Z0Estimator: SciPy not available for spline median finding")
+                self.logger.error("SciPy not available for spline median finding")
             return None
         
         try:
@@ -705,7 +725,7 @@ class Z0Estimator:
                 if domain_min <= z0_candidate <= domain_max:
                     self.estimation_info['z0_method'] = 'spline_median_finding'
                     if self.verbose:
-                        print(f"Z0Estimator: Spline median finding successful: Z0={z0_candidate:.8f} (target={target_value})")
+                        self.logger.info(f"Spline median finding successful: Z0={z0_candidate:.8f} (target={target_value})")
                     return z0_candidate
             except ValueError:
                 # Try linear search if brentq fails
@@ -716,12 +736,12 @@ class Z0Estimator:
                 
                 self.estimation_info['z0_method'] = 'spline_median_search'
                 if self.verbose:
-                    print(f"Z0Estimator: Spline median search successful: Z0={z0_candidate:.8f} (target={target_value})")
+                    self.logger.info(f"Spline median search successful: Z0={z0_candidate:.8f} (target={target_value})")
                 return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Spline median finding failed: {e}")
+                self.logger.error(f"Spline median finding failed: {e}")
         
         return None
     
@@ -746,12 +766,12 @@ class Z0Estimator:
                     
                     self.estimation_info['z0_method'] = 'linear_interpolation_median'
                     if self.verbose:
-                        print(f"Z0Estimator: Linear interpolation median successful: Z0={z0_candidate:.8f} (target={target_value})")
+                        self.logger.info(f"Linear interpolation median successful: Z0={z0_candidate:.8f} (target={target_value})")
                     return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Linear interpolation median failed: {e}")
+                self.logger.error(f"Linear interpolation median failed: {e}")
         
         return None
     
@@ -785,7 +805,7 @@ class Z0Estimator:
                             
                             self.estimation_info['z0_method'] = f'polynomial_median_degree_{degree}'
                             if self.verbose:
-                                print(f"Z0Estimator: Polynomial median finding (degree {degree}) successful: Z0={z0_candidate:.8f} (target={target_value})")
+                                self.logger.info(f"Polynomial median finding (degree {degree}) successful: Z0={z0_candidate:.8f} (target={target_value})")
                             return z0_candidate
                     
                     except (np.linalg.LinAlgError, ValueError):
@@ -793,7 +813,7 @@ class Z0Estimator:
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Polynomial median finding failed: {e}")
+                self.logger.error(f"Polynomial median finding failed: {e}")
         
         return None
     
@@ -804,7 +824,7 @@ class Z0Estimator:
             from scipy.optimize import minimize_scalar
         except ImportError:
             if self.verbose:
-                print("Z0Estimator: SciPy not available for spline optimization")
+                self.logger.error("SciPy not available for spline optimization")
             return None
         
         try:
@@ -825,12 +845,12 @@ class Z0Estimator:
                 if domain_min <= z0_candidate <= domain_max:
                     self.estimation_info['z0_method'] = 'global_spline_optimization'
                     if self.verbose:
-                        print(f"Z0Estimator: Spline optimization successful: Z0={z0_candidate:.8f} (PDF maximum)")
+                        self.logger.info(f"Spline optimization successful: Z0={z0_candidate:.8f} (PDF maximum)")
                     return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Spline optimization failed: {e}")
+                self.logger.error(f"Spline optimization failed: {e}")
         
         return None
     
@@ -883,7 +903,7 @@ class Z0Estimator:
                             if second_deriv_value < 0:
                                 self.estimation_info['z0_method'] = f'global_polynomial_fitting_degree_{degree}'
                                 if self.verbose:
-                                    print(f"Z0Estimator: Polynomial fitting (degree {degree}) successful: Z0={z0_candidate:.8f} (PDF maximum)")
+                                    self.logger.info(f"Polynomial fitting (degree {degree}) successful: Z0={z0_candidate:.8f} (PDF maximum)")
                                 return z0_candidate
                     
                     except (np.linalg.LinAlgError, ValueError):
@@ -891,7 +911,7 @@ class Z0Estimator:
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Polynomial fitting failed: {e}")
+                self.logger.error(f"Polynomial fitting failed: {e}")
         
         return None
     
@@ -929,12 +949,12 @@ class Z0Estimator:
             
             self.estimation_info['z0_method'] = 'global_refined_interpolation'
             if self.verbose:
-                print(f"Z0Estimator: Refined interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
+                self.logger.info(f"Refined interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
             return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Refined interpolation failed: {e}")
+                self.logger.error(f"Refined interpolation failed: {e}")
         
         return None
     
@@ -969,12 +989,12 @@ class Z0Estimator:
             if is_maximum and x1 <= z0_candidate <= x3:
                 self.estimation_info['z0_method'] = 'global_parabolic_interpolation'
                 if self.verbose:
-                    print(f"Z0Estimator: Parabolic interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
+                    self.logger.info(f"Parabolic interpolation successful: Z0={z0_candidate:.8f} (PDF maximum)")
                 return z0_candidate
             
         except Exception as e:
             if self.verbose:
-                print(f"Z0Estimator: Parabolic interpolation failed: {e}")
+                self.logger.error(f"Parabolic interpolation failed: {e}")
         
         return None
     
@@ -982,6 +1002,8 @@ class Z0Estimator:
         return self.estimation_info.get('z0_method', 'discrete_fallback')
     
     def _get_pdf_points(self):
+        """Get PDF points for E-distributions."""
+        self.logger.debug("Retrieving PDF points.")
         if hasattr(self.gdf, 'pdf_points') and self.gdf.pdf_points is not None:
             return np.array(self.gdf.pdf_points)
         elif hasattr(self.gdf, 'pdf') and self.gdf.pdf is not None:
@@ -991,6 +1013,7 @@ class Z0Estimator:
     
     def _get_distribution_points(self):
         """Get distribution function points for Q-distributions."""
+        self.logger.debug("Retrieving distribution points.")
         if hasattr(self.gdf, 'cdf_points') and self.gdf.cdf_points is not None:
             return np.array(self.gdf.cdf_points)
         elif hasattr(self.gdf, 'qgdf_points') and self.gdf.qgdf_points is not None:
@@ -1001,6 +1024,8 @@ class Z0Estimator:
             return np.array([])
     
     def _get_di_points(self):
+        """Get data points (di_points_n) or raw data."""
+        self.logger.debug("Retrieving data points.")
         if hasattr(self.gdf, 'di_points_n') and self.gdf.di_points_n is not None:
             return np.array(self.gdf.di_points_n)
         elif hasattr(self.gdf, 'data') and self.gdf.data is not None:
