@@ -8,8 +8,6 @@ Machine Gnostics
 '''
 
 import numpy as np
-from machinegnostics import variance
-from machinegnostics.models.regression import LinearRegressor
 
 
 class DataScedasticity:
@@ -74,6 +72,8 @@ class DataScedasticity:
                  data_form: str = 'a',
                  gnostic_characteristics: bool = True,
                  history: bool = True):
+        
+        from machinegnostics.models.regression import LinearRegressor
         self.x = None
         self.y = None
         self.model = LinearRegressor(scale=scale,
@@ -105,6 +105,8 @@ class DataScedasticity:
         Returns:
             float: Variance ratio of the squared residuals.
         """
+
+        from machinegnostics import variance
         left_half, right_half = self._split_residuals()
         left_residuals = np.array([ri for xi, ri in left_half])
         right_residuals = np.array([ri for xi, ri in right_half])
