@@ -18,6 +18,56 @@ from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 
 
 class DataMembership:
+    """
+    DataMembership
+
+    This class provides functionality to test whether a given value can be considered a member of a homogeneous data sample. It uses the EGDF (Empirical Generalized Distribution Function) framework to determine the homogeneity of the data sample and to calculate the bounds within which new data points can be added without disrupting the homogeneity.
+
+    Attributes:
+        egdf (EGDF): An instance of the EGDF class containing the data sample and its parameters.
+        verbose (bool): If True, detailed logs are printed during execution.
+        catch (bool): If True, errors and warnings are stored in the `params` attribute.
+        tolerance (float): The tolerance level for numerical calculations.
+        max_iterations (int): The maximum number of iterations for bound search.
+        initial_step_factor (float): The initial step size factor for adaptive bound search.
+        LSB (float): The calculated Lower Sample Bound (LSB).
+        USB (float): The calculated Upper Sample Bound (USB).
+        is_homogeneous (bool): Indicates whether the original data sample is homogeneous.
+        params (dict): Stores results, errors, warnings, and other parameters.
+        _fitted (bool): Indicates whether the membership analysis has been completed.
+
+    Methods:
+        fit():
+            Performs the membership analysis to determine the LSB and USB.
+            Returns a tuple of (LSB, USB).
+
+        plot(plot_smooth=True, plot='both', bounds=True, figsize=(12, 8)):
+            Generates a plot of the EGDF and PDF with membership bounds and other relevant information.
+
+        results():
+            Returns the analysis results stored in the `params` attribute.
+
+        fitted:
+            A property that indicates whether the membership analysis has been completed.
+
+    Usage:
+        >>> egdf_instance = EGDF(...)
+        >>> membership = DataMembership(egdf_instance)
+        >>> membership.fit()
+        >>> membership.plot()
+        >>> results = membership.results()
+
+    Example:
+        >>> from machinegnostics.magcal.gdf.egdf import EGDF
+        >>> egdf_instance = EGDF(data=[1.2, 1.5, 1.7, 1.9], S=2.0)
+        >>> egdf_instance.fit()
+        >>> membership = DataMembership(egdf_instance, verbose=True)
+        >>> lsb, usb = membership.fit()
+        >>> print(f"Lower Bound: {lsb}, Upper Bound: {usb}")
+        >>> membership.plot()
+        >>> results = membership.results()
+        >>> print(results)
+    """
     
     def __init__(self, 
                  egdf: EGDF,
@@ -220,6 +270,19 @@ class DataMembership:
         return best_bound
     
     def fit(self) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Performs the membership analysis to determine the Lower Sample Bound (LSB) and Upper Sample Bound (USB).
+
+        This method checks the homogeneity of the original data sample and calculates the bounds within which new data points can be added without disrupting the homogeneity.
+
+        Returns:
+            Tuple[Optional[float], Optional[float]]: The calculated LSB and USB values. Returns None for a bound if it cannot be determined.
+
+        Raises:
+            RuntimeError: If the original data sample is not homogeneous.
+            Exception: For any other errors encountered during the analysis.
+        """
+
         try:
             if self.verbose:
                 print("DataMembership: Starting membership analysis...")
@@ -290,6 +353,20 @@ class DataMembership:
              plot: str = 'both', 
              bounds: bool = True, 
              figsize: tuple = (12, 8)):
+        """
+        Generates a plot of the EGDF and PDF with membership bounds and other relevant information.
+
+        Parameters:
+            plot_smooth (bool): If True, plots a smoothed version of the EGDF and PDF.
+            plot (str): Specifies what to plot. Options are 'gdf', 'pdf', or 'both'.
+            bounds (bool): If True, includes data bounds (DLB, DUB, LB, UB) in the plot.
+            figsize (tuple): The size of the plot figure.
+
+        Raises:
+            RuntimeError: If the `fit` method has not been called before plotting.
+            Exception: For any errors encountered during plotting.
+        """
+
         if not self._fitted:
             raise RuntimeError("DataMembership: Must call fit() before plotting")
         
@@ -438,6 +515,19 @@ class DataMembership:
             raise
     
     def results(self) -> Dict[str, Any]:
+        """
+        Returns the analysis results stored in the `params` attribute.
+
+        This method provides the calculated LSB, USB, and other relevant parameters, as well as any errors or warnings encountered during the analysis.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the analysis results, errors, warnings, and other parameters.
+
+        Raises:
+            RuntimeError: If the `fit` method has not been called before accessing results.
+            RuntimeError: If `catch` is set to False during initialization, as no results are stored.
+        """
+
         if not self._fitted:
             raise RuntimeError("DataMembership: No analysis results available. Call fit() method first")
         

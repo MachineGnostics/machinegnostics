@@ -15,7 +15,7 @@ class QLDF(BaseQLDF):
     Detailed Description: The QLDF class quantifies and analyzes local distribution characteristics around critical points in data. It focuses on identifying local minima in probability density (Z0 points) and their neighborhood behavior. This class is optimized for detailed local distribution analysis and memory-efficient processing.
 
     Key Features:
-        - Automatic Z0 point identification (global PDF minimum).
+        - Automatic Z0 point identification.
         - Local distribution characterization around critical points.
         - Advanced interpolation methods for precise Z0 estimation.
         - Support for weighted data analysis.
