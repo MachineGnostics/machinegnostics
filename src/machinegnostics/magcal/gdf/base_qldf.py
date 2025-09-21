@@ -129,9 +129,16 @@ class BaseQLDF(BaseQGDF):
             # derivatives
             # self._calculate_all_derivatives()
             
-            # # Step 8: Z0 estimate with Z0Estimator
-            # self._compute_z0(optimize=self.z0_optimize)         
-            
+            # # Step 9: varS       
+            if self.varS:
+                self._varS_calculation()
+                self._compute_final_results_varS()
+                self._generate_smooth_curves_varS()
+
+            # Step 10: Z0 re-estimate with varS if enabled
+            if self.varS:
+                self._compute_z0(optimize=self.z0_optimize) 
+
             if self.verbose:
                 print("QLDF fitting completed successfully.")
 
@@ -205,16 +212,16 @@ class BaseQLDF(BaseQGDF):
         self.fj = fj  # quantifying fidelities
         self.hj = hj  # quantifying irrelevances
 
-        # varS - Variable S parameter
-        if self.varS:
-            fj_m = np.sum(self.fj * self.weights, axis=0) / np.sum(self.weights)
-            scale = ScaleParam()
-            self.S_var = np.abs(scale._gscale_loc(fj_m) * self.S_opt) # NOTE fi or fj?
-            # cap value for minimum S_var array
-            self.S_var = np.maximum(self.S_var, 0.1)
-            qldf_values, fj, hj = self._compute_qldf_core(self.S_var, self.LB_opt, self.UB_opt)
-            self.fj = fj
-            self.hj = hj
+        # # varS - Variable S parameter
+        # if self.varS:
+        #     fj_m = np.sum(self.fj * self.weights, axis=0) / np.sum(self.weights)
+        #     scale = ScaleParam()
+        #     self.S_var = np.abs(scale._gscale_loc(fj_m) * self.S_opt) # NOTE fi or fj?
+        #     # cap value for minimum S_var array
+        #     self.S_var = np.maximum(self.S_var, 0.1)
+        #     qldf_values, fj, hj = self._compute_qldf_core(self.S_var, self.LB_opt, self.UB_opt)
+        #     self.fj = fj
+        #     self.hj = hj
 
         self.qldf = qldf_values
         self.pdf = self._compute_qldf_pdf(self.fj, self.hj)
@@ -224,7 +231,7 @@ class BaseQLDF(BaseQGDF):
                 'qldf': self.qldf.copy(),
                 'pdf': self.pdf.copy(),
                 'zi': self.zi.copy(),
-                'S_var': self.S_var.copy() if self.varS else None
+                # 'S_var': self.S_var.copy() if self.varS else None
             })
 
     def _compute_qldf_pdf(self, fj, hj):
@@ -253,38 +260,15 @@ class BaseQLDF(BaseQGDF):
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis - QLDF."""
         try:
-            # Generate smooth QLDF and PDF
-            if self.varS:
-                if self.verbose:
-                    print("Generating smooth curves with varying S...")
+            if self.verbose and not self.varS:
+                print("Generating smooth curves without varying S...")
 
-                smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
-                    self.S_opt, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-                # svar
-                scale = ScaleParam()
-                S_var_smooth = np.abs(scale._gscale_loc(np.mean(self.smooth_fj, axis=0)) * self.S_opt)
-                # cap value for minimum S_var_smooth array
-                S_var_smooth = np.maximum(S_var_smooth, 0.1)
-                # re-evaluate QLDF with smoothed variance
-                smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
-                    S_var_smooth, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-
-                smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj)
-
-            else:
-                if self.verbose:
-                    print("Generating smooth curves without varying S...")
-
-                smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
-                    self.S_opt, self.LB_opt, self.UB_opt,
-                    zi_data=self.z_points_n, zi_eval=self.z
-                )
-                smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj) 
-        
+            smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
+                self.S_opt, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj) 
+    
             self.qldf_points = smooth_qldf
             self.pdf_points = smooth_pdf
             
@@ -301,7 +285,7 @@ class BaseQLDF(BaseQGDF):
                     'zi_points': self.zi_n.copy()
                 })
             
-            if self.verbose:
+            if self.verbose and not self.varS:
                 print(f"Generated smooth curves with {self.n_points} points.")
                 
         except Exception as e:
@@ -840,3 +824,137 @@ class BaseQLDF(BaseQGDF):
                 
                 if self.verbose:
                     print(f"Warning: Could not calculate numerical derivatives: {ne}")
+
+    def _estimate_s0_sigma(self, z0, s_local, s_global, mode="sum"):
+        """
+        Estimate S0 and sigma given z0 (float), s_local (array), and s_global (float).
+        
+        Parameters
+        ----------
+        z0 : float
+            Mean value of the data.
+        s_local : array-like
+            Local scale parameters.
+        s_global : float
+            Global scale parameter.
+        mode : str
+            "mean" -> match average predicted to s_global
+            "sum"  -> match sum predicted to s_global
+        
+        Returns
+        -------
+        S0, sigma : floats
+            Estimated parameters.
+        """
+        s_local = np.asarray(s_local)
+
+        def objective(params):
+            S0, sigma = params
+            preds = S0 * np.exp(sigma * z0) * s_local
+            if mode == "mean":
+                target = preds.mean()
+            elif mode == "sum":
+                target = preds.sum()
+            else:
+                raise ValueError("mode must be 'mean' or 'sum'")
+            return (s_global - target) ** 2
+
+        # Initial guess
+        p0 = [1.0, 0.0]
+
+        res = minimize(objective, p0, method="Nelder-Mead")
+        return res.x[0], res.x[1]
+    
+    def _varS_calculation(self):
+        """Calculate varS if enabled."""
+        from machinegnostics import variance
+
+        if self.verbose:
+            print("Calculating varS for QLDF...")
+        # estimate fi hi at z0
+        gc, q, q1 = self._calculate_gcq_at_given_zi(self.z0)
+
+        fi_z0 = gc._fj(q=q, q1=q1)
+
+        scale = ScaleParam()
+        self.S_local = scale._gscale_loc(fi_z0)
+
+        self.S_local = np.maximum(self.S_local, 0.1)  # cap value for minimum S_local array
+
+        # # s0 # NOTE for future exploration
+        # self.S0, self.sigma = self._estimate_s0_sigma(
+        #     z0=self.z0,
+        #     s_local=fi_z0,
+        #     s_global=self.S_opt,
+        #     mode="sum"
+        # )
+
+        # Svar
+        self.S_var = self.S_local * self.S_opt
+        return self.S_var
+
+    def _compute_final_results_varS(self):
+        """Compute the final results for the QLDF model."""
+        # Implement final results computation logic here
+        # zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
+        # self.zi = zi_d
+
+        qldf_values, fj, hj = self._compute_qldf_core(self.S_var, self.LB_opt, self.UB_opt)
+        self.fj = fj
+        self.hj = hj
+
+        self.qldf = qldf_values
+        self.pdf = self._compute_qldf_pdf(self.fj, self.hj)
+        
+        if self.catch:
+            self.params.update({
+                'qldf': self.qldf.copy(),
+                'pdf': self.pdf.copy(),
+                'zi': self.zi.copy(),
+                'S_var': self.S_var.copy() if self.varS else None
+            })
+
+    def _generate_smooth_curves_varS(self):
+        """Generate smooth curves for plotting and analysis - QLDF."""
+        try:
+            if self.verbose:
+                print("Generating smooth curves with varying S...")
+
+            smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
+                self.S_var, self.LB_opt, self.UB_opt,
+                zi_data=self.z_points_n, zi_eval=self.z
+            )
+            smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj) 
+        
+            self.qldf_points = smooth_qldf
+            self.pdf_points = smooth_pdf
+            
+            # Mark as generated
+            self._computation_cache['smooth_curves_generated'] = True
+            
+            if self.catch:
+                self.params.update({
+                    'qldf_points': self.qldf_points.copy(),
+                    'pdf_points': self.pdf_points.copy(),
+                    'zi_points': self.zi_n.copy()
+                })
+            
+            if self.verbose:
+                print(f"Generated smooth curves with {self.n_points} points.")
+        
+        except Exception as e:
+            # log error
+            error_msg = f"Smooth curve generation failed: {e}"
+            self.params['errors'].append({
+                'method': '_generate_smooth_curves_varS',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+
+            if self.verbose:
+                print(f"Warning: Could not generate smooth curves: {e}")
+
+            # Create fallback points using original data
+            self.qldf_points = self.qldf.copy() if hasattr(self, 'qldf') else None
+            self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
+            self._computation_cache['smooth_curves_generated'] = False
