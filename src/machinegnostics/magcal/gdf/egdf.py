@@ -131,7 +131,7 @@ class EGDF(BaseEGDF):
                 data_form: str = 'a',
                 n_points: int = 500,
                 homogeneous: bool = True,
-                catch: bool = True,
+                catch: bool = False,
                 weights: np.ndarray = None,
                 wedf: bool = True,
                 opt_method: str = 'L-BFGS-B',
