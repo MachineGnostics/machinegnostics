@@ -156,6 +156,9 @@ class LinearRegressor(DataProcessRobustRegressor):
             self._history = []
         else:
             self._history = None
+        
+        # logger
+        self.logger.info("LinearRegressor initialized.")
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -189,6 +192,7 @@ class LinearRegressor(DataProcessRobustRegressor):
         >>> print(model.coefficients)
         >>> print(model.weights)
         """
+        self.logger.info("Starting fit process for LinearRegressor.")
         # Call the fit method from DataProcessRobustRegressor
         super()._fit(X, y)
     
@@ -212,6 +216,7 @@ class LinearRegressor(DataProcessRobustRegressor):
         >>> model.fit(X_train, y_train)
         >>> y_pred = model.predict(X_test)
         """
+        self.logger.info("Making predictions with LinearRegressor.")
         # Call the predict method from DataProcessRobustRegressor
         return super()._predict(model_input)
     
@@ -240,6 +245,7 @@ class LinearRegressor(DataProcessRobustRegressor):
         >>> r2 = model.score(X_test, y_test)
         >>> print(f"Robust R2 score: {r2}")
         """
+        self.logger.info("Calculating robust R2 score with LinearRegressor.")
         # prediction
         y_pred = self.predict(X)
         # Call the score method from DataProcessRobustRegressor
