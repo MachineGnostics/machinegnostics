@@ -20,9 +20,11 @@ Author: Nirmal Parmar
 Machine Gnostics
 """
 
+import logging
 import numpy as np
 from typing import Callable, Dict, Any, Tuple, Optional, Union
 from scipy.optimize import minimize
+from machinegnostics.magcal.util.logging import get_logger
 
 class DistFuncEngine:
     """
@@ -306,36 +308,49 @@ class DistFuncEngine:
         self.S_opt = None
         self.LB_opt = None
         self.UB_opt = None
+
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{__name__} initialized:")
         
     def _validate_inputs(self, compute_func, target_values, weights, S, LB, UB):
         """Validate initialization inputs."""
         if not callable(compute_func):
+            self.logger.error("compute_func must be callable")
             raise TypeError("compute_func must be callable")
             
         if not isinstance(target_values, np.ndarray):
+            self.logger.debug("Converting target_values to numpy array.")
             target_values = np.asarray(target_values)
             
         if target_values.size == 0:
+            self.logger.error("target_values cannot be empty")
             raise ValueError("target_values cannot be empty")
             
         if not np.isfinite(target_values).all():
+            self.logger.error("target_values must contain only finite values")
             raise ValueError("target_values must contain only finite values")
             
         if weights is not None:
             weights = np.asarray(weights)
             if len(weights) != len(target_values):
+                self.logger.error("weights must have same length as target_values")
                 raise ValueError("weights must have same length as target_values")
             if not np.all(weights >= 0):
+                self.logger.error("weights must be non-negative")
                 raise ValueError("weights must be non-negative")
                 
         # Validate S parameter
         if isinstance(S, str) and S.lower() != 'auto':
+            self.logger.error("S must be a positive number or 'auto'")
             raise ValueError("S must be a positive number or 'auto'")
         elif isinstance(S, (int, float)) and S <= 0:
+            self.logger.error("S must be positive when specified as a number")
             raise ValueError("S must be positive when specified as a number")
             
         # Validate bounds
         if LB is not None and UB is not None and LB >= UB:
+            self.logger.error("LB must be less than UB when both are provided")
             raise ValueError("LB must be less than UB when both are provided")
 
     def optimize(self) -> Dict[str, float]:
@@ -347,16 +362,14 @@ class DistFuncEngine:
         Dict[str, float]
             Optimized parameters {'S': value, 'LB': value, 'UB': value}
         """
-        if self.verbose:
-            print("DistFuncEngine: Starting parameter optimization...")
+        self.logger.debug("Starting parameter optimization...")
             
         try:
             # Determine optimization strategy
             strategy = self._determine_optimization_strategy()
-            
-            if self.verbose:
-                print(f"DistFuncEngine: Using optimization strategy: {strategy}")
-            
+
+            self.logger.debug(f"Using optimization strategy: {strategy}")
+
             # Execute optimization based on strategy
             if strategy == 'optimize_all':
                 self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
@@ -381,15 +394,15 @@ class DistFuncEngine:
             
             self.optimization_results.update(results)
             self.optimization_results['strategy_used'] = strategy
-            
-            if self.verbose:
-                print(f"DistFuncEngine: Optimization completed successfully")
-                print(f"DistFuncEngine: Results - S: {self.S_opt:.6f}, LB: {self.LB_opt:.6f}, UB: {self.UB_opt:.6f}")
-                
+
+            self.logger.info("Optimization completed successfully")
+            self.logger.debug(f"Results - S: {self.S_opt:.6f}, LB: {self.LB_opt:.6f}, UB: {self.UB_opt:.6f}")
+
             return results
             
         except Exception as e:
             error_msg = f"DistFuncEngine optimization failed: {str(e)}"
+            self.logger.error(error_msg)
             self.optimization_errors.append({
                 'method': 'optimize',
                 'error': error_msg,
@@ -398,14 +411,15 @@ class DistFuncEngine:
             
             if self.catch_errors:
                 if self.verbose:
-                    print(f"DistFuncEngine: {error_msg}")
-                    print("DistFuncEngine: Using fallback values")
+                    self.logger.debug(f"{error_msg}")
+                    self.logger.debug("Using fallback values")
                 return self._get_fallback_results()
             else:
                 raise
 
     def _determine_optimization_strategy(self) -> str:
         """Determine which optimization strategy to use."""
+        self.logger.info("Determining optimization strategy...")
         s_is_auto = isinstance(self.S, str) and self.S.lower() == 'auto'
         lb_provided = self.LB is not None
         ub_provided = self.UB is not None
@@ -427,8 +441,7 @@ class DistFuncEngine:
 
     def _optimize_all_parameters(self) -> Tuple[float, float, float]:
         """Optimize all parameters (S, LB, UB) using normalized parameter space."""
-        if self.verbose:
-            print("DistFuncEngine: Optimizing all parameters (S, LB, UB)...")
+        self.logger.info("Optimizing all parameters (S, LB, UB)...")
             
         bounds = self._OPTIMIZATION_BOUNDS
         
@@ -466,13 +479,14 @@ class DistFuncEngine:
                 if self.verbose and hasattr(self, '_opt_iteration'):
                     self._opt_iteration += 1
                     if self._opt_iteration % 50 == 0:
-                        print(f"  Iteration {self._opt_iteration}: Loss={diff:.6f}, Total={total_loss:.6f}, "
+                        self.logger.debug(f"  Iteration {self._opt_iteration}: Loss={diff:.6f}, Total={total_loss:.6f}, "
                               f"S={s:.3f}, LB={lb:.6f}, UB={ub:.3f}")
                 
                 return total_loss
                 
             except Exception as e:
                 error_msg = f"Objective function failed: {str(e)}"
+                self.logger.error(error_msg)
                 self.optimization_errors.append({
                     'method': '_optimize_all_parameters.objective_function',
                     'error': error_msg,
@@ -511,8 +525,7 @@ class DistFuncEngine:
             
             # Validate results
             if lb_opt >= ub_opt or s_opt <= 0:
-                if self.verbose:
-                    print("DistFuncEngine: Warning - Invalid optimized parameters, using fallback")
+                self.logger.warning("Invalid optimized parameters, using fallback")
                 return self._get_fallback_parameters()
             
             # Store optimization info
@@ -527,35 +540,32 @@ class DistFuncEngine:
             
         except Exception as e:
             error_msg = f"All parameters optimization failed: {str(e)}"
+            self.logger.error(error_msg)
             self.optimization_errors.append({
                 'method': '_optimize_all_parameters',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            
-            if self.verbose:
-                print(f"DistFuncEngine: {error_msg}")
                 
             return self._get_fallback_parameters()
 
     def _optimize_s_parameter(self, lb: float, ub: float) -> float:
         """Optimize only S parameter with fixed bounds."""
-        if self.verbose:
-            print("DistFuncEngine: Optimizing S parameter...")
-            
+        self.logger.info("Optimizing S parameter...")
+
         def objective_function(s_array):
             try:
                 s = s_array[0]
                 dist_values, _, _ = self.compute_func(s, lb, ub)
                 diff = np.mean(np.abs(dist_values - self.target_values) * self.weights)
-                
-                if self.verbose:
-                    print(f"  S optimization - Loss: {diff:.6f}, S: {s:.3f}")
-                    
+
+                self.logger.debug(f"  S optimization - Loss: {diff:.6f}, S: {s:.3f}")
+
                 return diff
                 
             except Exception as e:
                 error_msg = f"S optimization objective failed: {str(e)}"
+                self.logger.error(error_msg)
                 self.optimization_errors.append({
                     'method': '_optimize_s_parameter.objective_function',
                     'error': error_msg,
@@ -587,22 +597,20 @@ class DistFuncEngine:
             
         except Exception as e:
             error_msg = f"S parameter optimization failed: {str(e)}"
+            self.logger.error(error_msg)
             self.optimization_errors.append({
                 'method': '_optimize_s_parameter',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
             
-            if self.verbose:
-                print(f"DistFuncEngine: {error_msg}")
                 
             return self._FALLBACK_VALUES['S']
 
     def _optimize_bounds_parameters(self, s: float) -> Tuple[float, float, float]:
         """Optimize LB and UB parameters with fixed S."""
-        if self.verbose:
-            print("DistFuncEngine: Optimizing LB and UB parameters...")
-            
+        self.logger.info("Optimizing LB and UB parameters...")
+
         bounds = self._OPTIMIZATION_BOUNDS
         
         def normalize_bounds(lb, ub):
@@ -629,11 +637,14 @@ class DistFuncEngine:
                 # Add regularization
                 regularization = np.sum(norm_params**2)
                 total_loss = diff + regularization
-                
-                if self.verbose:
-                    print(f"  Bounds optimization - Loss: {diff:.6f}, Total: {total_loss:.6f}, "
-                          f"LB: {lb:.6f}, UB: {ub:.3f}")
-                    
+
+                # print only 50th iteration
+                if self.verbose and hasattr(self, '_opt_iteration'):
+                    self._opt_iteration += 1
+                    if self._opt_iteration % 50 == 0:
+                        self.logger.debug(f"  Iteration {self._opt_iteration}: Loss={diff:.6f}, Total={total_loss:.6f}, "
+                              f"LB={lb:.6f}, UB={ub:.3f}")
+
                 return total_loss
                 
             except Exception as e:
@@ -675,7 +686,7 @@ class DistFuncEngine:
             # Validate results
             if lb_opt >= ub_opt:
                 if self.verbose:
-                    print("DistFuncEngine: Warning - Invalid optimized bounds, using initial values")
+                    self.logger.warning("Warning - Invalid optimized bounds, using initial values")
                 return s, lb_init, ub_init
             
             # Store optimization info
@@ -690,31 +701,33 @@ class DistFuncEngine:
             
         except Exception as e:
             error_msg = f"Bounds optimization failed: {str(e)}"
+            self.logger.error(error_msg)
             self.optimization_errors.append({
                 'method': '_optimize_bounds_parameters',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
             
-            if self.verbose:
-                print(f"DistFuncEngine: {error_msg}")
-                
             return s, lb_init, ub_init
 
     def _get_fallback_parameters(self) -> Tuple[float, float, float]:
         """Get fallback parameters when optimization fails."""
+        self.logger.info("Using fallback parameters...")
+
         s_fallback = self._FALLBACK_VALUES['S']
         lb_fallback = self._estimate_fallback_lb()
         ub_fallback = self._estimate_fallback_ub()
         
         if self.verbose:
-            print(f"DistFuncEngine: Using fallback parameters - S: {s_fallback}, "
+            self.logger.info(f"Using fallback parameters - S: {s_fallback}, "
                   f"LB: {lb_fallback}, UB: {ub_fallback}")
                   
         return s_fallback, lb_fallback, ub_fallback
 
     def _get_fallback_results(self) -> Dict[str, float]:
         """Get fallback results dictionary."""
+        self.logger.info("Getting fallback results...")
+
         s_fallback, lb_fallback, ub_fallback = self._get_fallback_parameters()
         
         self.S_opt = s_fallback
@@ -729,6 +742,8 @@ class DistFuncEngine:
 
     def _estimate_fallback_lb(self) -> float:
         """Estimate fallback LB value."""
+        self.logger.info("Estimating fallback LB...")
+
         bounds = self._OPTIMIZATION_BOUNDS
         if self.LB_init is not None:
             return max(self.LB_init, bounds['LB_MIN'])
@@ -736,7 +751,9 @@ class DistFuncEngine:
             return bounds['LB_MIN'] * self._FALLBACK_VALUES['LB_FACTOR']
 
     def _estimate_fallback_ub(self) -> float:
-        """Estimate fallback UB value.""" 
+        """Estimate fallback UB value."""
+        self.logger.info("Estimating fallback UB...")
+
         bounds = self._OPTIMIZATION_BOUNDS
         if self.UB_init is not None:
             return min(self.UB_init, bounds['UB_MAX'])
@@ -752,6 +769,8 @@ class DistFuncEngine:
         Dict[str, Any]
             Optimization results, errors, and warnings
         """
+        self.logger.info("Getting optimization info...")
+
         return {
             'results': self.optimization_results.copy(),
             'errors': self.optimization_errors.copy(),
@@ -771,7 +790,9 @@ class DistFuncEngine:
         --------
         Tuple containing the results of compute_func(S_opt, LB_opt, UB_opt)
         """
+        self.logger.info("Evaluating with optimized parameters...")
         if self.S_opt is None or self.LB_opt is None or self.UB_opt is None:
+            self.logger.error("Parameters must be optimized before evaluation. Call optimize() first.")
             raise ValueError("Parameters must be optimized before evaluation. Call optimize() first.")
             
         return self.compute_func(self.S_opt, self.LB_opt, self.UB_opt)
@@ -785,12 +806,14 @@ class DistFuncEngine:
         float
             Final weighted mean absolute error
         """
+        self.logger.info("Computing final loss with optimized parameters...")
         try:
             dist_values, _, _ = self.evaluate_with_optimized_parameters()
             loss = np.mean(np.abs(dist_values - self.target_values) * self.weights)
             return float(loss)
         except Exception as e:
             error_msg = f"Final loss computation failed: {str(e)}"
+            self.logger.error(error_msg)
             self.optimization_errors.append({
                 'method': 'compute_final_loss',
                 'error': error_msg,
@@ -800,6 +823,7 @@ class DistFuncEngine:
 
     def reset(self):
         """Reset optimization state for reuse."""
+        self.logger.info("Resetting engine state...")
         self.S_opt = None
         self.LB_opt = None
         self.UB_opt = None
@@ -808,9 +832,10 @@ class DistFuncEngine:
         self.optimization_warnings.clear()
         
         if self.verbose:
-            print("DistFuncEngine: State reset successfully")
+            self.logger.info("State reset successfully")
 
     def __repr__(self) -> str:
         """String representation of the engine."""
+        self.logger.info("Getting string representation...")
         status = "optimized" if self.S_opt is not None else "not optimized"
         return f"DistFuncEngine(target_values={len(self.target_values)}, status={status})"
