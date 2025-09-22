@@ -10,6 +10,8 @@ DataMembership
   4. need to find minimum and maximum values of Zξ that keeps the extended sample homogeneous.
 
 '''
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, Any, Tuple, Optional
@@ -84,6 +86,11 @@ class DataMembership:
         self.max_iterations = max_iterations
         self.initial_step_factor = initial_step_factor
         
+        # Set up logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized: ")
+
+        # Validate EGDF object
         self._validate_egdf()
         
         self.LSB = None
@@ -97,20 +104,26 @@ class DataMembership:
             self.params['warnings'] = []
     
     def _validate_egdf(self):
+        self.logger.debug("Validating EGDF object for DataMembership analysis")
         if not hasattr(self.egdf, '__class__'):
-            raise ValueError("DataMembership: Input must be an EGDF object")
+            self.logger.error("Input must be an EGDF object")
+            raise ValueError("Input must be an EGDF object")
         
         class_name = self.egdf.__class__.__name__
         if 'EGDF' not in class_name:
-            raise ValueError(f"DataMembership: Only EGDF objects are supported. Got {class_name}")
+            self.logger.error(f"Only EGDF objects are supported. Got {class_name}")
+            raise ValueError(f"Only EGDF objects are supported. Got {class_name}")
         
         if not hasattr(self.egdf, '_fitted') or not self.egdf._fitted:
-            raise ValueError("DataMembership: EGDF object must be fitted before membership analysis")
+            self.logger.error("EGDF object must be fitted before membership analysis")
+            raise ValueError("EGDF object must be fitted before membership analysis")
         
         if not hasattr(self.egdf, 'data') or self.egdf.data is None:
-            raise ValueError("DataMembership: EGDF object must contain data")
+            self.logger.error("EGDF object must contain data")
+            raise ValueError("EGDF object must contain data")
     
     def _append_error(self, error_message: str, exception_type: str = None):
+        self.logger.error(error_message)
         if self.catch:
             error_entry = {
                 'method': 'DataMembership',
@@ -118,8 +131,10 @@ class DataMembership:
                 'exception_type': exception_type or 'DataMembershipError'
             }
             self.params['errors'].append(error_entry)
+            
     
     def _append_warning(self, warning_message: str):
+        self.logger.warning(warning_message)
         if self.catch:
             warning_entry = {
                 'method': 'DataMembership',
@@ -128,42 +143,36 @@ class DataMembership:
             self.params['warnings'].append(warning_entry)
     
     def _check_original_homogeneity(self) -> bool:
-        if self.verbose:
-            print("DataMembership: Checking original sample homogeneity...")
+        self.logger.info("Checking original sample homogeneity")
         
         if (hasattr(self.egdf, 'params') and 
             self.egdf.params and 
             'is_homogeneous' in self.egdf.params):
             
             is_homogeneous = self.egdf.params['is_homogeneous']
-            if self.verbose:
-                print(f"DataMembership: Found existing homogeneity result: {is_homogeneous}")
+            self.logger.info(f"Found existing homogeneity result: {is_homogeneous}")
             return is_homogeneous
         
         try:
-            if self.verbose:
-                print("DataMembership: Running DataHomogeneity analysis...")
-            
+            self.logger.info("Running DataHomogeneity analysis...")
             homogeneity = DataHomogeneity(
                 gdf=self.egdf,
                 verbose=self.verbose,
                 catch=self.catch
             )
             is_homogeneous = homogeneity.fit()
-            
-            if self.verbose:
-                print(f"DataMembership: Homogeneity analysis result: {is_homogeneous}")
-            
+
+            self.logger.info(f"Homogeneity analysis result: {is_homogeneous}")
+
             return is_homogeneous
             
         except Exception as e:
             error_msg = f"Error in homogeneity check: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
-            if self.verbose:
-                print(f"DataMembership: Error: {error_msg}")
             raise
     
     def _test_membership_at_point(self, test_point: float) -> bool:
+        self.logger.debug(f"Testing membership at point: {test_point:.6f}")
         try:
             extended_data = np.append(self.egdf.data, test_point)
             
@@ -192,17 +201,19 @@ class DataMembership:
             return is_homogeneous
             
         except Exception as e:
-            if self.verbose:
-                print(f"DataMembership: Error testing point {test_point:.6f}: {str(e)}")
+            self.logger.error(f"Error testing point {test_point:.6f}: {str(e)}")
             return False
     
     def _calculate_adaptive_step(self, data_range: float, iteration: int) -> float:
+        self.logger.debug(f"Calculating adaptive step size at iteration {iteration}")
         base_step = data_range * self.initial_step_factor
         decay_factor = 1.0 / (1.0 + 0.1 * iteration)
         return base_step * decay_factor
     
     def _find_sample_bound(self, bound_type: str) -> Optional[float]:
+        self.logger.info(f"Finding {bound_type} sample bound")
         if bound_type not in ['lower', 'upper']:
+            self.logger.error("Invalid bound_type")
             raise ValueError("bound_type must be either 'lower' or 'upper'")
         
         data_range = self.egdf.DUB - self.egdf.DLB
@@ -217,18 +228,16 @@ class DataMembership:
             search_end = self.egdf.UB if self.egdf.UB is not None else self.egdf.DUB + data_range
             direction = "USB"
             move_direction = 1
-        
-        if self.verbose:
-            print(f"DataMembership: Searching for {direction} from {search_start:.6f} towards {search_end:.6f}")
-        
+
+        self.logger.info(f"Searching for {direction} from {search_start:.6f} towards {search_end:.6f}")
+
         # Check if the starting point (data boundary) is homogeneous
         first_test = self._test_membership_at_point(search_start)
         
         if not first_test:
             # If data boundary itself is not homogeneous, return the data boundary
-            if self.verbose:
-                print(f"DataMembership: Data boundary {search_start:.6f} is not homogeneous")
-                print(f"DataMembership: {direction} = {search_start:.6f} (data boundary)")
+            self.logger.info(f"Data boundary {search_start:.6f} is not homogeneous")
+            self.logger.info(f"{direction} = {search_start:.6f} (data boundary)")
             return search_start
         
         current_point = search_start
@@ -245,11 +254,11 @@ class DataMembership:
                 break
             
             is_homogeneous = self._test_membership_at_point(current_point)
-            
-            if self.verbose and iteration % 10 == 0:
-                print(f"DataMembership: {direction} iteration {iteration}: "
-                      f"testing point {current_point:.6f} (homogeneous: {is_homogeneous})")
-            
+
+            if iteration % 10 == 0:
+                self.logger.info(f"{direction} iteration {iteration}: "
+                                 f"testing point {current_point:.6f} (homogeneous: {is_homogeneous})")
+
             if is_homogeneous:
                 best_bound = current_point
                 # Adaptive step size
@@ -259,13 +268,10 @@ class DataMembership:
                 break
         
         if best_bound is not None:
-            if self.verbose:
-                print(f"DataMembership: Found {direction} = {best_bound:.6f} after {iteration + 1} iterations")
+            self.logger.info(f"Found {direction} = {best_bound:.6f} after {iteration + 1} iterations")
         else:
             warning_msg = f"Could not find {direction} within search range"
             self._append_warning(warning_msg)
-            if self.verbose:
-                print(f"DataMembership: Warning: {warning_msg}")
         
         return best_bound
     
@@ -282,29 +288,21 @@ class DataMembership:
             RuntimeError: If the original data sample is not homogeneous.
             Exception: For any other errors encountered during the analysis.
         """
-
+        self.logger.info("Starting membership analysis...")
         try:
-            if self.verbose:
-                print("DataMembership: Starting membership analysis...")
-            
             self.is_homogeneous = self._check_original_homogeneity()
             
             if not self.is_homogeneous:
                 error_msg = "Original sample is not homogeneous. Membership analysis requires homogeneous data."
                 self._append_error(error_msg)
-                if self.verbose:
-                    print(f"DataMembership: Error: {error_msg}")
                 raise RuntimeError(error_msg)
-            
-            if self.verbose:
-                print("DataMembership: Original sample is homogeneous. Proceeding with bound search...")
-            
-            if self.verbose:
-                print("DataMembership: Finding Lower Sample Bound (LSB)...")
+
+            self.logger.info("Original sample is homogeneous. Proceeding with bound search...")
+
+            self.logger.info("Finding Lower Sample Bound (LSB)...")
             self.LSB = self._find_sample_bound('lower')
-            
-            if self.verbose:
-                print("DataMembership: Finding Upper Sample Bound (USB)...")
+
+            self.logger.info("Finding Upper Sample Bound (USB)...")
             self.USB = self._find_sample_bound('upper')
             
             if self.catch:
@@ -327,25 +325,21 @@ class DataMembership:
                     'membership_checked': True
                 })
                 
-                if self.verbose:
-                    print("DataMembership: Results written to EGDF params dictionary")
+                self.logger.info("Results written to EGDF params dictionary")
             
             self._fitted = True
-            
-            if self.verbose:
-                print("DataMembership: Analysis completed successfully")
-                if self.LSB is not None:
-                    print(f"DataMembership: Lower Sample Bound (LSB) = {self.LSB:.6f}")
-                if self.USB is not None:
-                    print(f"DataMembership: Upper Sample Bound (USB) = {self.USB:.6f}")
-            
+
+            self.logger.info("Analysis completed successfully")
+            if self.LSB is not None:
+                self.logger.info(f"Lower Sample Bound (LSB) = {self.LSB:.6f}")
+            if self.USB is not None:
+                self.logger.info(f"Upper Sample Bound (USB) = {self.USB:.6f}")
+
             return self.LSB, self.USB
             
         except Exception as e:
             error_msg = f"Error during membership analysis: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
-            if self.verbose:
-                print(f"DataMembership: Error: {error_msg}")
             raise
     
     def plot(self, 
@@ -366,12 +360,14 @@ class DataMembership:
             RuntimeError: If the `fit` method has not been called before plotting.
             Exception: For any errors encountered during plotting.
         """
+        self.logger.info("Generating membership plot...")
 
         if not self._fitted:
-            raise RuntimeError("DataMembership: Must call fit() before plotting")
+            self.logger.error("Must call fit() before plotting")
+            raise RuntimeError("Must call fit() before plotting")
         
         if not self.egdf.catch:
-            print("DataMembership: Plot is not available with EGDF catch=False")
+            self.logger.warning("Plot is not available with EGDF catch=False")
             return
         
         try:
@@ -386,10 +382,9 @@ class DataMembership:
             pdf_data = self.egdf.params.get('pdf')
             
             # Debug info
-            if self.verbose:
-                print(f"DataMembership: LSB = {self.LSB}, USB = {self.USB}")
-                print(f"DataMembership: Data range: {x_points.min():.3f} to {x_points.max():.3f}")
-            
+            self.logger.info(f"LSB = {self.LSB}, USB = {self.USB}")
+            self.logger.info(f"Data range: {x_points.min():.3f} to {x_points.max():.3f}")
+
             # Plot EGDF if requested
             if plot in ['gdf', 'both'] and egdf_data is not None:
                 # Plot EGDF points
@@ -442,22 +437,19 @@ class DataMembership:
             if self.LSB is not None:
                 ax1.axvline(x=self.LSB, color='red', linestyle='--', linewidth=1.5, 
                            alpha=0.9, label=f'LSB = {self.LSB:.3f}', zorder=10)
-                if self.verbose:
-                    print(f"DataMembership: Added LSB line at {self.LSB}")
-            
-            # Add USB vertical line  
+                self.logger.info(f"Added LSB line at {self.LSB}")
+
+            # Add USB vertical line
             if self.USB is not None:
                 ax1.axvline(x=self.USB, color='blue', linestyle='--', linewidth=1.5,
                            alpha=0.9, label=f'USB = {self.USB:.3f}', zorder=10)
-                if self.verbose:
-                    print(f"DataMembership: Added USB line at {self.USB}")
-            
+                self.logger.info(f"Added USB line at {self.USB}")
+
             # Add membership range shading if both bounds exist
             if self.LSB is not None and self.USB is not None:
                 ax1.axvspan(self.LSB, self.USB, alpha=0.05, color='green', 
                            label='Membership Range', zorder=1)
-                if self.verbose:
-                    print(f"DataMembership: Added membership range shading")
+                self.logger.info("Added membership range shading")
             
             # Add bounds if requested
             if bounds:
@@ -510,8 +502,6 @@ class DataMembership:
         except Exception as e:
             error_msg = f"Error creating plot: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
-            if self.verbose:
-                print(f"DataMembership: Error: {error_msg}")
             raise
     
     def results(self) -> Dict[str, Any]:
@@ -527,15 +517,20 @@ class DataMembership:
             RuntimeError: If the `fit` method has not been called before accessing results.
             RuntimeError: If `catch` is set to False during initialization, as no results are stored.
         """
-
+        self.logger.info("Retrieving analysis results...")
         if not self._fitted:
-            raise RuntimeError("DataMembership: No analysis results available. Call fit() method first")
+            raise RuntimeError("No analysis results available. Call fit() method first")
         
         if not self.catch:
-            raise RuntimeError("DataMembership: No results stored. Ensure catch=True during initialization")
+            raise RuntimeError("No results stored. Ensure catch=True during initialization")
         
         return self.params.copy()
     
     @property
     def fitted(self) -> bool:
         return self._fitted
+    
+    def __repr__(self):
+        return (f"<DataMembership(fitted={self._fitted}, "
+                f"LSB={self.LSB}, USB={self.USB}, "
+                f"is_homogeneous={self.is_homogeneous})>")
