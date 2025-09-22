@@ -311,7 +311,7 @@ class DistFuncEngine:
 
         # logger
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
-        self.logger.debug(f"{__name__} initialized:")
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
         
     def _validate_inputs(self, compute_func, target_values, weights, S, LB, UB):
         """Validate initialization inputs."""
