@@ -7,18 +7,8 @@ import numpy as np
 import warnings
 from typing import Union, Dict, Tuple, Optional, List
 from machinegnostics.magcal import EGDF, ELDF
-
-
-"""
-Interval Estimation Engine (IntveEngine) - Fresh Implementation with Improved Logic
-Core Logic: Extend data with single datum and track Z0 variations with ordering constraint
-"""
-
-import numpy as np
-import warnings
-from typing import Union, Dict, Tuple, Optional, List
-from machinegnostics.magcal import EGDF, ELDF
-
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class IntveEngine:
     """
@@ -311,6 +301,10 @@ class IntveEngine:
         self.min_search_points = max(min_search_points, 10)
         self.boundary_margin_factor = max(boundary_margin_factor, 1e-6)
         self.extrema_search_tolerance = extrema_search_tolerance
+
+        # logger setup
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized::")
         
         # Initialize params dictionary
         self.params = {}
@@ -337,6 +331,7 @@ class IntveEngine:
     
     def _store_initialization_params(self):
         """Store initialization parameters in params dictionary."""
+        self.logger.info("Storing initialization parameters.")  
         self.params.update({
             # Configuration parameters
             'n_points_per_direction': self.n_points_per_direction,
@@ -363,13 +358,16 @@ class IntveEngine:
     
     def _validate_and_extract_properties(self, df_object):
         """Extract and validate properties from DF object."""
+        self.logger.info("Validating and extracting properties from DF object.")
         
         # Check if object is fitted
         if not hasattr(df_object, '_fitted') or not df_object._fitted:
+            self.logger.error("Distribution function object must be fitted first")
             raise ValueError("Distribution function object must be fitted first")
         
         # Check if Z0 is available
         if not hasattr(df_object, 'z0') or df_object.z0 is None:
+            self.logger.error("Z0 (gnostic mode) not available. Fit Z0 first.")
             raise ValueError("Z0 (gnostic mode) not available. Fit Z0 first.")
         
         # Store reference and extract basic properties
@@ -381,11 +379,12 @@ class IntveEngine:
         
         # Validate bounds
         if self.LB >= self.UB:
+            self.logger.error(f"Invalid bounds: LB ({self.LB}) >= UB ({self.UB})")
             raise ValueError(f"Invalid bounds: LB ({self.LB}) >= UB ({self.UB})")
         
         # Validate Z0 within bounds
         if not (self.LB <= self.z0 <= self.UB):
-            warnings.warn(f"Z0 ({self.z0:.6f}) outside bounds [{self.LB:.6f}, {self.UB:.6f}]")
+            self.logger.warning(f"Z0 ({self.z0:.6f}) outside bounds [{self.LB:.6f}, {self.UB:.6f}]")
         
         # Determine DF type
         if isinstance(df_object, EGDF):
@@ -399,6 +398,7 @@ class IntveEngine:
             elif 'ELDF' in class_name:
                 self.df_type = 'ELDF'  
             else:
+                self.logger.error(f"Unsupported distribution type: {class_name}")
                 raise ValueError(f"Unsupported distribution type: {class_name}")
         
         # Extract DF creation parameters
@@ -417,6 +417,7 @@ class IntveEngine:
     
     def _extract_df_parameters(self):
         """Extract parameters needed to create new DF instances."""
+        self.logger.info("Extracting DF creation parameters.")
         df = self.df_object
         
         # Safely extract DLB and DUB with validation
@@ -429,13 +430,11 @@ class IntveEngine:
                 # Convert to float and validate
                 value = float(value)
                 if not np.isfinite(value):
-                    if self.verbose:
-                        print(f"Warning: {attr_name} is not finite ({value}), using None")
+                    self.logger.warning(f"{attr_name} is not finite ({value}), using None")
                     return None
                 return value
             except (AttributeError, TypeError, ValueError) as e:
-                if self.verbose:
-                    print(f"Warning: Could not extract {attr_name}: {e}, using None")
+                self.logger.warning(f"Could not extract {attr_name}: {e}, using None")
                 return None
         
         # Extract bounds safely
@@ -474,15 +473,15 @@ class IntveEngine:
                 'opt_method': self.opt_method
             })
         
-        if self.verbose:
-            print(f"Extracted parameters:")
-            print(f"  DLB: {self.DLB}")
-            print(f"  DUB: {self.DUB}")
-            print(f"  Data form: {self.data_form}")
-            print(f"  Homogeneous: {self.homogeneous}")
-    
+        self.logger.info(f"Extracted parameters:")
+        self.logger.info(f"  DLB: {self.DLB}")
+        self.logger.info(f"  DUB: {self.DUB}")
+        self.logger.info(f"  Data form: {self.data_form}")
+        self.logger.info(f"  Homogeneous: {self.homogeneous}")
+
     def _reset_results(self):
         """Reset all results to initial state."""
+        self.logger.info("Resetting results to initial state.") 
         self.zl = None      # Datum value where Z0 is minimum
         self.z0l = None     # Minimum Z0 value
         self.zu = None      # Datum value where Z0 is maximum  
@@ -509,15 +508,15 @@ class IntveEngine:
         
     def _print_initialization_info(self):
         """Print initialization information."""
-        print(f"IntveEngine Initialized:")
-        print(f"  Type: {self.df_type}")
-        print(f"  Data size: {len(self.original_data)}")
-        print(f"  Bounds: [{self.LB:.6f}, {self.UB:.6f}]")
-        print(f"  Original Z0: {self.z0:.6f}")
-        print(f"  Search points per direction: {self.n_points_per_direction}")
-        print(f"  Dense zone: {self.dense_zone_fraction:.1%} of range")
-        print(f"  Extrema search tolerance: {self.extrema_search_tolerance}")
-    
+        self.logger.info(f"IntveEngine Initialized:")
+        self.logger.info(f"  Type: {self.df_type}")
+        self.logger.info(f"  Data size: {len(self.original_data)}")
+        self.logger.info(f"  Bounds: [{self.LB:.6f}, {self.UB:.6f}]")
+        self.logger.info(f"  Original Z0: {self.z0:.6f}")
+        self.logger.info(f"  Search points per direction: {self.n_points_per_direction}")
+        self.logger.info(f"  Dense zone: {self.dense_zone_fraction:.1%} of range")
+        self.logger.info(f"  Extrema search tolerance: {self.extrema_search_tolerance}")
+
     def fit(self, plot: bool = False, update_df_params: bool = True) -> 'IntveEngine':
         """
         Perform interval estimation with improved extrema detection.
@@ -534,10 +533,11 @@ class IntveEngine:
         self : IntveEngine
             Fitted engine instance
         """
+        self.logger.info("Starting Z0-based interval estimation with ordering constraint...")
         
         if self.verbose:
-            print(f"\nStarting Z0-based interval estimation with ordering constraint...")
-        
+            self.logger.info(f"\nStarting Z0-based interval estimation with ordering constraint...")
+
         # Record start time
         import time
         start_time = time.time()
@@ -551,19 +551,19 @@ class IntveEngine:
             }
             
             # Test extension capability first
+            self.logger.info("Testing data extension capability...")
             self._test_extension_capability()
             
             # Search lower interval: Z0 → LB
-            if self.verbose:
-                print(f"Searching lower interval (Z0 → LB)...")
+            self.logger.info(f"Searching lower interval (Z0 → LB)...")
             self._search_interval('lower')
-            
-            # Search upper interval: Z0 → UB  
-            if self.verbose:
-                print(f"Searching upper interval (Z0 → UB)...")
+
+            # Search upper interval: Z0 → UB
+            self.logger.info(f"Searching upper interval (Z0 → UB)...")
             self._search_interval('upper')
             
             # Analyze results with improved extrema detection
+            self.logger.info("Analyzing search results and extracting intervals with ordering constraint...")
             self._analyze_and_extract_intervals_with_ordering()
             
             # Record end time and update status
@@ -571,16 +571,20 @@ class IntveEngine:
             self._fitted = True
             
             # Update params with results and statistics
+            self.logger.info("Updating parameters with results and statistics...")
             self._update_params_with_results(end_time - start_time)
             
             # Update original DF object params if requested
             if update_df_params:
+                self.logger.info("Updating original DF object parameters with interval results...")
                 self._update_df_object_params()
             
             if self.verbose:
+                self.logger.info("Interval estimation completed successfully.")
                 self._print_results()
             
             if plot:
+                self.logger.info("Plotting results...")
                 self.plot()
                 
             return self
@@ -588,7 +592,7 @@ class IntveEngine:
         except Exception as e:
             error_msg = f"Interval estimation failed: {str(e)}"
             if self.verbose:
-                print(error_msg)
+                self.logger.error(error_msg)
                 self._print_debug_info()
             raise RuntimeError(error_msg) from e
     
@@ -601,21 +605,20 @@ class IntveEngine:
         direction : str
             'lower' for Z0→LB search, 'upper' for Z0→UB search
         """
-        
+        self.logger.info(f"Searching interval in {direction} direction.")
         # Generate search points for this direction
         search_points = self._generate_search_points(direction)
         
         if len(search_points) == 0:
-            if self.verbose:
-                print(f"  No valid search points for {direction} direction")
+            self.logger.info(f"  No valid search points for {direction} direction")
             return
-        
-        if self.verbose:
-            bound_str = "LB" if direction == 'lower' else "UB"
-            bound_val = self.LB if direction == 'lower' else self.UB
-            print(f"  Generated {len(search_points)} points toward {bound_str} ({bound_val:.6f})")
-        
+
+        bound_str = "LB" if direction == 'lower' else "UB"
+        bound_val = self.LB if direction == 'lower' else self.UB
+        self.logger.info(f"  Generated {len(search_points)} points toward {bound_str} ({bound_val:.6f})")
+
         # Search each point
+        self.logger.info(f"  Starting search in {direction} direction...")
         successful_fits = 0
         for i, datum in enumerate(search_points):
             
@@ -632,17 +635,19 @@ class IntveEngine:
                 # Progress reporting
                 if self.verbose and (i + 1) % max(1, len(search_points) // 5) == 0:
                     progress = ((i + 1) / len(search_points)) * 100
-                    print(f"    Progress: {progress:.1f}% | Datum: {datum:.6f} | Z0: {z0_new:.6f}")
+                    self.logger.info(f"    Progress: {progress:.1f}% | Datum: {datum:.6f} | Z0: {z0_new:.6f}")
                 
                 # Check for early convergence
                 if self._check_convergence(direction) and i >= self.min_search_points:
-                    if self.verbose:
-                        print(f"    Early convergence detected after {i+1} points")
+                    self.logger.info(f"    Early convergence detected after {i+1} points")
                     break
                     
             except Exception as e:
                 # Try simple approach for failed cases
+                self.logger.warning(f"    Failed at datum {datum:.6f}: {str(e)}. Trying simple approach...")
                 try:
+                    # Compute Z0 with simple extended datum
+                    self.logger.info(f"    Trying simple approach for datum {datum:.6f}")
                     z0_new = self._compute_z0_with_extended_datum_simple(datum)
                     
                     # Store successful result
@@ -658,10 +663,10 @@ class IntveEngine:
                     self.search_results[direction]['success_flags'].append(False)
                     
                     if self.verbose and i < 3:  # Show first few errors
-                        print(f"    Failed at datum {datum:.6f}: {str(e2)}")
+                        self.logger.warning(f"    Failed at datum {datum:.6f}: {str(e2)}")
         
         if self.verbose:
-            print(f"  {direction.capitalize()} search completed: {successful_fits}/{len(search_points)} successful")
+            self.logger.info(f"  {direction.capitalize()} search completed: {successful_fits}/{len(search_points)} successful")
     
     def _analyze_and_extract_intervals_with_ordering(self):
         """
@@ -670,9 +675,7 @@ class IntveEngine:
         Ensures that: ZL < Z0L < Z0 < Z0U < ZU
         If initial extrema don't satisfy this, search for valid alternatives.
         """
-        
-        if self.verbose:
-            print("Analyzing search results with ordering constraint...")
+        self.logger.info("Analyzing search results with ordering constraint...")
         
         # Collect all successful results
         all_datum_values = []
@@ -686,16 +689,17 @@ class IntveEngine:
                     all_z0_values.append(z0)
         
         if len(all_z0_values) == 0:
+            self.logger.error("No successful fits found. Cannot determine intervals.")
             raise RuntimeError("No successful fits found. Cannot determine intervals.")
         
         all_datum_values = np.array(all_datum_values)
         all_z0_values = np.array(all_z0_values)
         
         if self.verbose:
-            print(f"  Valid results: {len(all_z0_values)}")
-            print(f"  Z0 range: [{np.min(all_z0_values):.6f}, {np.max(all_z0_values):.6f}]")
-            print(f"  Datum range: [{np.min(all_datum_values):.6f}, {np.max(all_datum_values):.6f}]")
-        
+            self.logger.info(f"  Valid results: {len(all_z0_values)}")
+            self.logger.info(f"  Z0 range: [{np.min(all_z0_values):.6f}, {np.max(all_z0_values):.6f}]")
+            self.logger.info(f"  Datum range: [{np.min(all_datum_values):.6f}, {np.max(all_datum_values):.6f}]")
+
         # Find initial extrema
         min_z0_idx = np.argmin(all_z0_values)
         max_z0_idx = np.argmax(all_z0_values)
@@ -706,16 +710,16 @@ class IntveEngine:
         initial_z0u = float(all_z0_values[max_z0_idx])
         
         if self.verbose:
-            print(f"  Initial extrema:")
-            print(f"    ZL = {initial_zl:.6f}, Z0L = {initial_z0l:.6f}")
-            print(f"    ZU = {initial_zu:.6f}, Z0U = {initial_z0u:.6f}")
-        
+            self.logger.info(f"  Initial extrema:")
+            self.logger.info(f"    ZL = {initial_zl:.6f}, Z0L = {initial_z0l:.6f}")
+            self.logger.info(f"    ZU = {initial_zu:.6f}, Z0U = {initial_z0u:.6f}")
+
         # Check ordering constraint: ZL < Z0L < Z0 < Z0U < ZU
         ordering_valid = (initial_zl < initial_z0l < self.z0 < initial_z0u < initial_zu)
         
         if ordering_valid:
             if self.verbose:
-                print(f"  ✓ Ordering constraint satisfied: ZL < Z0L < Z0 < Z0U < ZU")
+                self.logger.info(f"  ✓ Ordering constraint satisfied: ZL < Z0L < Z0 < Z0U < ZU")
             
             self.zl = initial_zl
             self.z0l = initial_z0l
@@ -724,16 +728,16 @@ class IntveEngine:
             
         else:
             if self.verbose:
-                print(f"  ✗ Ordering constraint violated. Searching for valid extrema...")
-                print(f"    Current: {initial_zl:.6f} < {initial_z0l:.6f} < {self.z0:.6f} < {initial_z0u:.6f} < {initial_zu:.6f}")
-            
+                self.logger.info(f"  ✗ Ordering constraint violated. Searching for valid extrema...")
+                self.logger.info(f"    Current: {initial_zl:.6f} < {initial_z0l:.6f} < {self.z0:.6f} < {initial_z0u:.6f} < {initial_zu:.6f}")
+
             # Find valid extrema that satisfy ordering constraint
             valid_extrema = self._find_valid_extrema_with_ordering(all_datum_values, all_z0_values)
             
             if valid_extrema is None:
                 # Fallback: use best available extrema with warning
                 if self.verbose:
-                    print(f"  ⚠ No valid extrema found satisfying ordering constraint. Using best available.")
+                    self.logger.warning(f"  ⚠ No valid extrema found satisfying ordering constraint. Using best available.")
                 
                 self.zl = initial_zl
                 self.z0l = initial_z0l
@@ -742,9 +746,9 @@ class IntveEngine:
             else:
                 self.zl, self.z0l, self.zu, self.z0u = valid_extrema
                 if self.verbose:
-                    print(f"  ✓ Found valid extrema:")
-                    print(f"    ZL = {self.zl:.6f}, Z0L = {self.z0l:.6f}")
-                    print(f"    ZU = {self.zu:.6f}, Z0U = {self.z0u:.6f}")
+                    self.logger.info(f"  ✓ Found valid extrema:")
+                    self.logger.info(f"    ZL = {self.zl:.6f}, Z0L = {self.z0l:.6f}")
+                    self.logger.info(f"    ZU = {self.zu:.6f}, Z0U = {self.z0u:.6f}")
         
         # Compute interval widths
         self.typical_data_interval = self.zu - self.zl
@@ -754,12 +758,12 @@ class IntveEngine:
         final_ordering_valid = (self.zl < self.z0l < self.z0 < self.z0u < self.zu)
         
         if self.verbose:
-            print(f"  Final ordering check: {'✓ VALID' if final_ordering_valid else '✗ INVALID'}")
-            print(f"  Critical points:")
-            print(f"    ZL = {self.zl:.6f}, Z0L = {self.z0l:.6f}")
-            print(f"    Z0 = {self.z0:.6f}")
-            print(f"    Z0U = {self.z0u:.6f}, ZU = {self.zu:.6f}")
-    
+            self.logger.info(f"  Final ordering check: {'✓ VALID' if final_ordering_valid else '✗ INVALID'}")
+            self.logger.info(f"  Critical points:")
+            self.logger.info(f"    ZL = {self.zl:.6f}, Z0L = {self.z0l:.6f}")
+            self.logger.info(f"    Z0 = {self.z0:.6f}")
+            self.logger.info(f"    Z0U = {self.z0u:.6f}, ZU = {self.zu:.6f}")
+
     def _find_valid_extrema_with_ordering(self, datum_values: np.ndarray, z0_values: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
         """
         Find extrema that satisfy the ordering constraint: ZL < Z0L < Z0 < Z0U < ZU
@@ -776,10 +780,8 @@ class IntveEngine:
         Optional[Tuple[float, float, float, float]]
             Valid (zl, z0l, zu, z0u) or None if not found
         """
-        
-        if self.verbose:
-            print(f"    Searching for valid extrema satisfying ordering constraint...")
-        
+        self.logger.info("Searching for valid extrema satisfying ordering constraint...")
+
         # Separate lower and upper search results
         lower_mask = datum_values < self.z0
         upper_mask = datum_values > self.z0
@@ -790,8 +792,7 @@ class IntveEngine:
         upper_z0 = z0_values[upper_mask]
         
         if len(lower_datum) == 0 or len(upper_datum) == 0:
-            if self.verbose:
-                print(f"    ✗ Insufficient data for both sides of Z0")
+            self.logger.warning(f"    ✗ Insufficient data for both sides of Z0")
             return None
         
         # Find multiple minima and maxima candidates
@@ -814,15 +815,13 @@ class IntveEngine:
                 
                 # Check ordering constraint
                 if (candidate_zl < candidate_z0l < self.z0 < candidate_z0u < candidate_zu):
-                    if self.verbose:
-                        print(f"    ✓ Found valid combination (min_rank={i+1}, max_rank={j+1})")
-                        print(f"      {candidate_zl:.6f} < {candidate_z0l:.6f} < {self.z0:.6f} < {candidate_z0u:.6f} < {candidate_zu:.6f}")
-                    
+                    self.logger.info(f"    ✓ Found valid combination (min_rank={i+1}, max_rank={j+1})")
+                    self.logger.info(f"      {candidate_zl:.6f} < {candidate_z0l:.6f} < {self.z0:.6f} < {candidate_z0u:.6f} < {candidate_zu:.6f}")
+
                     return (candidate_zl, candidate_z0l, candidate_zu, candidate_z0u)
         
         # If no valid combination found, try relaxed search
-        if self.verbose:
-            print(f"    No strict extrema found. Trying relaxed search...")
+        self.logger.warning(f"    No strict extrema found. Trying relaxed search...")
         
         return self._find_extrema_relaxed_search(datum_values, z0_values)
     
@@ -842,7 +841,7 @@ class IntveEngine:
         Optional[Tuple[float, float, float, float]]
             Valid (zl, z0l, zu, z0u) or None if not found
         """
-        
+        self.logger.info("Performing relaxed search for extrema...")
         # Split data into lower and upper regions
         lower_mask = datum_values < self.z0
         upper_mask = datum_values > self.z0
@@ -889,15 +888,17 @@ class IntveEngine:
         
         if self.verbose:
             ordering_check = (candidate_zl < candidate_z0l < self.z0 < candidate_z0u < candidate_zu)
-            print(f"    Relaxed search result: {'✓ VALID' if ordering_check else '✗ INVALID'}")
-            print(f"      {candidate_zl:.6f} < {candidate_z0l:.6f} < {self.z0:.6f} < {candidate_z0u:.6f} < {candidate_zu:.6f}")
-        
+            self.logger.info(f"    Relaxed search result: {'✓ VALID' if ordering_check else '✗ INVALID'}")
+            self.logger.info(f"      {candidate_zl:.6f} < {candidate_z0l:.6f} < {self.z0:.6f} < {candidate_z0u:.6f} < {candidate_zu:.6f}")
+
         return (candidate_zl, candidate_z0l, candidate_zu, candidate_z0u)
     
     def _generate_search_points(self, direction: str) -> np.ndarray:
         """Generate search points for given direction with dense sampling near Z0."""
+        self.logger.info(f"Generating search points in the {direction} direction...")
         
         if direction == 'lower':
+            self.logger.info("  Generating points toward LB...")
             # Search from Z0 toward LB
             full_range = self.z0 - self.LB
             if full_range <= 0:
@@ -936,6 +937,7 @@ class IntveEngine:
             return np.sort(all_points)[::-1]  # Descending order
             
         else:  # upper direction
+            self.logger.info("  Generating points toward UB...")
             # Search from Z0 toward UB
             full_range = self.UB - self.z0
             if full_range <= 0:
@@ -975,6 +977,8 @@ class IntveEngine:
     
     def _check_convergence(self, direction: str) -> bool:
         """Check if Z0 values have converged in recent window."""
+
+        self.logger.info(f"  Checking convergence in {direction} direction...")
         
         z0_values = self.search_results[direction]['z0_values']
         success_flags = self.search_results[direction]['success_flags']
@@ -994,6 +998,8 @@ class IntveEngine:
     
     def _compute_z0_with_extended_datum(self, datum: float) -> float:
         """Compute Z0 for data extended with given datum."""
+
+        self.logger.info(f"  Computing Z0 with extended datum: {datum:.6f}")    
         
         # Create extended data
         extended_data = np.append(self.original_data, datum)
@@ -1010,12 +1016,15 @@ class IntveEngine:
         df_extended.fit(plot=False)
         
         if not hasattr(df_extended, 'z0') or df_extended.z0 is None:
+            self.logger.error("Z0 not computed for extended DF")
             raise ValueError("Z0 not computed for extended DF")
         
         return float(df_extended.z0)
     
     def _compute_z0_with_extended_datum_simple(self, datum: float) -> float:
         """Compute Z0 with minimal parameters (fallback method)."""
+
+        self.logger.info(f"  (Simple) Computing Z0 with extended datum: {datum:.6f}")
         
         # Create extended data
         extended_data = np.append(self.original_data, datum)
@@ -1042,6 +1051,7 @@ class IntveEngine:
         df_extended.fit(plot=False)
         
         if not hasattr(df_extended, 'z0') or df_extended.z0 is None:
+            self.logger.error("Z0 not computed for extended DF (simple)")
             raise ValueError("Z0 not computed for extended DF (simple)")
         
         return float(df_extended.z0)
@@ -1049,6 +1059,8 @@ class IntveEngine:
     def _create_df_instance(self, data: np.ndarray, weights: Optional[np.ndarray] = None):
         """Create DF instance with given data using original parameters."""
         
+        self.logger.info("Creating DF instance with extended data...")  
+
         # Use adaptive n_points for efficiency
         n_points = min(400, len(data) * 4)
         
@@ -1092,30 +1104,30 @@ class IntveEngine:
     
     def _test_extension_capability(self):
         """Test if data can be extended successfully."""
-        if self.verbose:
-            print("Testing data extension capability...")
+        self.logger.info("Testing data extension capability...")
         
         # Try a small extension near Z0
         test_datum = self.z0 + 0.01 * (self.UB - self.z0)
         
         try:
             test_z0 = self._compute_z0_with_extended_datum(test_datum)
-            if self.verbose:
-                print(f"  Extension test successful: Z0_new = {test_z0:.6f}")
+            self.logger.info(f"  Extension test successful: Z0_new = {test_z0:.6f}")
         except Exception as e:
-            if self.verbose:
-                print(f"  First extension test failed, trying simpler approach...")
-            
+            self.logger.error(f"  First extension test failed: {str(e)}")
+            self.logger.info(f"  First extension test failed, trying simpler approach...")
+
             # Try with minimal parameters
             try:
                 test_z0 = self._compute_z0_with_extended_datum_simple(test_datum)
-                if self.verbose:
-                    print(f"  Simple extension test successful: Z0_new = {test_z0:.6f}")
+                self.logger.info(f"  Simple extension test successful: Z0_new = {test_z0:.6f}")
             except Exception as e2:
+                self.logger.error(f"  Simple extension test failed: {str(e2)}")
                 raise RuntimeError(f"Cannot extend data: {str(e2)}")
     
     def _update_params_with_results(self, fit_time: float):
         """Update params dictionary with fitting results and statistics."""
+
+        self.logger.info("Updating parameters with fitting results and statistics...")
         
         # Search statistics
         lower_success = sum(self.search_results['lower']['success_flags'])
@@ -1204,11 +1216,14 @@ class IntveEngine:
     
     def _count_data_in_interval(self, lower: float, upper: float) -> int:
         """Count how many data points fall within the given interval."""
+        self.logger.info(f"Counting data points in interval [{lower:.6f}, {upper:.6f}]...")
         return np.sum((self.original_data >= lower) & (self.original_data <= upper))
     
     def _update_df_object_params(self):
         """Update the original DF object's params with interval results."""
         
+        self.lower.info("Updating original DF object parameters with interval results...")
+
         if not hasattr(self.df_object, 'params'):
             self.df_object.params = {}
         
@@ -1248,75 +1263,74 @@ class IntveEngine:
         # Update DF object params
         self.df_object.params.update(interval_params)
         
-        if self.verbose:
-            print(f"Updated {self.df_type} object params with interval estimation results")
+        self.logger.info(f"Updated {self.df_type} object params with interval estimation results")
     
     def _print_results(self):
         """Print formatted results."""
-        print(f"\n{'='*70}")
-        print(f"Z0-BASED INTERVAL ESTIMATION RESULTS - ({self.df_type})")
-        print(f"{'='*70}")
+        self.logger.info(f"\n{'='*70}")
+        self.logger.info(f"Z0-BASED INTERVAL ESTIMATION RESULTS - ({self.df_type})")
+        self.logger.info(f"{'='*70}")
         
-        print(f"Original Configuration:")
-        print(f"  Data size: {len(self.original_data)}")
-        print(f"  Bounds: [{self.LB:.6f}, {self.UB:.6f}]")
-        print(f"  Original Z0: {self.z0:.6f}")
-        print(f"")
+        self.logger.info(f"Original Configuration:")
+        self.logger.info(f"  Data size: {len(self.original_data)}")
+        self.logger.info(f"  Bounds: [{self.LB:.6f}, {self.UB:.6f}]")
+        self.logger.info(f"  Original Z0: {self.z0:.6f}")
+        self.logger.info(f"")
         
         # Ordering constraint check
         ordering_valid = (self.zl < self.z0l < self.z0 < self.z0u < self.zu)
-        print(f"Ordering Constraint: ZL < Z0L < Z0 < Z0U < ZU")
-        print(f"  Status: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
-        print(f"  Values: {self.zl:.6f} < {self.z0l:.6f} < {self.z0:.6f} < {self.z0u:.6f} < {self.zu:.6f}")
-        
+        self.logger.info(f"Ordering Constraint: ZL < Z0L < Z0 < Z0U < ZU")
+        self.logger.info(f"  Status: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
+        self.logger.info(f"  Values: {self.zl:.6f} < {self.z0l:.6f} < {self.z0:.6f} < {self.z0u:.6f} < {self.zu:.6f}")
+
         if not ordering_valid:
-            print(f"  ⚠ Warning: Ordering constraint not satisfied. Results may be suboptimal.")
-        print(f"")
+            self.logger.info(f"  ⚠ Warning: Ordering constraint not satisfied. Results may be suboptimal.")
+        self.logger.info(f"")
         
-        print(f"Critical Points:")
-        print(f"  ZL  (datum for min Z0):  {self.zl:.6f}")
-        print(f"  Z0L (minimum Z0):        {self.z0l:.6f}")
-        print(f"  Z0  (original):          {self.z0:.6f}")
-        print(f"  Z0U (maximum Z0):        {self.z0u:.6f}")
-        print(f"  ZU  (datum for max Z0):  {self.zu:.6f}")
-        print(f"")
+        self.logger.info(f"Critical Points:")
+        self.logger.info(f"  ZL  (datum for min Z0):  {self.zl:.6f}")
+        self.logger.info(f"  Z0L (minimum Z0):        {self.z0l:.6f}")
+        self.logger.info(f"  Z0  (original):          {self.z0:.6f}")
+        self.logger.info(f"  Z0U (maximum Z0):        {self.z0u:.6f}")
+        self.logger.info(f"  ZU  (datum for max Z0):  {self.zu:.6f}")
+        self.logger.info(f"")
         
-        print(f"Intervals:")
-        print(f"  Typical Data:  [{self.zl:.6f}, {self.zu:.6f}]  (width: {self.typical_data_interval:.6f})")
-        print(f"  Tolerance:     [{self.z0l:.6f}, {self.z0u:.6f}]  (width: {self.tolerance_interval:.6f})")
-        print(f"")
+        self.logger.info(f"Intervals:")
+        self.logger.info(f"  Typical Data:  [{self.zl:.6f}, {self.zu:.6f}]  (width: {self.typical_data_interval:.6f})")
+        self.logger.info(f"  Tolerance:     [{self.z0l:.6f}, {self.z0u:.6f}]  (width: {self.tolerance_interval:.6f})")
+        self.logger.info(f"")
         
         # Data coverage
         tol_count = self._count_data_in_interval(self.z0l, self.z0u)
         typ_count = self._count_data_in_interval(self.zl, self.zu)
         total_data = len(self.original_data)
-        
-        print(f"Data Coverage:")
-        print(f"  Within tolerance interval: {tol_count}/{total_data} ({tol_count/total_data:.1%})")
-        print(f"  Within typical data interval: {typ_count}/{total_data} ({typ_count/total_data:.1%})")
-        print(f"")
-        
+
+        self.logger.info(f"Data Coverage:")
+        self.logger.info(f"  Within tolerance interval: {tol_count}/{total_data} ({tol_count/total_data:.1%})")
+        self.logger.info(f"  Within typical data interval: {typ_count}/{total_data} ({typ_count/total_data:.1%})")
+        self.logger.info(f"")
+
         # Search summary
         lower_success = sum(self.search_results['lower']['success_flags'])
         upper_success = sum(self.search_results['upper']['success_flags'])
         lower_total = len(self.search_results['lower']['datum_values'])
         upper_total = len(self.search_results['upper']['datum_values'])
-        
-        print(f"Search Summary:")
-        print(f"  Lower direction: {lower_success}/{lower_total} successful")
-        print(f"  Upper direction: {upper_success}/{upper_total} successful")
-        print(f"  Total valid fits: {lower_success + upper_success}")
-        print(f"  Fit time: {self.params.get('fit_time', 0):.3f} seconds")
-        print(f"{'='*70}")
+
+        self.logger.info(f"Search Summary:")
+        self.logger.info(f"  Lower direction: {lower_success}/{lower_total} successful")
+        self.logger.info(f"  Upper direction: {upper_success}/{upper_total} successful")
+        self.logger.info(f"  Total valid fits: {lower_success + upper_success}")
+        self.logger.info(f"  Fit time: {self.params.get('fit_time', 0):.3f} seconds")
+        self.logger.info(f"{'='*70}")
     
     def _print_debug_info(self):
         """Print debug information when fitting fails."""
-        print(f"\nDEBUG INFORMATION:")
-        print(f"Original data: {self.original_data}")
-        print(f"Data stats: mean={np.mean(self.original_data):.6f}, std={np.std(self.original_data):.6f}")
-        print(f"Bounds: LB={self.LB:.6f}, UB={self.UB:.6f}")
-        print(f"Z0: {self.z0:.6f}")
-        print(f"DLB: {self.DLB}, DUB: {self.DUB}")
+        self.logger.info(' Fitting failed or produced invalid results. Debug information:')
+        self.logger.info(f"Original data: {self.original_data}")
+        self.logger.info(f"Data stats: mean={np.mean(self.original_data):.6f}, std={np.std(self.original_data):.6f}")
+        self.logger.info(f"Bounds: LB={self.LB:.6f}, UB={self.UB:.6f}")
+        self.logger.info(f"Z0: {self.z0:.6f}")
+        self.logger.info(f"DLB: {self.DLB}, DUB: {self.DUB}")
         
         # Show search results summary
         for direction in ['lower', 'upper']:
@@ -1324,10 +1338,11 @@ class IntveEngine:
             if len(data['datum_values']) > 0:
                 success_count = sum(data['success_flags'])
                 total_count = len(data['datum_values'])
-                print(f"{direction.capitalize()} search: {success_count}/{total_count} successful")
+                self.logger.info(f"{direction.capitalize()} search: {success_count}/{total_count} successful")
     
     def get_intervals(self, decimals: int = 6) -> Dict[str, float]:
         """Get interval results as dictionary."""
+        self.logger.info("Retrieving interval results as dictionary...")
         
         if not self._fitted:
             raise RuntimeError("Must fit before getting intervals")
@@ -1347,13 +1362,16 @@ class IntveEngine:
     
     def plot(self, figsize: Tuple[int, int] = (12, 8)):
         """Plot interval estimation results."""
+        self.logger.info("Plotting interval estimation results...")
         
         if not self._fitted:
+            self.logger.error("Must fit before plotting")
             raise RuntimeError("Must fit before plotting")
         
         try:
             import matplotlib.pyplot as plt
         except ImportError:
+            self.logger.error("matplotlib required for plotting")
             raise ImportError("matplotlib required for plotting")
         
         # Create main Z0 variation plot
@@ -1365,7 +1383,7 @@ class IntveEngine:
     
     def _plot_z0_variation(self, figsize: Tuple[int, int] = (12, 8)):
         """Plot Z0 variation with improved legend and ordering validation."""
-        
+        self.logger.info("Plotting Z0 variation...")
         import matplotlib.pyplot as plt
         
         # Collect valid data points
@@ -1388,7 +1406,7 @@ class IntveEngine:
                 colors.append('red')
         
         if len(datum_vals) == 0:
-            print("No valid data for plotting")
+            self.logger.info("No valid data for plotting")
             return
         
         # Create plot
@@ -1463,12 +1481,12 @@ class IntveEngine:
         
         if self.verbose:
             # Print summary
-            print(f"\nZ0 Variation Plot Summary:")
-            print(f"  Total valid points: {len(datum_vals)}")
-            print(f"  Typical data interval: [{self.zl:.6f}, {self.zu:.6f}] (width: {self.typical_data_interval:.6f})")
-            print(f"  Tolerance interval: [{self.z0l:.6f}, {self.z0u:.6f}] (width: {self.tolerance_interval:.6f})")
-            print(f"  Ordering constraint: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
-    
+            self.logger.info(f"\nZ0 Variation Plot Summary:")
+            self.logger.info(f"  Total valid points: {len(datum_vals)}")
+            self.logger.info(f"  Typical data interval: [{self.zl:.6f}, {self.zu:.6f}] (width: {self.typical_data_interval:.6f})")
+            self.logger.info(f"  Tolerance interval: [{self.z0l:.6f}, {self.z0u:.6f}] (width: {self.tolerance_interval:.6f})")
+            self.logger.info(f"  Ordering constraint: {'✓ SATISFIED' if ordering_valid else '✗ VIOLATED'}")
+
     # def _plot_distribution_with_intervals(self, figsize: Tuple[int, int] = (12, 8), 
     #                                     eldf_plot: bool = True):
     #     """Plot ELDF/PDF distribution with interval markers and filled areas."""
