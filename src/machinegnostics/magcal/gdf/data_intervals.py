@@ -7,11 +7,13 @@ Author: Nirmal Parmar
 Machine Gnostics
 '''
 
+import logging
 import numpy as np
 from typing import Optional, Union, Dict
 from scipy.signal import savgol_filter, find_peaks
 from machinegnostics.magcal import ELDF, EGDF, QLDF, QGDF, DataCluster
 from machinegnostics.metrics.std import std
+from machinegnostics.magcal.util.logging import get_logger
 
 class DataIntervals:
     """
@@ -156,6 +158,12 @@ class DataIntervals:
         self.params['errors'] = []
         self.params['warnings'] = []
         self.search_results = {'datum': [], 'z0': [], 'success': []}
+
+        # logger setup
+        self.logger = get_logger(self.__class__.__name__, level=logging.DEBUG if self.verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
+
+        # checks
         self._extract_gdf_data()
         self._reset_results()
         self._store_init_params()
@@ -173,19 +181,18 @@ class DataIntervals:
 
     def _add_warning(self, message: str):
         self.params['warnings'].append(message)
-        if self.verbose:
-            print(f"DataIntervals: Warning: {message}")
+        self.logger.warning(f"Warning: {message}")
         if self.catch:
             self.params['warnings'].append(message)
     
     def _add_error(self, message: str):
         self.params['errors'].append(message)
-        if self.verbose:
-            print(f"DataIntervals: Error: {message}")
+        self.logger.error(f"Error: {message}")
         if self.catch:
             self.params['errors'].append(message)
 
     def _extract_gdf_data(self):
+        self.logger.info(f"Extracting GDF data...")
         try:
             gdf = self.gdf
             self.data = np.array(gdf.data)
@@ -226,14 +233,14 @@ class DataIntervals:
                 self.params['RRE'] = self.RRE
                 self.params['residual_entropy'] = self.residual_entropy
 
-            if self.verbose:
-                print(f"DataIntervals: Initialized with {self.params['gdf_type']} | Data size: {self.params['data_size']} | Z0: {self.Z0:.6f}")
+            self.logger.debug(f"Initialized with {self.params['gdf_type']} | Data size: {self.params['data_size']} | Z0: {self.Z0:.6f}")
 
         except Exception as e:
-            self._add_error(f"DataIntervals: Failed to extract GDF data: {e}")
+            self._add_error(f"Failed to extract GDF data: {e}")
             return
         
     def _argument_validation(self):
+        self.logger.info("Validating arguments and settings...")
         # Check GDF type suitability
         if self.gdf_name not in ['ELDF', 'QLDF']:
             msg = "Interval Analysis is optimized for ELDF and QLDF. Results may be less robust for other types."
@@ -264,8 +271,7 @@ class DataIntervals:
                 'verbose': self.verbose,
                 'flush': self.flush
             })
-        if self.verbose:
-            print("DataIntervals: Initial parameters stored.")
+        self.logger.info("Initial parameters stored.")
 
     def _reset_results(self):
         self.ZL = None
@@ -302,13 +308,13 @@ class DataIntervals:
           diagnostics in the `params` attribute.
         - If `flush=True` was set at initialization, intermediate data is cleared after fitting.
         """
+        self.logger.info("Starting fit process for DataIntervals...")
         import time
         start_time = time.time()
         try:
             self._argument_validation()
 
-            if self.verbose:
-                print("\nDataIntervals: Fit process started.")
+            self.logger.info("\nDataIntervals: Fit process started.")
             self._reset_results()
     
             # Scan intervals and extract boundaries
@@ -326,69 +332,67 @@ class DataIntervals:
             # Update parameters and optionally plot
             self._update_params()
             if plot:
+                self.logger.info("Plotting interval analysis results...")
                 self.plot()
                 self.plot_intervals()          
     
             # Optionally flush memory
             if self.flush:
+                self.logger.info("Flushing memory...")
                 self._flush_memory()
     
-            if self.verbose:
-                elapsed = time.time() - start_time
-                print(f"DataIntervals: Fit process completed in {elapsed:.2f} seconds.")
-                print(f"DataIntervals: Ordering valid: {self.ordering_valid}")
-                print(f"DataIntervals: Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]")
-                print(f"DataIntervals: Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}]")
+            elapsed = time.time() - start_time
+            self.logger.info(f"Fit process completed in {elapsed:.2f} seconds.")
+            self.logger.info(f"Ordering valid: {self.ordering_valid}")
+            self.logger.info(f"Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}]")
+            self.logger.info(f"Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}]")
         except Exception as e:
-            err_msg = f"DataIntervals: Fit failed: {e}"
-            if self.verbose:
-                print(f"DataIntervals: ERROR: {err_msg}")
+            err_msg = f"Fit failed: {e}"
             self._add_error(err_msg)
             raise
 
     def _scan_intervals(self):
+        self.logger.info("Scanning intervals by extending data...")
         try:
-            if self.verbose:
-                print("DataIntervals: Scanning intervals...")
+            self.logger.info("Scanning intervals...")
 
             # Scan lower direction (Z0 -> LB)
             lower_points = self._generate_search_points('lower')
-            if self.verbose:
-                print(f"  Starting lower scan: {len(lower_points)} points from Z0 → LB")
+            self.logger.info(f"  Starting lower scan: {len(lower_points)} points from Z0 → LB")
             for i, datum in enumerate(lower_points, 1):
                 z0_val = self._compute_z0_with_extended_datum(datum)
                 self.search_results['datum'].append(datum)
                 self.search_results['z0'].append(z0_val)
                 self.search_results['success'].append(True)
                 if self.verbose and i % (self.n_points/10) == 0:
-                    print(f"    Lower scan [{i}/{len(lower_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
+                    self.logger.info(f"    Lower scan [{i}/{len(lower_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
                 if self._check_convergence():
                     if self.verbose:
-                        print(f"  Early stopping in lower scan at datum={datum:.4f}")
+                        self.logger.info(f"  Early stopping in lower scan at datum={datum:.4f}")
                     return  # stop scanning entirely if convergence is reached
 
             # Scan upper direction (Z0 -> UB)
             upper_points = self._generate_search_points('upper')
-            if self.verbose:
-                print(f"  Starting upper scan: {len(upper_points)} points from Z0 → UB")
+            self.logger.info(f"  Starting upper scan: {len(upper_points)} points from Z0 → UB")
             for i, datum in enumerate(upper_points, 1):
                 z0_val = self._compute_z0_with_extended_datum(datum)
                 self.search_results['datum'].append(datum)
                 self.search_results['z0'].append(z0_val)
                 self.search_results['success'].append(True)
                 if self.verbose and i % 50 == 0:
-                    print(f"    Upper scan [{i}/{len(upper_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
+                    self.logger.info(f"    Upper scan [{i}/{len(upper_points)}]: Datum={datum:.4f}, Z0={z0_val:.6f}")
                 if self._check_convergence():
                     if self.verbose:
-                        print(f"  Early stopping in upper scan at datum={datum:.4f}")
+                        self.logger.info(f"  Early stopping in upper scan at datum={datum:.4f}")
                     return
 
         except Exception as e:
-            self._add_error(f"DataIntervals: Scanning intervals failed: {e}")
+            self._add_error(f"Scanning intervals failed: {e}")
             return
 
 
     def _generate_search_points(self, direction: str) -> np.ndarray:
+        self.logger.debug(f"Generating search points in {direction} direction...")
         # Dense zone near Z0, sparse toward LB/UB
         if direction == 'lower':
             start, end = self.Z0, self.LB + self.boundary_margin_factor * (self.UB - self.LB)
@@ -408,6 +412,7 @@ class DataIntervals:
         return np.unique(np.concatenate([dense_points, sparse_points]))
 
     def _compute_z0_with_extended_datum(self, datum: float) -> float:
+        self.logger.info(f"Computing Z0 with extended datum: {datum:.4f}")
         # Extend data and fit new GDF, return z0
         extended_data = np.append(self.data, datum)
         gdf_type = type(self.gdf)
@@ -443,6 +448,7 @@ class DataIntervals:
         return float(gdf_new.z0)
 
     def _check_convergence(self) -> bool:
+        self.logger.info("Checking convergence of Z0...")
         z0s = np.array(self.search_results['z0'])
         if len(z0s) < self.convergence_window + self.min_search_points:
             return False
@@ -452,42 +458,44 @@ class DataIntervals:
         return False
 
     def _get_z0s_main_cluster(self, z0s: np.ndarray, datums: np.ndarray) -> np.ndarray:
-        # try:
-        if self.verbose:
-            print("DataIntervals: Extracting main Z0 cluster...")
-        
-        # 4 less data points - skip clustering
-        if len(z0s) <= 4 or len(datums) < 4:
-            self._add_warning("Insufficient data points for clustering. Returning all values.")
-            return z0s, datums
+        self.logger.info("Extracting main Z0 cluster...")
+        try:
+            # 4 less data points - skip clustering
+            if len(z0s) <= 4 or len(datums) < 4:
+                self._add_warning("Insufficient data points for clustering. Returning all values.")
+                return z0s, datums
 
-        # Fit ELDF to z0s for clustering
-        eldf_cluster = ELDF(catch=False, wedf=False, verbose=False)
-        eldf_cluster.fit(z0s)
-        cluster = DataCluster(gdf=eldf_cluster, verbose=self.verbose)
-        clb, cub = cluster.fit()
+            # Fit ELDF to z0s for clustering
+            self.logger.info("Fitting ELDF for clustering...")
+            eldf_cluster = ELDF(catch=False, wedf=False, verbose=False)
+            eldf_cluster.fit(z0s)
+            # Cluster boundaries
+            self.logger.info("Fitting DataCluster to identify main cluster...")
+            cluster = DataCluster(gdf=eldf_cluster, verbose=self.verbose)
+            clb, cub = cluster.fit()
 
-        # z0s within cluster boundaries
-        in_cluster_mask = (z0s >= clb) & (z0s <= cub)
-        if not np.any(in_cluster_mask):
-            self._add_warning("No Z0 values found within cluster boundaries. Returning all values.")
-            return z0s, datums
+            # z0s within cluster boundaries
+            in_cluster_mask = (z0s >= clb) & (z0s <= cub)
+            if not np.any(in_cluster_mask):
+                self._add_warning("No Z0 values found within cluster boundaries. Returning all values.")
+                return z0s, datums
 
-        z0s_main = z0s[in_cluster_mask]
-        datums_main = datums[in_cluster_mask]
-        return z0s_main, datums_main
+            z0s_main = z0s[in_cluster_mask]
+            datums_main = datums[in_cluster_mask]
+            return z0s_main, datums_main
     
-        # except Exception as e:
-            # self._add_warning(f"Cluster-based Z0 extraction failed: {e}. Using all Z0 values.")
-            # return np.array(self.search_results['z0']), np.array(self.search_results['datum'])
+        except Exception as e:
+            self._add_warning(f"Cluster-based Z0 extraction failed: {e}. Using all Z0 values.")
+            return np.array(self.search_results['z0']), np.array(self.search_results['datum'])
 
     def _extract_intervals_with_ordering(self):
+        self.logger.info("Extracting intervals with ordering constraint...")
+
         datums = np.array(self.search_results['datum'])
         z0s = np.array(self.search_results['z0'])
 
         if self.gnostic_filter:
-            if self.verbose:
-                print("DataIntervals: Applying gnostic filtering to Z0 values...")
+            self.logger.info("Applying gnostic filtering to Z0 values...")
             # MG cluster
             z0s, datums = self._get_z0s_main_cluster(z0s, datums)
 
@@ -544,12 +552,13 @@ class DataIntervals:
                 self.ZL = self.Z0L
             if self.ZU < self.Z0U:
                 self.ZU = self.Z0U
-            if self.verbose:
-                print("DataIntervals: Adjusted bounds to enforce ordering constraint.")
+
+            self.logger.info("Adjusted bounds to enforce ordering constraint.")
         self.tolerance_interval = self.Z0U - self.Z0L
         self.typical_data_interval = self.ZU - self.ZL
 
     def _find_valid_extrema_with_ordering(self, datums, z0s):
+        self.logger.info("Searching for valid extrema combinations to satisfy ordering constraint...")
         # Try combinations to satisfy ordering constraint
         lower_mask = datums < self.Z0
         upper_mask = datums > self.Z0
@@ -559,6 +568,8 @@ class DataIntervals:
         upper_z0 = z0s[upper_mask]
         n_candidates = min(5, len(lower_datum), len(upper_datum))
         found = False
+
+        self.logger.info(f"Found {n_candidates} candidate pairs for extrema.")
         for i in range(n_candidates):
             zl, z0l = lower_datum[i], lower_z0[i]
             zu, z0u = upper_datum[-(i+1)], upper_z0[-(i+1)]
@@ -567,16 +578,19 @@ class DataIntervals:
                 self.ordering_valid = True
                 found = True
                 break
+
+        self.logger.info(f"Valid extrema found: {found}")
         if not found:
             # Fallback: use initial extrema
             min_idx = np.argmin(z0s)
             max_idx = np.argmax(z0s)
             self.ZL, self.Z0L, self.ZU, self.Z0U = datums[min_idx], z0s[min_idx], datums[max_idx], z0s[max_idx]
             self.ordering_valid = False
-        if self.verbose:
-            print(f"DataIntervals: Ordering constraint {'satisfied' if self.ordering_valid else 'NOT satisfied'}.")
+
+        self.logger.info(f"Ordering constraint {'satisfied' if self.ordering_valid else 'NOT satisfied'}.")
 
     def _update_params(self):
+        self.logger.info("Updating parameters with results...")
         self.params.update({
             'LB': self.LB,
             'LSB': self.LSB,
@@ -598,8 +612,7 @@ class DataIntervals:
             'ordering_valid': self.ordering_valid,
             'search_points': len(self.search_results['datum'])
         })
-        if self.verbose:
-            print(f"""DataIntervals: Results updated. 
+        self.logger.info(f"""Results updated. 
         Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}], 
         Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}] 
         Ordering valid: {self.ordering_valid}""")
@@ -625,6 +638,7 @@ class DataIntervals:
         >>> intervals = di.results()
         >>> print(intervals['Z0L'], intervals['Z0U'])
         """
+        self.logger.info("Retrieving results dictionary...")
         results = {
             'LB': float(self.LB) if self.LB is not None else None,
             'LSB': float(self.LSB) if self.LSB is not None else None,
@@ -662,6 +676,8 @@ class DataIntervals:
         - The plot shows the Z0 trajectory, interval boundaries, and highlights the ordering constraint status.
         - Useful for diagnostics and for understanding the robustness of the interval estimation.
         """
+        self.logger.info("Plotting Z0 variation and intervals...")
+
         import matplotlib.pyplot as plt
         datums = np.array(self.search_results_clean['datum'])
         z0s = np.array(self.search_results_clean['z0'])
@@ -697,11 +713,12 @@ class DataIntervals:
         ax.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
-        if self.verbose:
-            print(f"\nZ0 Variation Plot Summary:")
-            print(f"  Typical data interval: [{self.ZL:.6f}, {self.ZU:.6f}] (width: {self.ZU - self.ZL:.6f})")
-            print(f"  Tolerance interval: [{self.Z0L:.6f}, {self.Z0U:.6f}] (width: {self.Z0U - self.Z0L:.6f})")
-            print(f"  Ordering constraint: {'✓ SATISFIED' if self.ordering_valid else '✗ VIOLATED'}")
+
+        #log summary
+        self.logger.info(f"\nZ0 Variation Plot Summary:")
+        self.logger.info(f"  Typical data interval: [{self.ZL:.6f}, {self.ZU:.6f}] (width: {self.ZU - self.ZL:.6f})")
+        self.logger.info(f"  Tolerance interval: [{self.Z0L:.6f}, {self.Z0U:.6f}] (width: {self.Z0U - self.Z0L:.6f})")
+        self.logger.info(f"  Ordering constraint: {'✓ SATISFIED' if self.ordering_valid else '✗ VIOLATED'}")
 
     def plot(self, figsize=(12, 8)):
         """
@@ -721,6 +738,8 @@ class DataIntervals:
         - The plot provides a comprehensive view of the data, the fitted distribution, and the intervals.
         - Useful for reporting and for visually assessing the coverage and validity of the intervals.
         """
+        self.logger.info("Plotting GDF, PDF, and intervals...")
+
         import matplotlib.pyplot as plt
         x_points = np.array(self.data)
         x_min, x_max = np.min(x_points), np.max(x_points)
@@ -805,20 +824,30 @@ class DataIntervals:
         ax1.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.05, 1), fontsize=10, borderaxespad=0)
         plt.tight_layout()
         plt.show()
-        if self.verbose:
-            print(f"\n{self.gdf_name} Interval Analysis Plot Summary:")
-            print(f"  Z0 (Gnostic Mode): {self.Z0:.4f}")
-            print(f"  Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}] (width: {self.Z0U - self.Z0L:.4f})")
-            print(f"  Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}] (width: {self.ZU - self.ZL:.4f})")
-            data_in_tolerance = np.sum((x_points >= self.Z0L) & (x_points <= self.Z0U))
-            print(f"  Data coverage - Tolerance: {data_in_tolerance}/{len(x_points)} ({data_in_tolerance/len(x_points):.1%})")
-            data_in_typical = np.sum((x_points >= self.ZL) & (x_points <= self.ZU))
-            print(f"  Data coverage - Typical: {data_in_typical}/{len(x_points)} ({data_in_typical/len(x_points):.1%})")
-            print(f"  Total data points: {len(x_points)}")
-            print(f"  Data range: [{np.min(x_points):.4f}, {np.max(x_points):.4f}]")
+        
+        self.logger.info(f"\n{self.gdf_name} Interval Analysis Plot Summary:")
+        self.logger.info(f"  Z0 (Gnostic Mode): {self.Z0:.4f}")
+        self.logger.info(f"  Tolerance interval: [{self.Z0L:.4f}, {self.Z0U:.4f}] (width: {self.Z0U - self.Z0L:.4f})")
+        self.logger.info(f"  Typical data interval: [{self.ZL:.4f}, {self.ZU:.4f}] (width: {self.ZU - self.ZL:.4f})")
+        data_in_tolerance = np.sum((x_points >= self.Z0L) & (x_points <= self.Z0U))
+        self.logger.info(f"  Data coverage - Tolerance: {data_in_tolerance}/{len(x_points)} ({data_in_tolerance/len(x_points):.1%})")
+        data_in_typical = np.sum((x_points >= self.ZL) & (x_points <= self.ZU))
+        self.logger.info(f"  Data coverage - Typical: {data_in_typical}/{len(x_points)} ({data_in_typical/len(x_points):.1%})")
+        self.logger.info(f"  Total data points: {len(x_points)}")
+        self.logger.info(f"  Data range: [{np.min(x_points):.4f}, {np.max(x_points):.4f}]")
 
     def _flush_memory(self):
         if self.flush:
             self.search_results = {'datum': [], 'z0': [], 'success': []}
-        if self.verbose:
-            print("DataIntervals: Flushed data to free memory.")
+        self.logger.info("Flushed data to free memory.")
+
+    def __repr__(self):
+        return (f"DataIntervals(gdf={self.gdf_name}, n_points={self.n_points}, "
+                f"dense_zone_fraction={self.dense_zone_fraction}, "
+                f"dense_points_fraction={self.dense_points_fraction}, "
+                f"convergence_window={self.convergence_window}, "
+                f"convergence_threshold={self.convergence_threshold}, "
+                f"min_search_points={self.min_search_points}, "
+                f"boundary_margin_factor={self.boundary_margin_factor}, "
+                f"extrema_search_tolerance={self.extrema_search_tolerance}, "
+                f"verbose={self.verbose}, flush={self.flush})")
