@@ -2,14 +2,13 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
-For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+Author: Nirmal Parmar
 '''
 
 import numpy as np
 from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
-def gcovariance(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i'):
+def gcovariance(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i') -> float:
     """
     Compute the Gnostic crosscovariance between two data samples.
 

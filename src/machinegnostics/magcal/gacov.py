@@ -2,14 +2,13 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
-For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+Author: Nirmal Parmar
 '''
 
 import numpy as np
 from machinegnostics.magcal.sample_characteristics import GnosticCharacteristicsSample
 
-def gautocovariance(data: np.ndarray, case: str = 'i', K: int = 1):
+def gautocovariance(data: np.ndarray, case: str = 'i', K: int = 1) -> float:
     """
     Compute the gnostic autocovariance for a given data sample.
     
