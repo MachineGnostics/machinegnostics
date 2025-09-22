@@ -2,8 +2,7 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
-For more details, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+Author: Nirmal Parmar
 '''
 
 import numpy as np

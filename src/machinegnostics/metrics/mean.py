@@ -8,7 +8,6 @@ Machine Gnostics
 '''
 
 import numpy as np
-import decimal
 from machinegnostics.magcal import ELDF
 
 def mean(data: np.ndarray, 

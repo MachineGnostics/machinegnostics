@@ -5,13 +5,11 @@ Copyright (C) 2025  ManGo Team
 This work is licensed under the terms of the GNU General Public License version 3.0.
 
 Author: Nirmal Parmar
-Date: 2025-10-01
-Description:
+
 
 '''
 
 import numpy as np
-from machinegnostics.magcal import GnosticsCharacteristics, DataConversion, ScaleParam, GnosticsWeights 
 
 class EvaluationMetrics:
     """

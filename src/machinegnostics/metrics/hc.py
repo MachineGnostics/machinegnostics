@@ -2,7 +2,7 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
+Author: Nirmal Parmar
 '''
 
 import numpy as np
@@ -13,12 +13,14 @@ def hc(y_true, y_pred, case:str='i'):
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
 
     i  - for estimating gnostic relevance
+        For case 'i': Range [-1, 1]. Close to zero indicates less relevance
     
     j  - for estimating gnostic irrelevance
+        For case 'j': Range [1, ∞) (measures strength of relationship). Close to 1 indicates less irrelevance.
 
     The HC metric is used to evaluate the performance of a model by comparing
     the predicted values with the true values's relevance or irrelevance.
-    It is calculated as the sum of the characteristics of the model.
+    It is calculated as the sum of the characteristics of the model. For standard comparison, irrelevances are calculated with S=1.
 
     Parameters
     ----------
