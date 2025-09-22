@@ -2,9 +2,7 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
-
-Description: Implementation of Gnostic Median, and intervals calculations
+Author: Nirmal Parmar
 '''
 
 import numpy as np
