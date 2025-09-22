@@ -10,6 +10,8 @@ Machine Gnostics
 
 import numpy as np
 import warnings
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import ELDF, EGDF, DataCluster, DataHomogeneity
 
 class ClusterAnalysis:
@@ -212,16 +214,18 @@ class ClusterAnalysis:
                 'max_data_size': self.max_data_size,
                 'flush': self.flush
             }
+        
+        # logger setup
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
 
     def _add_warning(self, warning: str):
         self.params['warnings'].append(warning)
-        if self.verbose:
-            print(f'ClusterAnalysis: Warning: {warning}')
+        self.logger.warning(warning)
     
     def _add_error(self, error: str):
         self.params['error'].append(error)
-        if self.verbose:
-            print(f'ClusterAnalysis: Error: {error}')
+        self.logger.error(error)
 
     def fit(self, data: np.ndarray, plot: bool = False) -> tuple:
         """
@@ -265,6 +269,7 @@ class ClusterAnalysis:
         >>> LCB, UCB = ca.fit(data)
         >>> print(f"Cluster bounds: LCB={LCB}, UCB={UCB}")
         """
+        self.logger.info("Starting ClusterAnalysis fit process...")
         try:
             kwrgs_egdf = {
                 "DLB": self.DLB,
@@ -286,8 +291,7 @@ class ClusterAnalysis:
                 "flush": self.flush
                 }
             # estimate egdf
-            if self.verbose:
-                print("ClusterAnalysis: Fitting EGDF...")
+            self.logger.info("ClusterAnalysis: Fitting EGDF...")
             self._egdf = EGDF(**kwrgs_egdf)
             self._egdf.fit(data, plot=False)
             if self.catch:
@@ -309,8 +313,7 @@ class ClusterAnalysis:
                 warnings.warn(warning_msg)
         
             # fit eldf
-            if self.verbose:
-                print("ClusterAnalysis: Fitting ELDF...")
+            self.logger.info("ClusterAnalysis: Fitting ELDF...")
             self._eldf = ELDF(DLB=self.DLB,
                             DUB=self.DUB,
                             LB=self.LB,
@@ -334,15 +337,13 @@ class ClusterAnalysis:
                 self.params['ELDF'] = self._eldf.params
 
             # get cluster bounds
-            if self.verbose:
-                print("ClusterAnalysis: Estimating cluster bounds...")
+            self.logger.info("ClusterAnalysis: Estimating cluster bounds...")
 
             # note for user, if is_homogeneous is False, LCB and UCB will provide main cluster of the data.
             if not is_homogeneous:
                 info_msg = "Data is not homogeneous, LCB and UCB will provide bounds for the main cluster of the data."
                 self._add_warning(info_msg)
-                if self.verbose:
-                    print(f'ClusterAnalysis: Info: {info_msg}')
+                self.logger.info(f'ClusterAnalysis: Info: {info_msg}')
 
             self._data_cluster = DataCluster(gdf=self._eldf, 
                                             verbose=self.verbose, 
@@ -377,17 +378,14 @@ class ClusterAnalysis:
                         del self.params['DataHomogeneity']
                     if 'DataCluster' in self.params:
                         del self.params['DataCluster']
-                if self.verbose:
-                    print("ClusterAnalysis: Data flushed to save memory.")
+                self.logger.info("ClusterAnalysis: Data flushed to save memory.")
 
-            if self.verbose:
-                print(f'ClusterAnalysis: Fitting completed. LCB: {self.LCB}, UCB: {self.UCB}')
+            self.logger.info(f'ClusterAnalysis: Fitting completed. LCB: {self.LCB}, UCB: {self.UCB}')
             return self.LCB, self.UCB
         
         except Exception as e:
             self._add_error(str(e))
-            if self.verbose:
-                print(f'ClusterAnalysis: Error during fit: {e}')
+            self.logger.error(f'ClusterAnalysis: Error during fit: {e}')
             return None, None
 
     def results(self) -> dict:
@@ -413,7 +411,9 @@ class ClusterAnalysis:
         - Call this method after `fit()` to retrieve the main cluster bounds.
         - The returned values are floats or None if fitting failed.
         """
+        self.logger.info("Retrieving ClusterAnalysis results...")
         if not self._fitted:
+            self.logger.error("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
             raise RuntimeError("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
         return {
             'LCB': float(self.LCB),
@@ -443,8 +443,10 @@ class ClusterAnalysis:
         - If `flush=True` was set during initialization, plotting is disabled to save memory.
         """
         if not self._fitted:
+            self.logger.error("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
             raise RuntimeError("ClusterAnalysis: The model is not fitted yet. Please call the 'fit' method first.")
         if self.flush:
+            self.logger.error("ClusterAnalysis: Data has been flushed. Cannot plot. Please set 'flush' to False during initialization to enable plotting.")
             raise RuntimeError("ClusterAnalysis: Data has been flushed. Cannot plot. Please set 'flush' to False during initialization to enable plotting.")
 
         # Plot ELDF
