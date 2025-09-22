@@ -2,10 +2,12 @@
 ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
+Author: Nirmal Parmar
 '''
 
 import numpy as np
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class GnosticsCharacteristics:
     """
@@ -62,7 +64,8 @@ class GnosticsCharacteristics:
 
     def __init__(self, 
                  R: np.ndarray,
-                 eps: float = 1e-10):
+                 eps: float = 1e-10,
+                 verbose: bool = False):
         """
         Initializes the GnosticsCharacteristics class.
 
@@ -75,6 +78,10 @@ class GnosticsCharacteristics:
         """
         self.R = R
         self.eps = eps
+
+        # logger setup
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
 
     def _get_q_q1(self, S: int = 1):
         """
@@ -94,6 +101,7 @@ class GnosticsCharacteristics:
         tuple
             (q, q1) computed characteristic values
         """
+        self.logger.info("Calculating q and q1.")
         # Add small constant to prevent division by zero
         R_safe = np.abs(self.R) + self.eps
         
@@ -155,6 +163,7 @@ class GnosticsCharacteristics:
         -------
         f : np.ndarray or float
         """
+        self.logger.info("Calculating estimation weight fi.")
         if q is None:
             q = self.q
         if q1 is None:
@@ -180,6 +189,7 @@ class GnosticsCharacteristics:
         -------
         f : np.ndarray or float
         """
+        self.logger.info("Calculating quantification weight fj.") 
         if q is None:
             q = self.q
         if q1 is None:
@@ -205,6 +215,7 @@ class GnosticsCharacteristics:
         -------
         h : np.ndarray or float
         """
+        self.logger.info("Calculating estimation relevance hi.")
         if q is None:
             q = self.q
         if q1 is None:
@@ -213,6 +224,7 @@ class GnosticsCharacteristics:
         q = np.asarray(q)
         q1 = np.asarray(q1)
         if q.shape != q1.shape:
+            self.logger.error("q and q1 must have the same shape")
             raise ValueError("q and q1 must have the same shape")
         
         # Handle potential overflow/underflow in q and q1
@@ -264,6 +276,7 @@ class GnosticsCharacteristics:
         -------
         h : np.ndarray or float
         """
+        self.logger.info("Calculating quantification relevance hj.")
         if q is None:
             q = self.q
         if q1 is None:
@@ -272,6 +285,7 @@ class GnosticsCharacteristics:
         q = np.asarray(q)
         q1 = np.asarray(q1)
         if q.shape != q1.shape:
+            self.logger.error("q and q1 must have the same shape")
             raise ValueError("q and q1 must have the same shape")
         h = (q - q1) / 2
         return h
@@ -292,12 +306,15 @@ class GnosticsCharacteristics:
         entropy : np.ndarray or float
             Relative entropy.
         """
+        self.logger.info("Calculating residual entropy.")
         fi = np.asarray(fi)
         fj = np.asarray(fj)
         if fi.shape != fj.shape:
+            self.logger.error("fi and fj must have the same shape")
             raise ValueError("fi and fj must have the same shape")
         entropy = fj - fi
         if (entropy < 0).any(): #means something is wrong
+            self.logger.error("Entropy cannot be negative")
             raise ValueError("Entropy cannot be negative")
         return entropy
     
@@ -315,8 +332,10 @@ class GnosticsCharacteristics:
         entropy : np.ndarray or float
             Inverse relative entropy.
         """
+        self.logger.info("Calculating estimating entropy.")
         fi = np.asarray(fi)
         if fi.shape != self.q.shape:
+            self.logger.error("fi and q must have the same shape")
             raise ValueError("fi and q must have the same shape")
         entropy = 1 - fi
         return entropy
@@ -335,8 +354,10 @@ class GnosticsCharacteristics:
         entropy : np.ndarray or float
             Relative entropy.
         """
+        self.logger.info("Calculating quantifying entropy.")
         fj = np.asarray(fj)
         if fj.shape != self.q.shape:
+            self.logger.error("fj and q must have the same shape")
             raise ValueError("fj and q must have the same shape")
         entropy = fj - 1
         return entropy
@@ -355,8 +376,10 @@ class GnosticsCharacteristics:
         idist : np.ndarray or float
             Inverse distance function.
         """
+        self.logger.info("Calculating estimating distribute function.")
         hi = np.asarray(hi)
         if hi.shape != self.q.shape:
+            self.logger.error("hi and q must have the same shape")
             raise ValueError("hi and q must have the same shape")
         p_i = np.sqrt(np.power((1 - hi) / 2, 2)) # from MGpdf
         return p_i
@@ -375,8 +398,10 @@ class GnosticsCharacteristics:
         jdist : np.ndarray or float
             Inverse distance function.
         """
+        self.logger.info("Calculating quantifying distribute function.")
         hj = np.asarray(hj)
         if hj.shape != self.q.shape:
+            self.logger.error("hj and q must have the same shape")
             raise ValueError("hj and q must have the same shape")
         p_j = np.sqrt(np.power((1 - hj) / 2, 2))
         return p_j
@@ -395,8 +420,10 @@ class GnosticsCharacteristics:
         info : np.ndarray or float
             Estimating information.
         """
+        self.logger.info("Calculating estimating information.")
         p_i = np.asarray(p_i)
         if p_i.shape != self.q.shape:
+            self.logger.error("p_i and q must have the same shape")
             raise ValueError("p_i and q must have the same shape")
         epsilon = 1e-8
         Ii = -p_i * np.log(p_i+epsilon) - (1 - p_i) * np.log(1 - p_i)
@@ -416,8 +443,10 @@ class GnosticsCharacteristics:
         info : np.ndarray or float
             Quantifying information.
         """
+        self.logger.info("Calculating quantifying information.")
         p_j = np.asarray(p_j)
         if p_j.shape != self.q.shape:
+            self.logger.error("p_j and q must have the same shape")
             raise ValueError("p_j and q must have the same shape")
         epsilon = 1e-12
         p_j = np.clip(p_j, 0 + epsilon, 1 - epsilon)
