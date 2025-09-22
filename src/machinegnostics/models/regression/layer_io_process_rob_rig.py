@@ -71,6 +71,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, InterfaceRobustRegressor)
         """
         Fit the model to the data and preprocess it.
         """
+        self.logger.info("Starting fit process for DataProcessRobustRegressor.")
         X, y = self._fit_io(X, y)
         # Call the fit method from the next class in the MRO
         return super()._fit(X, y)
@@ -80,6 +81,7 @@ class DataProcessRobustRegressor(DataProcessLayerBase, InterfaceRobustRegressor)
         """
         Predict using the model after preprocessing the input data.
         """
+        self.logger.info("Making predictions with DataProcessRobustRegressor.")
         X = self._predict_io(X)
         y_pred = super()._predict(X)
         # y_pred = self._convert_output(y_pred, self.data_form)

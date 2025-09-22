@@ -68,7 +68,7 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
             Target values.
         """
         # Call the fit method from HistoryRobustRegressor
-        self.logger.info("Starting fit process with MLflow integration.")
+        self.logger.info("Starting fit process for InterfaceRobustRegressor. Logging to MLflow available.")
         super()._fit(X, y)
         return self
 
@@ -88,7 +88,7 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
         np.ndarray
             Predicted class labels.
         """
-        self.logger.info("Making predictions with MLflow integration.")
+        self.logger.info("Making predictions with InterfaceRobustRegressor.")
         predictions = super()._predict(model_input)
         return predictions
     

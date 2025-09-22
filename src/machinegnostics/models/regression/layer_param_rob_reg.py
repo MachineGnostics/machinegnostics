@@ -91,7 +91,7 @@ class ParamRobustRegressorBase(ParamBase):
         y : np.ndarray
             Target values.
         """
-        self.logger.info("Starting fit for Robust Regressor.")
+        self.logger.info("Starting fit process for ParamRobustRegressorBase.")
         # Generate polynomial features
         X_poly = self._generate_polynomial_features(X)
         
@@ -142,7 +142,7 @@ class ParamRobustRegressorBase(ParamBase):
                                                 
                 # print loss
                 if self.verbose:
-                    print(f'Iteration: {self._iter} - Machine Gnostic loss - {self.mg_loss} : {np.round(self.loss, 4)}, rentropy: {np.round(self.re, 4)}')
+                    self.logger.info(f'Iteration: {self._iter} - Machine Gnostic loss - {self.mg_loss} : {np.round(self.loss, 4)}, rentropy: {np.round(self.re, 4)}')
 
                 # capture history and append to history
                 # minimal history capture
@@ -164,7 +164,7 @@ class ParamRobustRegressorBase(ParamBase):
                         if (prev_loss is not None) and (prev_re is not None):
                             if (np.abs(self.loss - prev_loss) < self.tol) or (np.abs(self.re - prev_re) < self.tol):
                                 if self.verbose:
-                                    print(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
+                                    self.logger.info(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
                                 break
             
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
@@ -187,7 +187,7 @@ class ParamRobustRegressorBase(ParamBase):
         ndarray of shape (n_samples,)
             Predicted values.
         """ 
-        self.logger.info("Starting prediction for Robust Regressor.")
+        self.logger.info("Starting prediction for ParamRobustRegressorBase.")
         # copy iteration for last iteration
         
         if self.coefficients is None:

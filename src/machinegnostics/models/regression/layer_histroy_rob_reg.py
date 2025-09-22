@@ -105,7 +105,7 @@ class HistoryRobustRegressor(ParamRobustRegressorBase):
         y : np.ndarray
             Target values.
         """
-        self.logger.info("Starting fit process with history recording.")
+        self.logger.info("Starting fit process for HistoryRobustRegressor.")
         # Call the parent fit method to perform fitting
         super()._fit(X, y)
 
