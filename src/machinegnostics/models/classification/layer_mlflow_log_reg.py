@@ -60,11 +60,15 @@ class InterfaceLogisticRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonMod
         self.history = history
         self.proba = proba
 
+        # logger
+        self.logger.info("InterfaceLogisticRegressor initialized.")
+
 
     def _fit(self, X, y):
         """
         Fit the logistic regression model using the parent class logic.
         """
+        self.logger.info("Starting fit process for InterfaceLogisticRegressor.")
         super()._fit(X, y)
 
         self.coefficients = self.coefficients
@@ -76,6 +80,7 @@ class InterfaceLogisticRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonMod
         Predict class labels for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.
         """
+        self.logger.info("Making predictions with InterfaceLogisticRegressor.")
         return super()._predict(model_input)
 
     def _predict_proba(self, model_input) -> np.ndarray:
@@ -83,12 +88,14 @@ class InterfaceLogisticRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonMod
         Predict probabilities for input data.
         Accepts numpy arrays, pandas DataFrames, or pyspark DataFrames.
         """
+        self.logger.info("Calculating predicted probabilities with InterfaceLogisticRegressor.")
         return super()._predict_proba(model_input)
 
     def save_model(self, path):
         """
         Save the trained model to disk using joblib.
         """
+        self.logger.info(f"Saving model to {path}.")
         os.makedirs(path, exist_ok=True)
         joblib.dump(self, os.path.join(path, "model.pkl"))
 

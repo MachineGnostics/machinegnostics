@@ -36,6 +36,9 @@ class DataProcessLogisticRegressor(DataProcessLayerBase, InterfaceLogisticRegres
             **kwargs
         )
 
+        # logger
+        self.logger.info("DataProcessLogisticRegressor initialized.")
+
         # --- argument checks ---
         if not isinstance(degree, int) or degree < 1:
             raise ValueError("Degree must be a positive integer.")
@@ -67,6 +70,7 @@ class DataProcessLogisticRegressor(DataProcessLayerBase, InterfaceLogisticRegres
         """
         Fit the model to the data and preprocess it.
         """
+        self.logger.info("Starting fit process for DataProcessLogisticRegressor.")
         X, y = self._fit_io(X, y)
         # Call the fit method from the next class in the MRO
         return super()._fit(X, y)
@@ -76,6 +80,7 @@ class DataProcessLogisticRegressor(DataProcessLayerBase, InterfaceLogisticRegres
         """
         Predict using the model after preprocessing the input data.
         """
+        self.logger.info("Making predictions with DataProcessLogisticRegressor.")
         X = self._predict_io(X)
         y_pred = super()._predict(X)
         # y_pred = self._convert_output(y_pred, self.data_form)
@@ -86,6 +91,7 @@ class DataProcessLogisticRegressor(DataProcessLayerBase, InterfaceLogisticRegres
         """
         Predict probabilities using the model after preprocessing the input data.
         """
+        self.logger.info("Calculating predicted probabilities with DataProcessLogisticRegressor.")
         X = self._predict_io(X)
         y_proba = super()._predict_proba(X)
         # y_proba = self._convert_output(y_proba, self.data_form)

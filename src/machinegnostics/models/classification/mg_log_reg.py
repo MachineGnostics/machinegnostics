@@ -151,6 +151,9 @@ class LogisticRegressor(DataProcessLogisticRegressor):
         self.proba = proba
         self.params = []
         self._history = []
+
+        # logger
+        self.logger.info("LogisticRegressor initialized.")
     
     def fit(self, X, y):
         """
@@ -182,6 +185,7 @@ class LogisticRegressor(DataProcessLogisticRegressor):
         >>> model = LogisticRegressor(degree=2, max_iter=200)
         >>> model.fit(X_train, y_train)
         """
+        self.logger.info("Starting fit process for LogisticRegressor.")
         super()._fit(X, y)
         
         self.coefficients = self.coefficients
@@ -210,6 +214,7 @@ class LogisticRegressor(DataProcessLogisticRegressor):
         --------
         >>> y_pred = model.predict(X_test)
         """
+        self.logger.info("Making predictions with LogisticRegressor.")
         return super()._predict(model_input)
     
     def predict_proba(self, model_input) -> np.ndarray:
@@ -236,6 +241,7 @@ class LogisticRegressor(DataProcessLogisticRegressor):
         >>> y_proba = model.predict_proba(X_test)
         >>> print(y_proba[:5])
         """
+        self.logger.info("Calculating predicted probabilities with LogisticRegressor.")
         return super()._predict_proba(model_input)
 
     def score(self, X, y) -> float:
@@ -262,5 +268,6 @@ class LogisticRegressor(DataProcessLogisticRegressor):
         >>> score = model.score(X_test, y_test)
         >>> print("F1 Score:", score)
         """
+        self.logger.info("Calculating F1 score for LogisticRegressor.")
         y_pred = self.predict(X)
         return f1_score(y, y_pred)

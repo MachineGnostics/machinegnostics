@@ -75,6 +75,9 @@ class ParamLogisticRegressorBase(ParamBase):
             })
         else:
             self._history = None
+
+        # logger
+        self.logger.info("ParamLogisticRegressorBase initialized.")
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -87,6 +90,7 @@ class ParamLogisticRegressorBase(ParamBase):
         y : np.ndarray
             Target values.
         """
+        self.logger.info("Starting fit process for Logistic Regressor.")
         # Generate polynomial features
         X_poly = self._generate_polynomial_features(X)
 
@@ -135,7 +139,7 @@ class ParamLogisticRegressorBase(ParamBase):
                 # gnostic probabilities
                 if self.proba == 'gnostic':
                     # Gnostic probability calculation
-                    p, info, re = self._gnostic_prob(z=z)
+                    p, info, re = self._gnostic_prob(z=z) # NOTE currently using p from local S, means ELDF. this can be improved in the future
                 elif self.proba == 'sigmoid':
                     # Sigmoid probability calculation
                     p = self._sigmoid(y0)
@@ -213,8 +217,7 @@ class ParamLogisticRegressorBase(ParamBase):
                 self.coefficients = self._prev_coef
                 self.weights = self.weights.copy()
                 if self.verbose:
-                    print(f"Error during fitting: {e}")
-                    print(f"Iteration {self._iter + 1}, Log Loss: {self.loss:.6f}")
+                    self.logger.error(f"Error during fitting at iteration {self._iter}: {e}")
                 break         
 
     def _predict(self, X: np.ndarray, threshold=0.5) -> np.ndarray:
@@ -233,6 +236,7 @@ class ParamLogisticRegressorBase(ParamBase):
         ndarray of shape (n_samples,)
             Predicted class labels (0 or 1).
         """
+        self.logger.info("Making predictions with Logistic Regressor.")
         proba = self._predict_proba(X)
         return (proba >= threshold).astype(int)  
     
@@ -250,6 +254,7 @@ class ParamLogisticRegressorBase(ParamBase):
         ndarray of shape (n_samples,)
             Predicted probabilities.
         """
+        self.logger.info("Calculating predicted probabilities with Logistic Regressor.")
         if self.coefficients is None:
             raise ValueError("Model is not fitted yet. Call 'fit' before 'predict_proba'.")
         
@@ -264,6 +269,7 @@ class ParamLogisticRegressorBase(ParamBase):
             # Sigmoid probability calculation
             proba = self._sigmoid(linear_pred)
         else:
+            self.logger.error("Invalid probability method. Must be 'gnostic' or 'sigmoid'.")
             raise ValueError("Invalid probability method. Must be 'gnostic' or 'sigmoid'.")
         
         return proba
