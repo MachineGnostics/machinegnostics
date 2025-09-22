@@ -14,7 +14,8 @@ Regressor param base class that can be used for robust regression models.
 - logistic regression
 
 '''
-
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from itertools import combinations_with_replacement
 from machinegnostics.magcal import (ModelBase, GnosticCharacteristicsSample, 
@@ -24,6 +25,7 @@ from machinegnostics.magcal import (ModelBase, GnosticCharacteristicsSample,
                                     GnosticsWeights,
                                     DataConversion)
 from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float, np_eps_float
+from typing import Union
 
 class ParamBase(ModelBase):
     """
@@ -41,7 +43,7 @@ class ParamBase(ModelBase):
                  mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
-                 scale: [str, int, float] = 'auto',
+                 scale: Union[str, int, float] = 'auto',
                  history: bool = True,
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True):
@@ -114,6 +116,10 @@ class ParamBase(ModelBase):
             })
         else:
             self._history = None
+        
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.INFO)  # Create a logger for this class
+        self.logger.info("ParamBase initialized.")
 
     def _generate_polynomial_features(self, X:np.ndarray) -> np.ndarray:
         """
@@ -129,6 +135,7 @@ class ParamBase(ModelBase):
         X_poly : ndarray of shape (n_samples, n_output_features)
             Polynomial features including interaction terms
         """
+        self.logger.info(f"Generating polynomial features of degree")
         n_samples, n_features = X.shape
         combinations = []
         for degree in range(self.degree + 1):
@@ -137,7 +144,7 @@ class ParamBase(ModelBase):
         X_poly = np.ones((n_samples, len(combinations)))
         for i, comb in enumerate(combinations):
             X_poly[:, i] = np.prod(X[:, comb], axis=1)
-        
+        self.logger.info(f"Generated polynomial features shape: {X_poly.shape}")
         return X_poly
     
     def _weight_init(self, d: np.ndarray, like: str ='one') -> np.ndarray:
@@ -156,6 +163,7 @@ class ParamBase(ModelBase):
         np.ndarray
             Initialized weights.
         """
+        self.logger.info(f"Initializing weights with method: {like}")
         if like == 'one':
             return np.ones(len(d))
         elif like == 'zero':
@@ -163,6 +171,7 @@ class ParamBase(ModelBase):
         # elif like == 'random':
         #     return np.random.rand(d.shape[1]).flatten()
         else:
+            self.logger.error("Invalid weight initialization method.")
             raise ValueError("like must be 'one', 'zero', or 'random'.")
         
     def _weighted_least_squares(self, X_poly, y, weights):
@@ -183,6 +192,7 @@ class ParamBase(ModelBase):
         array-like
             Estimated coefficients
         """
+        self.logger.info("Solving weighted least squares.")
         eps = np_eps_float()  # Small value to avoid division by zero
         # Add small regularization term
         weights = np.clip(weights, eps, None)
@@ -215,6 +225,7 @@ class ParamBase(ModelBase):
         array-like
             Estimated coefficients
         """
+        self.logger.info("Solving weighted least squares for logistic regression.")
         try:
             XtW = X_poly.T @ W
             XtWX = XtW @ X_poly + np_min_float() * np.eye(n_features)
@@ -225,6 +236,7 @@ class ParamBase(ModelBase):
         return self.coefficients
     
     def _data_conversion(self, z:np.ndarray) -> np.ndarray:
+        self.logger.info(f"Converting data using form: {self.data_form}")
         dc = DataConversion()
         if self.data_form == 'a':
             return dc._convert_az(z)
@@ -233,7 +245,7 @@ class ParamBase(ModelBase):
         else:
             raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
     
-    def _gnostic_criterion(self, z:np.ndarray, z0:np.ndarray, s) -> tuple:
+    def _gnostic_criterion(self, z:np.ndarray, z0:np.ndarray, s) -> tuple: # NOTE can be improved by connecting with GDF
         """Compute the gnostic criterion.
         
         Parameters
@@ -252,12 +264,14 @@ class ParamBase(ModelBase):
         NOTE:
             normalized loss and rentropy are returned.
             """
+        self.logger.info("Computing gnostic criterion.")
         q, q1 = self._compute_q(z, z0, s)
 
         # Default values for optional outputs
         pi = pj = ei = ej = infoi = infoj = None
 
         if self.mg_loss == 'hi':
+            self.logger.info("Computing gnostic criterion for 'hi' loss.")
             hi = self.gc._hi(q, q1)
             fi = self.gc._fi(q, q1)
             fj = self.gc._fj(q, q1)
@@ -278,6 +292,7 @@ class ParamBase(ModelBase):
             H = np.sum(hi ** 2)
             return H, np.mean(re_norm),hi, hj, fi, fj, pi, pj, ei, ej, infoi, infoj
         elif self.mg_loss == 'hj':
+            self.logger.info("Computing gnostic criterion for 'hj' loss.")
             hj = self.gc._hj(q, q1)
             fi = self.gc._fi(q, q1)
             fj = self.gc._fj(q, q1)
@@ -301,6 +316,7 @@ class ParamBase(ModelBase):
         """
         For interval use only
         Compute q and q1."""
+        self.logger.info("Computing q and q1 for gnostic criterion.")
         eps = np_eps_float()  # Small value to avoid division by zero
         z0_safe = np.where(np.abs(z0) < eps, eps, z0)
         zz = z / z0_safe
@@ -322,6 +338,7 @@ class ParamBase(ModelBase):
         np.ndarray
             Normalized weights.
         """
+        self.logger.info("Normalizing weights.")
         total_weight = np.sum(weights)
         if total_weight == 0:
             return np.ones_like(weights) / len(weights)
@@ -403,6 +420,7 @@ class ParamBase(ModelBase):
         tuple
             Tuple containing the gnostic probabilities, information, and normalized rentropy.
         """
+        self.logger.info("Computing gnostic probabilities and characteristics.")
         zz = self._data_conversion(z)
         gc = GnosticsCharacteristics(zz)
 
@@ -414,7 +432,7 @@ class ParamBase(ModelBase):
         # Scale handling
         if self.scale == 'auto':
             scale = ScaleParam()
-            s = scale._gscale_loc(np.mean(fi))
+            s = scale._gscale_loc(np.mean(fi)) # NOTE this refer to ELDF probability. Can be improved by connecting with GDF and its PDF
         else:
             s = self.scale
             

@@ -2,8 +2,6 @@
 Machine Gnostics - Machine Gnostics Library
 Copyright (C) 2025  Machine Gnostics Team
 
-This work is licensed under the terms of the GNU General Public License version 3.0.
-
 Author: Nirmal Parmar
 
 Description:
@@ -14,6 +12,8 @@ import numpy as np
 from machinegnostics.models.regression.layer_io_process_rob_rig import DataProcessRobustRegressor
 from machinegnostics.metrics import robr2
 from machinegnostics.magcal import disable_parent_docstring
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class PolynomialRegressor(DataProcessRobustRegressor):
     """
@@ -163,6 +163,9 @@ class PolynomialRegressor(DataProcessRobustRegressor):
             self._history = []
         else:
             self._history = None
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized.")
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -195,6 +198,7 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         - If `history=True`, the optimization history is available in the `params` and `_history` attributes.
         """
         # Call the fit method from DataProcessRobustRegressor
+        self.logger.info("Starting fit process.")
         super()._fit(X, y)
     
     def predict(self, model_input: np.ndarray) -> np.ndarray:
@@ -218,6 +222,7 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         >>> y_pred = model.predict(X_test)
         """
         # Call the predict method from DataProcessRobustRegressor
+        self.logger.info("Making predictions.")
         return super()._predict(model_input)
     
     def score(self, X: np.ndarray, y: np.ndarray, case:str = 'i') -> float:
@@ -245,6 +250,7 @@ class PolynomialRegressor(DataProcessRobustRegressor):
         >>> r2 = model.score(X_test, y_test)
         >>> print(f'Robust R2 score: {r2}')
         """
+        self.logger.info("Calculating robust R2 score.")
         # prediction
         y_pred = self.predict(X)
         # Call the score method from DataProcessRobustRegressor

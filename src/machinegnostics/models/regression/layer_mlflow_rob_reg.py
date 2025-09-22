@@ -53,6 +53,9 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
         self._history = history
         self.params = []
 
+        # logger
+        self.logger.info("InterfaceRobustRegressor initialized.")
+
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the model to the data and log parameters to MLflow.
@@ -65,6 +68,7 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
             Target values.
         """
         # Call the fit method from HistoryRobustRegressor
+        self.logger.info("Starting fit process with MLflow integration.")
         super()._fit(X, y)
         return self
 
@@ -84,6 +88,7 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
         np.ndarray
             Predicted class labels.
         """
+        self.logger.info("Making predictions with MLflow integration.")
         predictions = super()._predict(model_input)
         return predictions
     
@@ -99,6 +104,7 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
         If the model is already saved, it will be overwritten.
         This method saves the model in a directory with a file named "model.pkl".
         """
+        self.logger.info(f"Saving model to {path}.")
         os.makedirs(path, exist_ok=True)
         joblib.dump(self, os.path.join(path, "model.pkl"))
 
@@ -123,5 +129,6 @@ class InterfaceRobustRegressor(HistoryRobustRegressor, mlflow.pyfunc.PythonModel
         """
         Save the trained model to disk using joblib.
         """
+        self.logger.info(f"Saving model to {path}.")
         os.makedirs(path, exist_ok=True)
         joblib.dump(self, os.path.join(path, "model.pkl"))

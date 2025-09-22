@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 try:
     from pyspark.sql import DataFrame as SparkDataFrame
 except ImportError:
@@ -12,7 +14,7 @@ class DataProcessLayerBase:
     This class provides methods for data type checking, validation, and conversion
     to ensure that input data is in the correct format for model training and prediction.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, verbose: bool = False, **kwargs):
         """
         Initialize the DataProcessLayer with optional parameters.
 
@@ -21,6 +23,9 @@ class DataProcessLayerBase:
         **kwargs : dict
             Additional parameters for configuration.
         """ # To store the type of input for output conversion
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.info(f"{self.__class__.__name__} initialized:")
+        self.logger.info("DataProcessLayerBase initialized.")
 
     def _identify_and_convert(self, data, is_y=False):
         """
@@ -38,6 +43,7 @@ class DataProcessLayerBase:
         np.ndarray
             Converted numpy array.
         """
+        self.logger.info(f"Identifying and converting data of type: {type(data)}")
         if isinstance(data, np.ndarray):
             arr = data
             self._input_type = 'numpy'
@@ -70,6 +76,7 @@ class DataProcessLayerBase:
         -------
         Converted output in the original format.
         """
+        self.logger.info(f"Converting output to match reference input type: {type(reference_input)}")
         if isinstance(reference_input, np.ndarray):
             return output
         elif isinstance(reference_input, pd.DataFrame):
@@ -99,6 +106,7 @@ class DataProcessLayerBase:
         ValueError
             If X is invalid.
         """
+        self.logger.info(f"Checking input X of type: {type(X)}")
         X_arr = self._identify_and_convert(X)
 
         # if X_qrr is 1 dimensional, reshape it to 2D
@@ -128,6 +136,7 @@ class DataProcessLayerBase:
         ValueError
             If y is invalid.
         """
+        self.logger.info(f"Checking target y of type: {type(y)}")
         y_arr = self._identify_and_convert(y, is_y=True)
         if y_arr.ndim != 1:
             raise ValueError("y should be a 1D array-like structure.")
@@ -153,6 +162,7 @@ class DataProcessLayerBase:
         ValueError
             If X is invalid.
         """
+        self.logger.info(f"Checking input X for prediction of type: {type(X)}")
         X = self._check_X(X, n_features=n_features)
         # # output type
         # if self._input_type is None:
@@ -183,6 +193,7 @@ class DataProcessLayerBase:
         self : object
             Returns self.
         """
+        self.logger.info("Starting fit input/output processing.")
         X_checked = self._check_X(X)
         y_checked = self._check_y(y, n_samples=X_checked.shape[0])
         return X_checked, y_checked
@@ -201,6 +212,7 @@ class DataProcessLayerBase:
         y_pred : array-like of shape (n_samples,)
             Predicted values.
         """
+        self.logger.info("Starting predict input/output processing.")
         X_checked = self._check_X_predict(X)
         return X_checked
     
@@ -220,6 +232,7 @@ class DataProcessLayerBase:
         score : float
             Score of the model.
         """
+        self.logger.info("Starting score input/output processing.")
         X_checked = self._check_X_predict(X)
         y_checked = self._check_y(y, n_samples=X_checked.shape[0])
         return self

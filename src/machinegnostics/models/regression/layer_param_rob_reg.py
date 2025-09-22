@@ -19,6 +19,7 @@ from machinegnostics.magcal import (ScaleParam,
                                     GnosticsWeights, 
                                     ParamBase)
 from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float
+import logging
 
 class ParamRobustRegressorBase(ParamBase):
     """
@@ -76,6 +77,8 @@ class ParamRobustRegressorBase(ParamBase):
             })
         else:
             self._history = None
+        
+        self.logger.info("ParamRobustRegressorBase initialized.")
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -88,6 +91,7 @@ class ParamRobustRegressorBase(ParamBase):
         y : np.ndarray
             Target values.
         """
+        self.logger.info("Starting fit for Robust Regressor.")
         # Generate polynomial features
         X_poly = self._generate_polynomial_features(X)
         
@@ -165,7 +169,7 @@ class ParamRobustRegressorBase(ParamBase):
             
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 if self.verbose:
-                    print(f"Warning: {str(e)}. Using previous coefficients.")
+                    self.logger.warning(f"Warning: {str(e)}. Using previous coefficients.")
                 self.coefficients = self._prev_coef
                 break
 
@@ -183,9 +187,11 @@ class ParamRobustRegressorBase(ParamBase):
         ndarray of shape (n_samples,)
             Predicted values.
         """ 
+        self.logger.info("Starting prediction for Robust Regressor.")
         # copy iteration for last iteration
         
         if self.coefficients is None:
+            self.logger.error("Model has not been fitted yet.")
             raise ValueError("Model has not been fitted yet.")
         
         # Process input and generate features
@@ -194,6 +200,10 @@ class ParamRobustRegressorBase(ParamBase):
         # Validate dimensions
         n_features_model = X_poly.shape[1]
         if n_features_model != len(self.coefficients):
+            self.logger.error(
+                f"Feature dimension mismatch. Model expects {len(self.coefficients)} "
+                f"features but got {n_features_model} after polynomial expansion."
+            )
             raise ValueError(
                 f"Feature dimension mismatch. Model expects {len(self.coefficients)} "
                 f"features but got {n_features_model} after polynomial expansion."

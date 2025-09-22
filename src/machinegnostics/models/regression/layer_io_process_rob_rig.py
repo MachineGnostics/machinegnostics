@@ -62,6 +62,9 @@ class DataProcessRobustRegressor(DataProcessLayerBase, InterfaceRobustRegressor)
         self.gnostic_characteristics = gnostic_characteristics
         self._history = history
         self.params = []
+        
+        # logger
+        self.logger.info("DataProcessRobustRegressor initialized.")
 
     @disable_parent_docstring
     def _fit(self, X: np.ndarray, y: np.ndarray):

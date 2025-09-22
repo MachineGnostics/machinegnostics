@@ -1,4 +1,7 @@
 from abc import ABCMeta, abstractmethod
+import logging
+from machinegnostics.magcal.util.logging import get_logger
+
 
 # regression base class
 class ModelBase(metaclass=ABCMeta):
@@ -12,6 +15,10 @@ class ModelBase(metaclass=ABCMeta):
 
     - predict(X)
     """
+    def __init__(self):
+        # logger
+        self.logger = get_logger(self.__class__.__name__, logging.INFO)  # Create a logger for this class
+        self.logger.info(f"ModelBase initialized.")
 
     @abstractmethod
     def fit(self, X, y):
