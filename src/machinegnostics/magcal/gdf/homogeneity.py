@@ -5,6 +5,8 @@ from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 from typing import Union, Dict, Any, Optional, Tuple, List
 from machinegnostics.magcal import EGDF
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class DataHomogeneity:
     """
@@ -301,7 +303,6 @@ class DataHomogeneity:
     def __init__(self, gdf: EGDF, verbose=True, catch=True, flush=False,
                  smoothing_sigma=1.0, min_height_ratio=0.01, min_distance=None):
         self.gdf = gdf
-        self._validate_egdf_only()
         self.verbose = verbose
         self.catch = catch
         self.flush = flush
@@ -319,19 +320,30 @@ class DataHomogeneity:
         self.is_homogeneous = None
         self.global_extremum_idx = None
 
+        # Logger setup
+        self.logger = get_logger(self.__class__.__name__, level=logging.DEBUG if verbose else logging.ERROR)
+        self.logger.debug(f"{self.__class__.__name__} initialized: ")
+
         self._gdf_obj_validation()
+        self._validate_egdf_only()
 
     def _validate_egdf_only(self):
         """Validate that the GDF object is EGDF only."""
+        self.logger.info("Validating GDF object for DataHomogeneity analysis")
         class_name = self.gdf.__class__.__name__
         
         if 'QGDF' in class_name:
+            self.logger.error(f"DataHomogeneity only supports EGDF objects. "
+                              f"Received {class_name}. QGDF is not supported for homogeneity analysis.")
             raise ValueError(
                 f"DataHomogeneity only supports EGDF objects. "
                 f"Received {class_name}. QGDF is not supported for homogeneity analysis."
             )
         
         if 'ELDF' in class_name or 'QLDF' in class_name:
+            self.logger.error(f"DataHomogeneity only supports EGDF objects. "
+                              f"Received {class_name}. Local distribution functions (ELDF, QLDF) are not supported "
+                              f"for homogeneity analysis.")
             raise ValueError(
                 f"DataHomogeneity only supports EGDF objects. "
                 f"Received {class_name}. Local distribution functions (ELDF, QLDF) are not supported "
@@ -341,6 +353,9 @@ class DataHomogeneity:
         if 'EGDF' not in class_name:
             # Fallback detection based on methods
             if not hasattr(self.gdf, '_fit_egdf'):
+                self.logger.error(f"DataHomogeneity only supports EGDF objects. "
+                                  f"Cannot determine if {class_name} is EGDF. "
+                                  f"Object must be EGDF for homogeneity analysis.")
                 raise ValueError(
                     f"DataHomogeneity only supports EGDF objects. "
                     f"Cannot determine if {class_name} is EGDF. "
@@ -349,24 +364,32 @@ class DataHomogeneity:
 
     def _gdf_obj_validation(self):
         """Validate that the EGDF object meets requirements for homogeneity analysis."""
+        self.logger.debug("Validating EGDF object attributes for homogeneity analysis")
         if not hasattr(self.gdf, '_fitted'):
+            self.logger.error("EGDF object must have _fitted attribute")
             raise ValueError("EGDF object must have _fitted attribute")
         
         if not self.gdf._fitted:
+            self.logger.error("EGDF object must be fitted before homogeneity analysis")
             raise ValueError("EGDF object must be fitted before homogeneity analysis")
         
         required_attrs = ['data']
         for attr in required_attrs:
             if not hasattr(self.gdf, attr):
+                self.logger.error(f"EGDF object missing required attribute: {attr}")
                 raise ValueError(f"EGDF object missing required attribute: {attr}")
         
         if not (hasattr(self.gdf, 'pdf_points') and self.gdf.pdf_points is not None):
             if hasattr(self.gdf, 'catch') and not self.gdf.catch:
+                self.logger.error("EGDF object must have catch=True to generate "
+                                  "pdf_points required for homogeneity analysis.")
                 raise AttributeError(
                     f"EGDF object must have catch=True to generate "
                     f"pdf_points required for homogeneity analysis."
                 )
             else:
+                self.logger.error("EGDF object is missing 'pdf_points'. "
+                                  "Please ensure catch=True when fitting EGDF.")
                 raise AttributeError(
                     f"EGDF object is missing 'pdf_points'. "
                     f"Please ensure catch=True when fitting EGDF."
@@ -374,6 +397,7 @@ class DataHomogeneity:
 
     def _prepare_params_from_gdf(self):
         """Extract and prepare parameters from the EGDF object."""
+        self.logger.debug("Extracting parameters from EGDF object")
         gdf_params = {}
         
         # Extract basic parameters
@@ -392,6 +416,7 @@ class DataHomogeneity:
 
     def _append_error(self, error_message, exception_type=None):
         """Append error to existing errors in EGDF params or create new ones."""
+        self.logger.error(error_message)
         error_entry = {
             'method': 'DataHomogeneity',
             'error': error_message,
@@ -411,6 +436,7 @@ class DataHomogeneity:
 
     def _append_warning(self, warning_message):
         """Append warning to existing warnings in EGDF params or create new ones."""
+        self.logger.warning(warning_message)
         warning_entry = {
             'method': 'DataHomogeneity',
             'warning': warning_message
@@ -429,41 +455,38 @@ class DataHomogeneity:
 
     def _flush_memory(self):
         """Flush di_points and pdf_points from memory if flush=True."""
+        self.logger.info("Flushing memory if flush=True")
         if self.flush:
             # # Flush from EGDF object attributes
             # if hasattr(self.gdf, 'di_points_n'):
             #     self.gdf.di_points_n = None
             #     if self.verbose:
-            #         print("DataHomogeneity: Flushed di_points_n from EGDF object to save memory.")
+            #         print("Flushed di_points_n from EGDF object to save memory.")
             
             # if hasattr(self.gdf, 'pdf_points'):
             #     self.gdf.pdf_points = None
             #     if self.verbose:
-            #         print("DataHomogeneity: Flushed pdf_points from EGDF object to save memory.")
+            #         print("Flushed pdf_points from EGDF object to save memory.")
             
             # Flush from EGDF object params dictionary
             if hasattr(self.gdf, 'params') and self.gdf.params:
                 if 'di_points_n' in self.gdf.params:
                     del self.gdf.params['di_points_n']
-                    if self.verbose:
-                        print("DataHomogeneity: Removed di_points_n from EGDF params dictionary to save memory.")
+                    self.logger.info("Removed di_points_n from EGDF params dictionary to save memory.")
                 
                 if 'pdf_points' in self.gdf.params:
                     del self.gdf.params['pdf_points']
-                    if self.verbose:
-                        print("DataHomogeneity: Removed pdf_points from EGDF params dictionary to save memory.")
+                    self.logger.info("Removed pdf_points from EGDF params dictionary to save memory.")
             
             # Also flush from local params if they exist
             if 'gdf_parameters' in self.params and self.params['gdf_parameters']:
                 if 'di_points_n' in self.params['gdf_parameters']:
                     del self.params['gdf_parameters']['di_points_n']
-                    if self.verbose:
-                        print("DataHomogeneity: Removed di_points_n from local gdf_parameters to save memory.")
-                
+                    self.logger.info("Removed di_points_n from local gdf_parameters to save memory.")
+
                 if 'pdf_points' in self.params['gdf_parameters']:
                     del self.params['gdf_parameters']['pdf_points']
-                    if self.verbose:
-                        print("DataHomogeneity: Removed pdf_points from local gdf_parameters to save memory.")
+                    self.logger.info("Removed pdf_points from local gdf_parameters to save memory.")
 
     def fit(self, plot: bool = False) -> bool:
         """
@@ -593,22 +616,24 @@ class DataHomogeneity:
         plot : Visualize the analysis results
         results : Access comprehensive analysis data
         """
+        self.logger.info("Starting homogeneity analysis fit() method")
         try:
-            if self.verbose:
-                print(f"DataHomogeneity: Starting homogeneity analysis for EGDF data...")
-            
             # Prepare parameters from EGDF
+            self.logger.debug("Preparing parameters from EGDF object")
             gdf_params = self._prepare_params_from_gdf()
             
             # Set minimum distance if not provided
             if self.min_distance is None:
+                self.logger.debug("Minimum distance not provided, calculating...")
                 pdf_data = self._get_pdf_data()
                 self.min_distance = max(1, len(pdf_data) // 20)
             
             # Perform homogeneity test
+            self.logger.info("Testing homogeneity")
             self.is_homogeneous = self._test_homogeneity()
             
             # Extract Z0
+            self.logger.info("Extracting global optimum Z0")
             self.z0 = self._get_z0()
             
             # Store comprehensive results
@@ -639,30 +664,28 @@ class DataHomogeneity:
                     'homogeneity_fitted': True
                 })
                 
-                if self.verbose:
-                    print(f"DataHomogeneity: Homogeneity results written to EGDF params dictionary.")          
+                self.logger.info("Homogeneity results written to EGDF params dictionary.")
                         
             self._fitted = True
 
             # plot
             if plot:
+                self.logger.info("Plotting results as requested")
                 self.plot() 
 
             # Flush memory if requested
+            self.logger.info("Handling memory flush if requested")
             self._flush_memory()
-            
-            if self.verbose:
-                print(f"DataHomogeneity: Homogeneity analysis completed for EGDF.")
-                print(f"DataHomogeneity: Data is {'homogeneous' if self.is_homogeneous else 'not homogeneous'}")
-                print(f"DataHomogeneity: Number of maxima detected: {len(self.picks)}")
-            
+
+            self.logger.info("Homogeneity analysis completed for EGDF.")
+            self.logger.info(f"Data is {'homogeneous' if self.is_homogeneous else 'not homogeneous'}")
+            self.logger.info(f"Number of maxima detected: {len(self.picks)}")
+
             return self.is_homogeneous
     
         except Exception as e:
             error_msg = f"Error during homogeneity analysis: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
-            if self.verbose:
-                print(f"DataHomogeneity: Error: {error_msg}")
             raise
 
     def _test_homogeneity(self):
@@ -674,6 +697,7 @@ class DataHomogeneity:
         bool
             True if homogeneous, False otherwise.
         """
+        self.logger.info("Starting homogeneity test for EGDF")
         try:
             pdf_data = self._get_pdf_data()
             has_negative_pdf = np.any(pdf_data < 0)
@@ -696,9 +720,9 @@ class DataHomogeneity:
                     elif num_extrema == 0:
                         reasons.append(f"no significant {extrema_type} detected")
                         self._append_warning(f"No significant {extrema_type} detected - check smoothing parameters")
-                    print(f"DataHomogeneity: EGDF data is not homogeneous: {', '.join(reasons)}.")
+                    self.logger.info(f"EGDF data is not homogeneous: {', '.join(reasons)}.")
                 else:
-                    print(f"DataHomogeneity: EGDF data is homogeneous: PDF has no negative values "
+                    self.logger.info(f"EGDF data is homogeneous: PDF has no negative values "
                         f"and exactly one {extrema_type[:-1]} detected.")
             
             # Store additional info in params
@@ -718,6 +742,7 @@ class DataHomogeneity:
 
     def _detect_maxima(self):
         """Detect maxima for EGDF analysis."""
+        self.logger.info("Detecting maxima in the PDF")
         try:
             pdf_data = self._get_pdf_data()
             data_points = self._get_data_points()
@@ -763,6 +788,7 @@ class DataHomogeneity:
 
     def _smooth_pdf(self):
         """Apply Gaussian smoothing to PDF."""
+        self.logger.info("Smoothing PDF with Gaussian filter")
         try:
             pdf_data = self._get_pdf_data()
             return gaussian_filter1d(pdf_data, sigma=self.smoothing_sigma)
@@ -773,14 +799,17 @@ class DataHomogeneity:
 
     def _get_pdf_data(self):
         """Get PDF values from the EGDF object."""
+        self.logger.info("Retrieving PDF data from EGDF object")
         return self.gdf.pdf_points
 
     def _get_data_points(self):
         """Get data point positions from the EGDF object."""
+        self.logger.info("Retrieving data point positions from EGDF object")
         return self.gdf.di_points_n
 
     def _get_z0(self):
         """Get Z0 (global optimum) value from the EGDF object."""
+        self.logger.info("Retrieving Z0 (global optimum) from EGDF object")
         if hasattr(self.gdf, 'z0') and self.gdf.z0 is not None:
             return self.gdf.z0
         elif hasattr(self.gdf, 'params') and 'z0' in self.gdf.params:
@@ -925,7 +954,9 @@ class DataHomogeneity:
         fit : Perform the homogeneity analysis (required before plotting)
         results : Access numerical analysis results
         """
+        self.logger.info("Generating homogeneity analysis plot")
         if not self._fitted:
+            self.logger.error("Must call fit() before plotting. Run fit() method first.")
             raise RuntimeError("Must call fit() before plotting. Run fit() method first.")
         
         try:
@@ -998,8 +1029,6 @@ class DataHomogeneity:
         except Exception as e:
             error_msg = f"Error creating plot: {str(e)}"
             self._append_error(error_msg, type(e).__name__)
-            if self.verbose:
-                print(f"DataHomogeneity: Error: {error_msg}")
             raise
 
     def results(self) -> Dict[str, Any]:
@@ -1169,10 +1198,13 @@ class DataHomogeneity:
         plot : Visualize the analysis results
         DataHomogeneity.__init__ : Configure result storage with catch parameter
         """
+        self.logger.info("Retrieving homogeneity analysis results")
         if not self._fitted:
+            self.logger.error("No analysis results available. Call fit() method first.")
             raise RuntimeError("No analysis results available. Call fit() method first.")
         
         if not self.params:
+            self.logger.error("No results stored. Ensure catch=True during initialization.")
             raise RuntimeError("No results stored. Ensure catch=True during initialization.")
         
         return self.params.copy()
@@ -1181,3 +1213,6 @@ class DataHomogeneity:
     def fitted(self):
         """bool: True if the analysis has been completed, False otherwise."""
         return self._fitted
+    
+    def __repr__(self):
+        return f"DataHomogeneity(gdf_type='egdf', fitted={self._fitted}, is_homogeneous={self.is_homogeneous})"
