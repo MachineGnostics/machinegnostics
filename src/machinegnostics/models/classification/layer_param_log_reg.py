@@ -203,14 +203,14 @@ class ParamLogisticRegressorBase(ParamBase):
 
                     if re_converged or log_loss_converged:
                         if self.verbose:
-                            print(f"Converged at iteration {self._iter} (early stop):", end=" ")
+                            self.logger.info(f"Converged at iteration {self._iter} (early stop):", end=" ")
                             if re_converged:
-                                print(f"mean rentropy change below tolerance (rentropy={np.abs(curr_re - prev_re_val):.6e}).")
+                                self.logger.info(f"mean rentropy change below tolerance (rentropy={np.abs(curr_re - prev_re_val):.6e}).")
                             if log_loss_converged:
-                                print(f"log_loss change below tolerance (log_loss={np.abs(curr_log_loss - prev_log_loss_val):.6e}).")
+                                self.logger.info(f"log_loss change below tolerance (log_loss={np.abs(curr_log_loss - prev_log_loss_val):.6e}).")
                         break
                 if self.verbose:
-                    print(f"Iteration {self._iter}, Log Loss: {self.log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
+                    self.logger.info(f"Iteration {self._iter}, Log Loss: {self.log_loss:.6f}, mean residual entropy: {np.mean(re):.6f}")
 
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
                 # Handle exceptions during fitting
