@@ -6,6 +6,8 @@ Machine Gnostics
 '''
 import numpy as np
 import warnings
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 from typing import Dict, Any
 from machinegnostics.magcal.gdf.base_distfunc import BaseDistFuncCompute
 from machinegnostics.magcal.data_conversion import DataConversion
@@ -109,8 +111,13 @@ class BaseQGDF(BaseDistFuncCompute):
         # Validate all inputs
         self._validate_inputs()
 
+        # logger setup
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
+        self.logger.debug(f"{self.__class__.__name__} initialized:")
+
     def _compute_qgdf_core(self, S, LB, UB, zi_data=None, zi_eval=None):
         """Core QGDF computation with caching."""
+        self.logger.info("Computing QGDF core.")
         # Use provided data or default to instance data
         if zi_data is None:
             zi_data = self.z
@@ -137,6 +144,8 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _estimate_qgdf_from_moments_complex(self, fidelities, irrelevances):
         """Estimate QGDF using complex number approach to handle all cases."""
+        self.logger.info("Estimating QGDF using complex number approach.")
+
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         # Add numerical stability for both large and small values
@@ -155,11 +164,11 @@ class BaseQGDF(BaseDistFuncCompute):
             
             if np.any(too_small_mask) and self.verbose:
                 small_count = np.sum(too_small_mask)
-                print(f"Warning: {small_count} very small {name} values detected (< {min_safe_value:.2e})")
+                self.logger.info(f"Warning: {small_count} very small {name} values detected (< {min_safe_value:.2e})")
             
             if np.any(too_large_mask) and self.verbose:
                 large_count = np.sum(too_large_mask)
-                print(f"Warning: {large_count} very large {name} values detected (> {max_safe_value:.2e})")
+                self.logger.info(f"Warning: {large_count} very large {name} values detected (> {max_safe_value:.2e})")
             
             # Clip small values to minimum safe value (preserving sign)
             values_safe = np.where(too_small_mask, 
@@ -204,7 +213,7 @@ class BaseQGDF(BaseDistFuncCompute):
         
         if np.any(f_too_large) or np.any(h_too_large) or np.any(f_too_small) or np.any(h_too_small):
             if self.verbose:
-                print("Warning: Extreme values detected in complex calculation. Using scaled approach.")
+                self.logger.info("Warning: Extreme values detected in complex calculation. Using scaled approach.")
             
             # Scale problematic values to safe range
             f_scaled = np.where(f_too_large, sqrt_max * (f_complex / f_magnitude), f_complex)
@@ -226,7 +235,7 @@ class BaseQGDF(BaseDistFuncCompute):
         if np.any(denominator_too_small):
             if self.verbose:
                 small_denom_count = np.sum(denominator_too_small)
-                print(f"Warning: {small_denom_count} very small denominators in complex calculation.")
+                self.logger.info(f"Warning: {small_denom_count} very small denominators in complex calculation.")
         
         # Use sqrt with protection
         denominator_complex = np.sqrt(diff_squared_complex)
@@ -247,7 +256,7 @@ class BaseQGDF(BaseDistFuncCompute):
         if np.any(h_zj_too_large_for_square):
             if self.verbose:
                 large_count = np.sum(h_zj_too_large_for_square)
-                print(f"Warning: {large_count} h_zj values too large for safe squaring. Using approximation.")
+                self.logger.info(f"Warning: {large_count} h_zj values too large for safe squaring. Using approximation.")
             
             # For very large |h_zj|, use the mathematical limit without squaring
             # When |h_zj| >> 1: h_zj / sqrt(1 + h_zj²) ≈ h_zj / |h_zj| = sign(h_zj)
@@ -266,9 +275,8 @@ class BaseQGDF(BaseDistFuncCompute):
             h_gq_complex = np.where(h_zj_too_large_for_square, large_result, safe_result)
 
         elif np.any(h_zj_too_small):
-            if self.verbose:
-                print("Warning: Very small h_zj values in complex calculation.")
-            
+            self.logger.info("Warning: Very small h_zj values in complex calculation.")
+
             # For very small |h_zj|: h_zj / sqrt(1 + h_zj²) ≈ h_zj (linear approximation)
             h_gq_complex = np.where(h_zj_too_small,
                                    h_zj_complex,  # linear approximation - no squaring!
@@ -288,7 +296,7 @@ class BaseQGDF(BaseDistFuncCompute):
                     'exception_type': type(e).__name__
                 })
                 if self.verbose:
-                    print(f"Warning: Unexpected exception in h_gq calculation ({e}). Using approximation.")
+                    self.logger.info(f"Warning: Unexpected exception in h_gq calculation ({e}). Using approximation.")
                 # Fallback to magnitude-based approach
                 h_gq_complex = h_zj_complex / (h_zj_magnitude + min_safe_value)
         
@@ -303,7 +311,7 @@ class BaseQGDF(BaseDistFuncCompute):
         
         if self.verbose and not np.all(is_purely_real):
             complex_count = np.sum(~is_purely_real)
-            print(f"Info: {complex_count} points have complex intermediate results.")
+            self.logger.info(f"Info: {complex_count} points have complex intermediate results.")
         
         # Strategy for handling complex results with numerical stability
         h_gq_final = np.where(is_purely_real, 
@@ -349,14 +357,16 @@ class BaseQGDF(BaseDistFuncCompute):
     
     def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
         """Main QGDF estimation method with complex number fallback."""
+        self.logger.info("Estimating QGDF from moments with fallback.")
         try:
             # First try the complex number approach
             return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
         except Exception as e:
             # log error
             error_msg = f"Exception in complex QGDF estimation: {e}"
+            self.logger.error(error_msg)
             if self.verbose:
-                print(f"Complex method failed: {e}. Using fallback approach.")
+                self.logger.info(f"Complex method failed: {e}. Using fallback approach.")
             self.params['errors'].append({
                 'method': '_estimate_qgdf_from_moments',
                 'error': error_msg,
@@ -368,6 +378,7 @@ class BaseQGDF(BaseDistFuncCompute):
     
     def _estimate_qgdf_from_moments_fallback(self, fidelities, irrelevances):
         """Fallback method using real numbers only."""
+        self.logger.info("Estimating QGDF using fallback real-number approach.")
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         # Calculate weighted means
@@ -439,8 +450,12 @@ class BaseQGDF(BaseDistFuncCompute):
     #     return first_derivative.flatten()
     
     def _calculate_pdf_from_moments(self, fidelities, irrelevances):
+        self.logger.info("Calculating PDF from moments.")
         """Calculate PDF from fidelities and irrelevances with corrected mathematical formulation."""
+        self.logger.info("Calculating PDF from moments")
         if fidelities is None or irrelevances is None:
+            # log error
+            self.logger.error("Fidelities and irrelevances must be calculated first.")
             raise ValueError("Fidelities and irrelevances must be calculated first")
         
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
@@ -532,6 +547,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _calculate_final_results(self):
         """Calculate final QGDF and PDF with optimized parameters."""
+        self.logger.info("Calculating final QGDF and PDF results.")
         # Convert to infinite domain
         # zi_n = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
@@ -555,6 +571,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _generate_smooth_curves(self):
         """Generate smooth curves for plotting and analysis."""
+        self.logger.info("Generating smooth curves for QGDF and PDF.")
         try:
             # Generate smooth QGDF and PDF
             smooth_qgdf, self.smooth_fj, self.smooth_hj = self._compute_qgdf_core(
@@ -580,19 +597,19 @@ class BaseQGDF(BaseDistFuncCompute):
                     'zi_points': self.zi_n.copy()
                 })
             
-            if self.verbose:
-                print(f"Generated smooth curves with {self.n_points} points.")
-                
+            self.logger.info(f"Generated smooth curves with {self.n_points} points.")
+
         except Exception as e:
             # Log the error
             error_msg = f"Could not generate smooth curves: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_generate_smooth_curves',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            if self.verbose:
-                print(f"Warning: Could not generate smooth curves: {e}")
+
+            self.logger.warning(f"Could not generate smooth curves: {e}")
             # Create fallback points using original data
             self.qgdf_points = self.qgdf.copy() if hasattr(self, 'qgdf') else None
             self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
@@ -600,8 +617,11 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _get_results(self)-> dict:
         """Return fitting results."""
+        self.logger.info("Getting results from QGDF fitting.")
+
         if not self._fitted:
             error_msg = "Must fit QGDF before getting results."
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_get_results',
                 'error': error_msg,
@@ -618,28 +638,33 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """Enhanced plotting with better organization."""
+        self.logger.info("Plotting QGDF and PDF results.")
         import matplotlib.pyplot as plt
 
         if plot_smooth and (len(self.data) > self.max_data_size) and self.verbose:
-            print(f"Warning: Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
+            self.logger.warning(f"Given data size ({len(self.data)}) exceeds max_data_size ({self.max_data_size}). For optimal compute performance, set 'plot_smooth=False', or 'max_data_size' to a larger value whichever is appropriate.")
 
         if not self.catch:
-            print("Plot is not available with argument catch=False")
+            self.logger.warning("Plot is not available with argument catch=False")
             return
         
         if not self._fitted:
+            self.logger.error("Must fit QGDF before plotting.")
             raise RuntimeError("Must fit QGDF before plotting.")
         
         # Validate plot parameter
         if plot not in ['gdf', 'pdf', 'both']:
+            self.logger.error("Invalid plot parameter.")
             raise ValueError("plot parameter must be 'gdf', 'pdf', or 'both'")
         
         # Check data availability
         if plot in ['gdf', 'both'] and self.params.get('qgdf') is None:
+            self.logger.error("QGDF must be calculated before plotting GDF.")
             raise ValueError("QGDF must be calculated before plotting GDF")
         if plot in ['pdf', 'both'] and self.params.get('pdf') is None:
-            raise ValueError("PDF must be calculated before plotting PDF")
-        
+            self.logger.error("PDF must be calculated before plotting PDF.")
+            raise ValueError("PDF must be calculated before plotting PDF.")
+
         # Prepare data
         x_points = self.data
         qgdf_plot = self.params.get('qgdf')
@@ -683,6 +708,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _plot_qgdf(self, ax, x_points, qgdf_plot, plot_smooth, extra_df, wedf, ksdf):
         """Plot QGDF components."""
+        self.logger.info("Plotting QGDF components.")
         if plot_smooth and hasattr(self, 'qgdf_points') and self.qgdf_points is not None:
             ax.plot(x_points, qgdf_plot, 'o', color='blue', label='QGDF', markersize=4)
             ax.plot(self.di_points_n, self.qgdf_points, color='blue', 
@@ -705,6 +731,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _plot_pdf(self, ax, x_points, pdf_plot, plot_smooth, is_secondary=False):
         """Plot PDF components."""
+        self.logger.info("Plotting PDF components.")
         color = 'red'
 
         if plot_smooth and hasattr(self, 'pdf_points') and self.pdf_points is not None:
@@ -726,6 +753,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _add_plot_formatting(self, ax1, plot, bounds):
         """Add formatting, bounds, and legends to plot."""
+        self.logger.info("Adding plot formatting and bounds.")
         ax1.set_xlabel('Data Points')
         
         # Add bounds if requested
@@ -767,7 +795,9 @@ class BaseQGDF(BaseDistFuncCompute):
     
     def _get_qgdf_second_derivative(self):
         """Calculate second derivative of QGDF with corrected mathematical formulation."""
+        self.logger.info("Calculating second derivative of QGDF.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before second derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
@@ -842,7 +872,9 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _get_qgdf_third_derivative(self):
         """Calculate third derivative of QGDF with corrected mathematical formulation."""
+        self.logger.info("Calculating third derivative of QGDF.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before third derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
@@ -910,7 +942,9 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _get_qgdf_fourth_derivative(self):
         """Calculate fourth derivative of QGDF using corrected numerical differentiation."""
+        self.logger.info("Calculating fourth derivative of QGDF.")
         if self.fi is None or self.hi is None:
+            self.logger.error("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
         
         # Use adaptive step size based on data scale
@@ -951,6 +985,7 @@ class BaseQGDF(BaseDistFuncCompute):
 
     def _calculate_fidelities_irrelevances_at_given_zi_corrected(self, zi):
         """Helper method to recalculate fidelities and irrelevances for current zi."""
+        self.logger.info("Calculating fidelities and irrelevances at given zi.")
         # FIXED: Convert the data points to infinite domain, not the evaluation points
         zi_data = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)  # Data points
         zi_eval = DataConversion._convert_fininf(zi, self.LB_opt, self.UB_opt)       # Evaluation points
@@ -969,62 +1004,71 @@ class BaseQGDF(BaseDistFuncCompute):
 
 
     def _fit_qgdf(self, plot: bool = False):
+        """Fit the QGDF to the data."""
+        self.logger.info("Starting QGDF fitting process.")
         try:
-            if self.verbose:
-                print("Starting QGDF fitting process...")
             
             # Step 1: Data preprocessing
+            self.logger.info("Preprocessing data for QGDF fitting.")
             self.data = np.sort(self.data)
             self._estimate_data_bounds()
             self._transform_data_to_standard_domain()
             self._estimate_weights()
             
             # Step 2: Bounds estimation
+            self.logger.info("Estimating initial probable bounds.")
             self._estimate_initial_probable_bounds()
             self._generate_evaluation_points()
             
             # Step 3: Get distribution function values for optimization
+            self.logger.info("Getting distribution function values for optimization.")
             self.df_values = self._get_distribution_function_values(use_wedf=self.wedf)
             
             # Step 4: Parameter optimization
+            self.logger.info("Optimizing QGDF parameters.")
             self._determine_optimization_strategy(egdf=False)  # NOTE for QGDF egdf is False
             
             # Step 5: Calculate final QGDF and PDF
+            self.logger.info("Calculating final QGDF and PDF with optimized parameters.")
             self._calculate_final_results()
             
             # Step 6: Generate smooth curves for plotting and analysis
+            self.logger.info("Generating smooth curves for QGDF and PDF.")
             self._generate_smooth_curves()
             
             # Step 7: Transform bounds back to original domain
+            self.logger.info("Transforming bounds back to original domain.")
             self._transform_bounds_to_original_domain()
             # Mark as fitted (Step 8 is now optional via marginal_analysis())
             self._fitted = True
 
             # Step 8: Z0 estimate with Z0Estimator
+            self.logger.info("Estimating Z0 point with Z0Estimator.")
             self._compute_z0(optimize=self.z0_optimize) 
             # derivatives calculation
             # self._calculate_all_derivatives()
                         
-            if self.verbose:
-                print("QGDF fitting completed successfully.")
+            self.logger.info("QGDF fitting completed successfully.")
 
             if plot:
+                self.logger.info("Plotting QGDF and PDF.")
                 self._plot()
 
             # clean up computation cache
             if self.flush:  
+                self.logger.info("Cleaning up computation cache.")
                 self._cleanup_computation_cache()
                 
         except Exception as e:
             error_msg = f"QGDF fitting failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_fit_QGDF',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
             
-            if self.verbose:
-                print(f"Error during QGDF fitting: {e}")
+            self.logger.error(f"Error during QGDF fitting: {e}")
             raise e
         
     # z0 compute
@@ -1039,14 +1083,16 @@ class BaseQGDF(BaseDistFuncCompute):
             If False, use simple linear search on existing points.
             If None, uses the instance's z0_optimize setting.
         """
+        self.logger.info("Computing Z0 point using Z0Estimator.")
+
         if self.z is None:
+            self.logger.error("Data must be transformed (self.z) before Z0 estimation.")
             raise ValueError("Data must be transformed (self.z) before Z0 estimation.")
         
         # Use provided optimize parameter or fall back to instance setting
         use_optimize = optimize if optimize is not None else self.z0_optimize
         
-        if self.verbose:
-            print('QGDF: Computing Z0 point using Z0Estimator...')
+        self.logger.info('QGDF: Computing Z0 point using Z0Estimator...')
 
         try:
             # Create Z0Estimator instance with proper constructor signature
@@ -1068,9 +1114,8 @@ class BaseQGDF(BaseDistFuncCompute):
                     'z0_estimation_info': estimation_info
                 })
             
-            if self.verbose:
-                method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
-                print(f'QGDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+            method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
+            self.logger.info(f'QGDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
 
         except Exception as e:
             # Log the error
@@ -1081,10 +1126,9 @@ class BaseQGDF(BaseDistFuncCompute):
                 'exception_type': type(e).__name__
             })
 
-            if self.verbose:
-                print(f"Warning: Z0Estimator failed with error: {e}")
-                print("Falling back to simple maximum finding...")
-            
+            self.logger.warning(f"Warning: Z0Estimator failed with error: {e}")
+            self.logger.info("Falling back to simple maximum finding...")
+
             # Fallback to simple maximum finding
             self._compute_z0_fallback()
             
@@ -1100,17 +1144,16 @@ class BaseQGDF(BaseDistFuncCompute):
         Fallback method for Z0 computation using simple maximum finding.
         """
         if not hasattr(self, 'di_points_n') or not hasattr(self, 'pdf_points'):
+            self.logger.error("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
             raise ValueError("Both 'di_points_n' and 'pdf_points' must be defined for Z0 computation.")
-        
-        if self.verbose:
-            print('Using fallback method for Z0 point...')
+    
+        self.logger.info('Using fallback method for Z0 point...')
         
         # Find index with maximum PDF
         max_idx = np.argmax(self.pdf_points)
         self.z0 = self.di_points_n[max_idx]
 
-        if self.verbose:
-            print(f"Z0 point (fallback method): {self.z0:.6f}")
+        self.logger.info(f"Z0 point (fallback method): {self.z0:.6f}")
 
     def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
         """
@@ -1126,7 +1169,9 @@ class BaseQGDF(BaseDistFuncCompute):
         Dict[str, Any]
             Z0 analysis information
         """
+        self.logger.info("Analyzing Z0 estimation results.")
         if not hasattr(self, 'z0') or self.z0 is None:
+            self.logger.error("Z0 must be computed before analysis. Call fit() first.")
             raise ValueError("Z0 must be computed before analysis. Call fit() first.")
         
         # Create Z0Estimator for analysis
@@ -1149,9 +1194,11 @@ class BaseQGDF(BaseDistFuncCompute):
     
     def _calculate_all_derivatives(self):
         """Calculate all derivatives and store in params."""
+        self.logger.info("Calculating all QGDF derivatives.")
         if not self._fitted:
-            raise RuntimeError("Must fit QLDF before calculating derivatives.")
-        
+            self.logger.error("Must fit QGDF before calculating derivatives.")
+            raise RuntimeError("Must fit QGDF before calculating derivatives.")
+
         try:
             # Calculate derivatives using analytical methods
             second_deriv = self._get_qgdf_second_derivative()
@@ -1166,17 +1213,15 @@ class BaseQGDF(BaseDistFuncCompute):
                     'fourth_derivative': fourth_deriv.copy()
                 })
             
-            if self.verbose:
-                print("QGDF derivatives calculated and stored successfully.")
+            self.logger.info("QGDF derivatives calculated and stored successfully.")
                 
         except Exception as e:
             # Log error
             error_msg = f"Derivative calculation failed: {e}"
+            self.logger.error(error_msg)
             self.params['errors'].append({
                 'method': '_calculate_all_derivatives',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-            
-            if self.verbose:
-                print(f"Warning: Could not calculate derivatives: {e}")
+            self.logger.warning(f"Could not calculate derivatives: {e}")
