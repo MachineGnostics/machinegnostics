@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
 def precision_score(y_true:np.ndarray, 
                     y_pred:np.ndarray, 
                     average='binary', 
-                    labels=None):
+                    labels=None,
+                    verbose: bool = False) -> float:
     """
     Computes the precision classification score.
 
@@ -39,15 +42,17 @@ def precision_score(y_true:np.ndarray,
     >>> y_true = [0, 1, 2, 2, 0]
     >>> y_pred = [0, 0, 2, 2, 0]
     >>> precision_score(y_true, y_pred, average='macro')
-    0.8333333333333333
 
     >>> import pandas as pd
     >>> df = pd.DataFrame({'true': [1, 0, 1], 'pred': [1, 1, 1]})
     >>> precision_score(df['true'], df['pred'], average='binary')
-    0.6666666666666666
     """
+    logger = get_logger('precision_score', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating Precision Score...")
+
     # If input is a DataFrame, raise error (must select column)
     if isinstance(y_true, pd.DataFrame) or isinstance(y_pred, pd.DataFrame):
+        logger.error("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
         raise ValueError("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
 
     # Convert pandas Series to numpy array
@@ -61,7 +66,17 @@ def precision_score(y_true:np.ndarray,
     y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
+        logger.error("Shape of y_true and y_pred must be the same.")
         raise ValueError("Shape of y_true and y_pred must be the same.")
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        logger.error("y_true and y_pred must be 1D arrays.")
+        raise ValueError("y_true and y_pred must be 1D arrays.")
+    if np.any(np.isnan(y_true)) or np.any(np.isnan(y_pred)):
+        logger.error("y_true and y_pred must not contain NaN values.")
+        raise ValueError("y_true and y_pred must not contain NaN values.")
+    if np.any(np.isinf(y_true)) or np.any(np.isinf(y_pred)):
+        logger.error("y_true and y_pred must not contain Inf values.")
+        raise ValueError("y_true and y_pred must not contain Inf values.")
 
     # Get unique labels
     if labels is None:
@@ -81,8 +96,11 @@ def precision_score(y_true:np.ndarray,
 
     precisions = np.array(precisions)
 
+    logger.info("Precision Score calculated.")
+
     if average == 'binary':
         if len(labels) != 2:
+            logger.error("Binary average is only supported for binary classification with 2 classes.")
             raise ValueError("Binary average is only supported for binary classification with 2 classes.")
         # By convention, use the second label as positive class
         return precisions[1]

@@ -2,7 +2,7 @@
 from machinegnostics.metrics.mae import mean_absolute_error
 from machinegnostics.metrics.rmse import root_mean_squared_error
 from machinegnostics.metrics.mse import mean_squared_error
-from machinegnostics.metrics.r2 import r2_score
+from machinegnostics.metrics.r2 import r2_score, adjusted_r2_score
 from machinegnostics.metrics.robr2 import robr2
 from machinegnostics.metrics.gmmfe import gmmfe
 from machinegnostics.metrics.divi import divI

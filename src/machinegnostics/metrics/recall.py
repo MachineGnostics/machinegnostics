@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
 def recall_score(y_true:np.ndarray|pd.Series, 
                  y_pred:np.ndarray|pd.Series, 
                  average='binary', 
-                 labels=None):
+                 labels=None,
+                 verbose:bool=False) -> float|np.ndarray:
     """
     Computes the recall classification score.
 
@@ -46,8 +49,11 @@ def recall_score(y_true:np.ndarray|pd.Series,
     >>> recall_score(df['true'], df['pred'], average='binary')
     1.0
     """
+    logger = get_logger('recall_score', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating Recall Score...")
     # If input is a DataFrame, raise error (must select column)
     if isinstance(y_true, pd.DataFrame) or isinstance(y_pred, pd.DataFrame):
+        logger.error("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
         raise ValueError("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
 
     # Convert pandas Series to numpy array
@@ -80,7 +86,8 @@ def recall_score(y_true:np.ndarray|pd.Series,
         recalls.append(recall)
 
     recalls = np.array(recalls)
-
+    
+    logger.info("Recall Score calculated.")
     if average == 'binary':
         if len(labels) != 2:
             raise ValueError("Binary average is only supported for binary classification with 2 classes.")
