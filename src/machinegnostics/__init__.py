@@ -12,3 +12,6 @@ from .metrics.rmse import root_mean_squared_error
 from .metrics.recall import recall_score
 from .metrics.precision import precision_score
 from .metrics.r2 import r2_score, adjusted_r2_score
+from .metrics.mse import mean_squared_error
+from .metrics.mae import mean_absolute_error
+from .metrics.hc import hc
