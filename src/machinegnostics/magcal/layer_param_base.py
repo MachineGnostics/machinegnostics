@@ -320,7 +320,7 @@ class ParamBase(ModelBase):
         eps = np_eps_float()  # Small value to avoid division by zero
         z0_safe = np.where(np.abs(z0) < eps, eps, z0)
         zz = z / z0_safe
-        self.gc = GnosticsCharacteristics(zz)
+        self.gc = GnosticsCharacteristics(zz, verbose=self.verbose)
         q, q1 = self.gc._get_q_q1(S=s)     
         return q, q1
     
@@ -422,7 +422,7 @@ class ParamBase(ModelBase):
         """
         self.logger.info("Computing gnostic probabilities and characteristics.")
         zz = self._data_conversion(z)
-        gc = GnosticsCharacteristics(zz)
+        gc = GnosticsCharacteristics(zz, verbose=self.verbose)
 
         # q, q1
         q, q1 = gc._get_q_q1()
@@ -431,7 +431,7 @@ class ParamBase(ModelBase):
 
         # Scale handling
         if self.scale == 'auto':
-            scale = ScaleParam()
+            scale = ScaleParam(verbose=self.verbose)
             s = scale._gscale_loc(np.mean(fi)) # NOTE this refer to ELDF probability. Can be improved by connecting with GDF and its PDF
         else:
             s = self.scale
