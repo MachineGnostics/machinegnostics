@@ -561,13 +561,13 @@ class BaseQGDF(BaseDistFuncCompute):
         self.zi = zi_d
 
         # Calculate QGDF and get moments
-        qgdf_values, fi, hi = self._compute_qgdf_core(self.S_opt, self.LB_opt, self.UB_opt)
+        qgdf_values, fj, hj = self._compute_qgdf_core(self.S_opt, self.LB_opt, self.UB_opt)
 
         # Store for derivative calculations
-        self.fi = fi
-        self.hi = hi
+        self.fj = fj
+        self.hj = hj
         self.qgdf = qgdf_values
-        self.pdf = self._calculate_pdf_from_moments(fi, hi)
+        self.pdf = self._calculate_pdf_from_moments(fj, hj)
         
         if self.catch:
             self.params.update({
@@ -803,24 +803,24 @@ class BaseQGDF(BaseDistFuncCompute):
     def _get_qgdf_second_derivative(self):
         """Calculate second derivative of QGDF with corrected mathematical formulation."""
         self.logger.info("Calculating second derivative of QGDF.")
-        if self.fi is None or self.hi is None:
+        if self.fj is None or self.hj is None:
             self.logger.error("Fidelities and irrelevances must be calculated before second derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before second derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
         
         # Calculate all required moments
-        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)  # f̄Q
-        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)  # h̄Q
-        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-        fh = np.sum(weights * self.fi * self.hi, axis=0) / np.sum(weights)
+        f1 = np.sum(weights * self.fj, axis=0) / np.sum(weights)  # f̄Q
+        h1 = np.sum(weights * self.hj, axis=0) / np.sum(weights)  # h̄Q
+        f2 = np.sum(weights * self.fj**2, axis=0) / np.sum(weights)
+        h2 = np.sum(weights * self.hj**2, axis=0) / np.sum(weights)
+        fh = np.sum(weights * self.fj * self.hj, axis=0) / np.sum(weights)
         
         # Additional moments for second derivative
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-        h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
-        f2h = np.sum(weights * self.fi**2 * self.hi, axis=0) / np.sum(weights)
-        fh2 = np.sum(weights * self.fi * self.hi**2, axis=0) / np.sum(weights)
+        f3 = np.sum(weights * self.fj**3, axis=0) / np.sum(weights)
+        h3 = np.sum(weights * self.hj**3, axis=0) / np.sum(weights)
+        f2h = np.sum(weights * self.fj**2 * self.hj, axis=0) / np.sum(weights)
+        fh2 = np.sum(weights * self.fj * self.hj**2, axis=0) / np.sum(weights)
         
         eps = np.finfo(float).eps
         f1_safe = np.where(np.abs(f1) < eps, np.sign(f1) * eps, f1)
@@ -880,21 +880,21 @@ class BaseQGDF(BaseDistFuncCompute):
     def _get_qgdf_third_derivative(self):
         """Calculate third derivative of QGDF with corrected mathematical formulation."""
         self.logger.info("Calculating third derivative of QGDF.")
-        if self.fi is None or self.hi is None:
+        if self.fj is None or self.hj is None:
             self.logger.error("Fidelities and irrelevances must be calculated before third derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before third derivative estimation.")
         
         weights = self.weights.reshape(-1, 1)
         
         # Calculate all required moments up to 4th order
-        f1 = np.sum(weights * self.fi, axis=0) / np.sum(weights)
-        h1 = np.sum(weights * self.hi, axis=0) / np.sum(weights)
-        f2 = np.sum(weights * self.fi**2, axis=0) / np.sum(weights)
-        h2 = np.sum(weights * self.hi**2, axis=0) / np.sum(weights)
-        f3 = np.sum(weights * self.fi**3, axis=0) / np.sum(weights)
-        h3 = np.sum(weights * self.hi**3, axis=0) / np.sum(weights)
-        f4 = np.sum(weights * self.fi**4, axis=0) / np.sum(weights)
-        h4 = np.sum(weights * self.hi**4, axis=0) / np.sum(weights)
+        f1 = np.sum(weights * self.fj, axis=0) / np.sum(weights)
+        h1 = np.sum(weights * self.hj, axis=0) / np.sum(weights)
+        f2 = np.sum(weights * self.fj**2, axis=0) / np.sum(weights)
+        h2 = np.sum(weights * self.hj**2, axis=0) / np.sum(weights)
+        f3 = np.sum(weights * self.fj**3, axis=0) / np.sum(weights)
+        h3 = np.sum(weights * self.hj**3, axis=0) / np.sum(weights)
+        f4 = np.sum(weights * self.fj**4, axis=0) / np.sum(weights)
+        h4 = np.sum(weights * self.hj**4, axis=0) / np.sum(weights)
         
         eps = np.finfo(float).eps
         f1_safe = np.where(np.abs(f1) < eps, np.sign(f1) * eps, f1)
@@ -921,8 +921,8 @@ class BaseQGDF(BaseDistFuncCompute):
         
         # Store original values
         original_zi = self.zi.copy()
-        original_fi = self.fi.copy()
-        original_hi = self.hi.copy()
+        original_fi = self.fj.copy()
+        original_hi = self.hj.copy()
         
         try:
             # Calculate second derivative at nearby points
@@ -944,13 +944,13 @@ class BaseQGDF(BaseDistFuncCompute):
         finally:
             # Always restore original state
             self.zi = original_zi
-            self.fi = original_fi
-            self.hi = original_hi
+            self.fj = original_fi
+            self.hj = original_hi
 
     def _get_qgdf_fourth_derivative(self):
         """Calculate fourth derivative of QGDF using corrected numerical differentiation."""
         self.logger.info("Calculating fourth derivative of QGDF.")
-        if self.fi is None or self.hi is None:
+        if self.fj is None or self.hj is None:
             self.logger.error("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
             raise ValueError("Fidelities and irrelevances must be calculated before fourth derivative estimation.")
         
@@ -959,8 +959,8 @@ class BaseQGDF(BaseDistFuncCompute):
         h = max(1e-6 * data_scale, 1e-10)
         
         # Store original state
-        original_fi = self.fi.copy()
-        original_hi = self.hi.copy()
+        original_fi = self.fj.copy()
+        original_hi = self.hj.copy()
         original_zi = self.zi.copy()
         
         try:
@@ -986,8 +986,8 @@ class BaseQGDF(BaseDistFuncCompute):
             
         finally:
             # Always restore original state
-            self.fi = original_fi
-            self.hi = original_hi  
+            self.fj = original_fi
+            self.hj = original_hi  
             self.zi = original_zi
 
     def _calculate_fidelities_irrelevances_at_given_zi_corrected(self, zi):
@@ -1006,8 +1006,8 @@ class BaseQGDF(BaseDistFuncCompute):
         q, q1 = gc._get_q_q1(S=self.S_opt)
         
         # Store fidelities and irrelevances
-        self.fi = gc._fj(q=q, q1=q1)
-        self.hi = gc._hj(q=q, q1=q1)
+        self.fj = gc._fj(q=q, q1=q1)
+        self.hj = gc._hj(q=q, q1=q1)
 
 
     def _fit_qgdf(self, plot: bool = False):
