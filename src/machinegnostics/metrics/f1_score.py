@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
 def f1_score(y_true:np.ndarray | pd.Series | list,
              y_pred:np.ndarray | pd.Series | list,
              average='binary', 
-             labels=None):
+             labels=None,
+             verbose:bool=False) -> float | np.ndarray:
     """
     Computes the F1 score for classification tasks.
 
@@ -29,6 +32,8 @@ def f1_score(y_true:np.ndarray | pd.Series | list,
     labels : array-like, default=None
         List of labels to include. If None, uses sorted unique labels from y_true and y_pred.
 
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
     Returns
     -------
     f1 : float or array of floats
@@ -46,8 +51,11 @@ def f1_score(y_true:np.ndarray | pd.Series | list,
     >>> f1_score(df['true'], df['pred'], average='binary')
     0.8
     """
+    logger = get_logger('f1_score', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating F1 Score...")
     # If input is a DataFrame, raise error (must select column)
     if isinstance(y_true, pd.DataFrame) or isinstance(y_pred, pd.DataFrame):
+        logger.error("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
         raise ValueError("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
 
     # Convert pandas Series to numpy array
@@ -61,7 +69,18 @@ def f1_score(y_true:np.ndarray | pd.Series | list,
     y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
+        logger.error("Shape mismatch between y_true and y_pred.")
         raise ValueError("Shape of y_true and y_pred must be the same.")
+    if y_true.size == 0:
+        logger.error("Empty input arrays.")
+        raise ValueError("y_true and y_pred must not be empty.")
+    # inf and nan check
+    if np.any(np.isnan(y_true)) or np.any(np.isnan(y_pred)):
+        logger.error("Input contains NaN values.")
+        raise ValueError("y_true and y_pred must not contain NaN values.")
+    if np.any(np.isinf(y_true)) or np.any(np.isinf(y_pred)):
+        logger.error("Input contains Inf values.")
+        raise ValueError("y_true and y_pred must not contain Inf values.")
 
     # Get unique labels
     if labels is None:
@@ -84,8 +103,10 @@ def f1_score(y_true:np.ndarray | pd.Series | list,
     recalls = np.array(recalls)
     f1s = np.where((precisions + recalls) > 0, 2 * precisions * recalls / (precisions + recalls), 0.0)
 
+    logger.info("F1 Score calculation completed.")
     if average == 'binary':
         if len(labels) != 2:
+            logger.error("Binary average is only supported for binary classification with 2 classes.")
             raise ValueError("Binary average is only supported for binary classification with 2 classes.")
         return f1s[1]
     elif average == 'micro':
@@ -103,4 +124,5 @@ def f1_score(y_true:np.ndarray | pd.Series | list,
     elif average is None:
         return f1s
     else:
+        logger.error(f"Unknown average type: {average}")
         raise ValueError(f"Unknown average type: {average}")

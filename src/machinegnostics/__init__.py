@@ -15,3 +15,5 @@ from .metrics.r2 import r2_score, adjusted_r2_score
 from .metrics.mse import mean_squared_error
 from .metrics.mae import mean_absolute_error
 from .metrics.hc import hc
+from .metrics.f1_score import f1_score
+from .metrics.gmmfe import gmmfe

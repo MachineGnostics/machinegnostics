@@ -7,8 +7,10 @@ Author: Nirmal Parmar
 
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
-def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
+def gmmfe(y: np.ndarray, y_fit: np.ndarray, verbose: bool = False) -> float:
     """
     Compute the Geometric Mean of Model Fit Error (GMMFE) for evaluating the fit between observed data and model predictions.
 
@@ -22,6 +24,8 @@ def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
         The observed data (ground truth). Must be a 1D array of numerical values.
     y_fit : np.ndarray
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
+    verbose : bool, optional
+        If True, enables detailed logging of the computation process. Default is False.
 
     Returns
     -------
@@ -63,13 +67,35 @@ def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
     >>> gmmfe(y, y_fit)
     0.06666666666666667
     """
-    # Ensure y and y_fit are 1D arrays
-    if y.ndim != 1 or y_fit.ndim != 1:
+    logger = get_logger('gmmfe', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating GMMFE...")
+
+    # validate input types
+    if not isinstance(y, (np.ndarray,)):
+        logger.error("Invalid input type for y.")
+        raise ValueError("y must be a numpy array.")
+    if not isinstance(y_fit, (np.ndarray,)):
+        logger.error("Invalid input type for y_fit.")
+        raise ValueError("y_fit must be a numpy array.")
+    if y.ndim != 1 and y_fit.ndim != 1:
+        logger.error("Invalid input dimensions.")
         raise ValueError("y and y_fit must be 1D arrays.")
-    
-    # Ensure y and y_fit have the same shape
     if y.shape != y_fit.shape:
+        logger.error("Shape mismatch.")
         raise ValueError("y and y_fit must have the same shape.")
+    if y.size == 0:
+        logger.error("Empty array.")
+        raise ValueError("y and y_fit must not be empty.")
+    if y.shape != y_fit.shape:
+        logger.error("Shape mismatch.")
+        raise ValueError("y and y_fit must have the same shape.")
+    # inf and nan check
+    if np.any(np.isnan(y)) or np.any(np.isnan(y_fit)):
+        logger.error("Input contains NaN values.")
+        raise ValueError("y and y_fit must not contain NaN values.")
+    if np.any(np.isinf(y)) or np.any(np.isinf(y_fit)):
+        logger.error("Input contains Inf values.")
+        raise ValueError("y and y_fit must not contain Inf values.")
     
     # Convert to numpy arrays and flatten
     y = np.asarray(y).flatten()
@@ -78,4 +104,5 @@ def gmmfe(y: np.ndarray, y_fit: np.ndarray) -> float:
     # generate the GMMFE value
     ce = CriteriaEvaluator(y, y_fit)
     gmmfe_value = ce._gmmfe()    
+    logger.info("GMMFE calculation completed.")
     return gmmfe_value
