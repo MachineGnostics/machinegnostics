@@ -272,6 +272,13 @@ class Z0Estimator:
             - Advanced methods adapt to the target type automatically
             - The estimated Z0 is automatically assigned to the original GDF object
         """
+        # Add the safe Z0 estimating trick here
+        if np.all(self.gdf.data == self.gdf.data[0]):
+            self.logger.info("All data values are the same. Returning the mean value as Z0.")
+            self.z0 = np.mean(self.gdf.data)
+            self.gdf.z0 = self.z0  # Assign Z0 back to the GDF object
+            return self.z0
+        
         self.logger.info("Fitting Z0 estimator.")
         if self.find_median:
             self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")

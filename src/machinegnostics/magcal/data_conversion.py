@@ -106,7 +106,7 @@ class DataConversion:
             raise ValueError("lb and ub must be scalars")
         eps = 1e-6  # Small value to ensure strict inequality
         if lb >= ub:
-            raise ZeroDivisionError("lb must be less than ub")
+            ub = ub + 1e-12
         
         z = np.asarray(z)
         a = (np.log(np.abs(z) + eps) * (ub - lb) + lb + ub) / 2

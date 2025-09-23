@@ -552,7 +552,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         
         # Validate bounds
         if self.DLB >= self.DUB:
-            raise ValueError("DLB must be less than DUB.")
+            self.logger.info("DLB >= DUB, All values are same case.")
         
         if self.catch:
             self.params.update({'DLB': float(self.DLB), 'DUB': float(self.DUB)})

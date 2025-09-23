@@ -41,8 +41,7 @@ class WEDF:
         else:
             self.data_ub = data_ub
         if self.data_lb >= self.data_ub:
-            self.logger.error("data_lb must be less than data_ub")
-            raise ValueError("data_lb must be less than data_ub")
+            self.logger.info("data_lb must be less than data_ub")
         if self.data.size == 0:
             self.logger.error("data must contain at least one element")
             raise ValueError("data must contain at least one element")
