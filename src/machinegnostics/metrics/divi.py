@@ -4,11 +4,12 @@ Copyright (C) 2025  ManGo Team
 
 Author: Nirmal Parmar
 '''
-
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
 
-def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
+def divI(y: np.ndarray, y_fit: np.ndarray,  verbose: bool = False) -> float:
     """
     Compute the Divergence Information (DivI) for evaluating the fit between observed data and model predictions.
 
@@ -21,6 +22,8 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
         The observed data (ground truth). Must be a 1D array of numerical values.
     y_fit : np.ndarray
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
@@ -55,14 +58,17 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
     ...     1.1, 1.9, 3.2, 3.8
     ... ])
     >>> divI(y, y_fit)
-    0.06666666666666667
     """
+    logger = get_logger('DivI', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Starting DivI calculation.")
     # Ensure y and y_fit are 1D arrays
     if y.ndim != 1 or y_fit.ndim != 1:
+        logger.error("Both y and y_fit must be 1D arrays.")
         raise ValueError("Both y and y_fit must be 1D arrays.")
     
     # Ensure y and y_fit have the same shape
     if y.shape != y_fit.shape:
+        logger.error("y and y_fit must have the same shape.")
         raise ValueError("y and y_fit must have the same shape.")
     
     # Convert to numpy arrays and flatten
@@ -70,7 +76,7 @@ def divI(y: np.ndarray, y_fit: np.ndarray) -> float:
     y_fit = np.asarray(y_fit).flatten()
     
     # Compute the Divergence Information (DivI)
-    evaluator = CriteriaEvaluator(y, y_fit)
+    evaluator = CriteriaEvaluator(y, y_fit, verbose=verbose)
     divI_value = evaluator._divI()
-    
+    logger.info(f"Divergence Information (DivI) calculation completed.")
     return divI_value

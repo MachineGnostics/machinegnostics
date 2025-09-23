@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
 def confusion_matrix(y_true:np.ndarray | pd.Series,
                      y_pred:np.ndarray | pd.Series, 
-                     labels=None):
+                     labels=None, verbose=False) -> np.ndarray:
     """
     Computes the confusion matrix to evaluate the accuracy of a classification.
 
@@ -21,6 +23,8 @@ def confusion_matrix(y_true:np.ndarray | pd.Series,
     labels : array-like, default=None
         List of labels to index the matrix. This may be used to reorder or select a subset of labels.
         If None, labels that appear at least once in y_true or y_pred are used in sorted order.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
@@ -37,7 +41,8 @@ def confusion_matrix(y_true:np.ndarray | pd.Series,
            [0, 0, 1],
            [1, 0, 2]])
     """
-
+    logger = get_logger('confusion_matrix', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating Confusion Matrix...")
     # Convert pandas Series to numpy array
     if isinstance(y_true, pd.Series):
         y_true = y_true.values
@@ -49,7 +54,22 @@ def confusion_matrix(y_true:np.ndarray | pd.Series,
     y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
+        logger.error("Shape of y_true and y_pred must be the same.")
         raise ValueError("Shape of y_true and y_pred must be the same.")
+    if y_true.size == 0:
+        logger.error("y_true and y_pred must not be empty.")
+        raise ValueError("y_true and y_pred must not be empty.")
+    # Ensure 1D arrays
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        logger.error("y_true and y_pred must be 1D arrays.")
+        raise ValueError("y_true and y_pred must be 1D arrays.")
+    # inf and nan check
+    if np.any(np.isnan(y_true)) or np.any(np.isnan(y_pred)):
+        logger.error("y_true and y_pred must not contain NaN values.")
+        raise ValueError("y_true and y_pred must not contain NaN values.")
+    if np.any(np.isinf(y_true)) or np.any(np.isinf(y_pred)):
+        logger.error("y_true and y_pred must not contain Inf values.")
+        raise ValueError("y_true and y_pred must not contain Inf values.")
 
     # Determine labels
     if labels is None:
@@ -69,4 +89,5 @@ def confusion_matrix(y_true:np.ndarray | pd.Series,
             j = label_to_index[pred]
             cm[i, j] += 1
 
+    logger.info("Confusion Matrix calculation completed.")
     return cm
