@@ -111,7 +111,7 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool 
     
     # CE
     logger.info("Initializing CriteriaEvaluator...")
-    ce = CriteriaEvaluator(y=y, y_fit=y_fit, w=w)
+    ce = CriteriaEvaluator(y=y, y_fit=y_fit, w=w, verbose=verbose)
 
     # Compute the robust R-squared
     robr2_value = ce._robr2()

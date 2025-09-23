@@ -4,11 +4,12 @@ Copyright (C) 2025  ManGo Team
 
 Author: Nirmal Parmar
 '''
-
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
 
-def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
+def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool = False) -> float:
     """
     Compute the Evaluation Metric (EvalMet) for evaluating the fit between observed data and model predictions.
 
@@ -23,6 +24,8 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
     w : np.ndarray, optional
         Weights for the data points. If not provided, an array of ones is used.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
@@ -63,13 +66,28 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     ... ])
     >>> evalMet(y, y_fit, weights)
     """
+    logger = get_logger('EvalMet', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Starting EvalMet calculation.")
     # Ensure y and y_fit are 1D arrays
     if y.ndim != 1 or y_fit.ndim != 1:
+        logger.error("Both y and y_fit must be 1D arrays.")
         raise ValueError("Both y and y_fit must be 1D arrays.")
     
     # Ensure y and y_fit have the same shape
     if y.shape != y_fit.shape:
+        logger.error("y and y_fit must have the same shape.")
         raise ValueError("y and y_fit must have the same shape.")
+    
+    # empty check
+    if y.size == 0 or y_fit.size == 0:
+        logger.error("y and y_fit must not be empty.")
+        raise ValueError("y and y_fit must not be empty.")
+    if np.any(np.isnan(y)) or np.any(np.isnan(y_fit)):
+        logger.error("y and y_fit must not contain NaN values.")
+        raise ValueError("y and y_fit must not contain NaN values.")
+    if np.any(np.isinf(y)) or np.any(np.isinf(y_fit)):
+        logger.error("y and y_fit must not contain Inf values.")
+        raise ValueError("y and y_fit must not contain Inf values.")
     
     # If weights are not provided, use an array of ones
     if w is None:
@@ -77,6 +95,7 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     
     # Ensure weights have the same shape as y
     if w.shape != y.shape:
+        logger.error("Weights must have the same shape as y.")
         raise ValueError("Weights must have the same shape as y.")
     
     # Convert to numpy arrays and flatten
@@ -84,7 +103,7 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     y_fit = np.asarray(y_fit).flatten()
     
     # Compute the Evaluation Metric (EvalMet)
-    evaluator = CriteriaEvaluator(y, y_fit, w)
+    evaluator = CriteriaEvaluator(y, y_fit, w, verbose=verbose)
     evalmet = evaluator._evalmet()
-    
+    logger.info(f"EvalMet calculation completed.")
     return evalmet

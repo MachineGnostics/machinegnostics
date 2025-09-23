@@ -102,7 +102,7 @@ def gmmfe(y: np.ndarray, y_fit: np.ndarray, verbose: bool = False) -> float:
     y_fit = np.asarray(y_fit).flatten()
             
     # generate the GMMFE value
-    ce = CriteriaEvaluator(y, y_fit)
+    ce = CriteriaEvaluator(y, y_fit, verbose=verbose)
     gmmfe_value = ce._gmmfe()    
     logger.info("GMMFE calculation completed.")
     return gmmfe_value
