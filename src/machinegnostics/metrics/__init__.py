@@ -8,7 +8,7 @@ from machinegnostics.metrics.gmmfe import gmmfe
 from machinegnostics.metrics.divi import divI
 from machinegnostics.metrics.evalmet import evalMet
 from machinegnostics.metrics.hc import hc
-from machinegnostics.metrics.gcorrelation import gcorrelation
+from machinegnostics.metrics.correlation import correlation
 from machinegnostics.metrics.f1_score import f1_score
 from machinegnostics.metrics.precision import precision_score
 from machinegnostics.metrics.recall import recall_score
