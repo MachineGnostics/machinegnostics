@@ -2,6 +2,7 @@
 calculate gnostic mean of given sample
 
 method: mean()
+LEL local estimate of location
 
 Authors: Nirmal Parmar
 Machine Gnostics
@@ -10,9 +11,10 @@ import logging
 from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.magcal import ELDF, QLDF
+from typing import Union
 
 def mean(data: np.ndarray, 
-         S: float = 1, 
+         S: Union[float, str] = 1, 
          case: str = 'i',
          z0_optimize: bool = True, 
          data_form: str = 'a',
@@ -21,9 +23,9 @@ def mean(data: np.ndarray,
     """
     Calculate the gnostic mean of the given data.
 
-    The Gnostic variance metric is based on the principles of gnostic theory, which
+    The Gnostic mean metric is based on the principles of gnostic theory, which
     provides robust estimates of data relationships. This metric leverages the concepts
-    of estimating irrelevances and fidelities, and quantifying irrelevances and fidelities, which are robust measures of data uncertainty. These irrelevances are aggregated differently:
+    of estimating irrelevances and fidelities, and quantifying irrelevances and fidelities, which are robust measures of data uncertainty. These irrelevances are aggregated differently.
 
     Parameters:
     -----------
@@ -33,7 +35,7 @@ def mean(data: np.ndarray,
         Scaling parameter for ELDF. Default is 1.
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
-        'i' for estimating variance, 'j' for quantifying variance.
+        'i' for estimating irrelevance, 'j' for quantifying irrelevance.
     z0_optimize : bool, optional
         Whether to optimize z0 in ELDF. Default is True.
     data_form : str, optional
@@ -77,6 +79,24 @@ def mean(data: np.ndarray,
     if case not in ['i', 'j']:
         logger.error("Case must be 'i' for estimating variance or 'j' for quantifying variance.")
         raise ValueError("Case must be 'i' for estimating variance or 'j' for quantifying variance.")
+
+    # arg validation
+    if isinstance(S, str):
+        if S != 'auto':
+            logger.error("S must be a float or 'auto'.")
+            raise ValueError("S must be a float or 'auto'.")
+    elif not isinstance(S, (int, float)):
+        logger.error("S must be a float or 'auto'.")
+        raise TypeError("S must be a float or 'auto'.")
+    # S proper value [0,2] suggested
+    if isinstance(S, (int)):
+        if S < 0 or S > 2:
+            logger.warning("S must be in the range [0, 2].")
+    # Check for valid data_form
+    if data_form not in ['a', 'm']:
+        logger.error("data_form must be 'a' for additive or 'm' for multiplicative.")
+        raise ValueError("data_form must be 'a' for additive or 'm' for multiplicative.")
+    
     if case == 'i':
         logger.info("Using estimating geometry for mean calculation.")
         # Compute eldf
@@ -89,6 +109,6 @@ def mean(data: np.ndarray,
         qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)
         qldf.fit(data, plot=False)
         mean_value = qldf.z0
-    logger.info(f"Gnostic mean calculated: {mean_value}")
+    logger.info(f"Gnostic mean calculated.")
 
     return float(mean_value)
