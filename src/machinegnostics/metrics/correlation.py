@@ -12,7 +12,62 @@ from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 
 def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i') -> float:
     """
-    Calculate the Pearson correlation coefficient between two data samples.
+    Calculate the Gnostic correlation coefficient between two data samples.
+
+    The Gnostic correlation metric is based on the principles of gnostic theory, which
+    provides robust estimates of data correlations. This metric leverages the concepts
+    of estimating irrelevances and quantifying irrelevances, which are robust measures
+    of data uncertainty. These irrelevances are aggregated differently:
+
+    - Quantifying irrelevances are aggregated additively as hyperbolic sines.
+    - Estimating irrelevances are aggregated as trigonometric sines.
+
+    Both types of irrelevances converge to linear errors of observed data in cases of
+    weak uncertainty. The product of quantifying irrelevances and estimating irrelevances
+    serves as a generalization of data products. Normalized estimates of their means
+    provide robust estimates of correlations.
+
+    This function computes the Gnostic correlation coefficient using the following steps:
+    1. Validate the input data for consistency, shape, and content.
+    2. Depending on the `case` parameter:
+       - For `case='i'` (estimating geometry):
+         - Use Estimation Geometry Distribution Functions (EGDF) to compute estimating irrelevances.
+         - Assess data homogeneity using DataHomogeneity.
+       - For `case='j'` (quantifying geometry):
+         - Use Quantifying Geometry Distribution Functions (QGDF) to compute quantifying irrelevances.
+         - Clip extreme values to prevent overflow.
+         - Assess data homogeneity using EGDF and DataHomogeneity.
+    3. Compute the correlation coefficient as the normalized product of irrelevances.
+
+    Parameters:
+    ----------
+    data_1 : np.ndarray
+        The first data sample. Must be a 1D numpy array without NaN or Inf values.
+    data_2 : np.ndarray
+        The second data sample. Must be a 1D numpy array without NaN or Inf values.
+    case : str, optional, default='i'
+        Specifies the type of geometry to use:
+        - 'i': Estimation geometry (EGDF).
+        - 'j': Quantifying geometry (QGDF).
+
+    Returns:
+    -------
+    float
+        The Gnostic correlation coefficient between the two data samples.
+
+    Raises:
+    ------
+    ValueError
+        If the input arrays are not of the same length, are empty, contain NaN/Inf values,
+        or are not 1D numpy arrays. Also raised if `case` is not 'i' or 'j'.
+
+    Notes:
+    -----
+    - This metric is robust to data uncertainty and provides meaningful estimates even
+      in the presence of noise or outliers.
+    - Ensure that the input data is preprocessed and cleaned for optimal results.
+    - In cases where data homogeneity is not met, a warning is raised, and the scale
+      parameter is adjusted to improve results.
     """
 
     # Validate inputs
