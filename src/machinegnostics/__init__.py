@@ -17,3 +17,8 @@ from .metrics.mae import mean_absolute_error
 from .metrics.hc import hc
 from .metrics.f1_score import f1_score
 from .metrics.gmmfe import gmmfe
+from .metrics.divi import divI
+from .metrics.evalmet import evalMet
+from .metrics.conf_matrix import confusion_matrix
+from .metrics.accuracy import accuracy_score
+from .metrics.cls_report import classification_report
