@@ -203,7 +203,7 @@ class ParamLogisticRegressorBase(ParamBase):
 
                     if re_converged or log_loss_converged:
                         if self.verbose:
-                            self.logger.info(f"Converged at iteration {self._iter} (early stop):", end=" ")
+                            self.logger.info(f"Converged at iteration {self._iter} (early stop):")
                             if re_converged:
                                 self.logger.info(f"mean rentropy change below tolerance (rentropy={np.abs(curr_re - prev_re_val):.6e}).")
                             if log_loss_converged:
