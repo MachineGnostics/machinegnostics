@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 from machinegnostics.metrics import precision_score, recall_score, f1_score
+from machinegnostics.magcal.util.logging import get_logger
+import logging
 
 def classification_report(
     y_true:np.ndarray | pd.Series,
@@ -9,7 +11,7 @@ def classification_report(
     target_names=None,
     digits=2,
     output_dict=False,
-    zero_division=0
+    verbose: bool = False
 ):
     """
     Builds a text summary or dictionary of the precision, recall, F1 score, and support for each class.
@@ -36,16 +38,16 @@ def classification_report(
     output_dict : bool, default=False
         If True, return output as a dict for programmatic use. If False, return as a formatted string.
 
-    zero_division : {0, 1, 'warn'}, default=0
-        Sets the value to return when there is a zero division (no predicted samples for a class).
-        If set to 'warn', this acts as 0, but warnings are also raised.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
     report : str or dict
         Text summary or dictionary of the precision, recall, F1 score for each class.
     """
-
+    logger = get_logger('classification_report', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Generating Classification Report...")
     # Convert pandas Series to numpy array
     if isinstance(y_true, pd.Series):
         y_true = y_true.values
@@ -57,6 +59,7 @@ def classification_report(
     y_pred = np.asarray(y_pred).flatten()
 
     if y_true.shape != y_pred.shape:
+        logger.error("Shape of y_true and y_pred must be the same.")
         raise ValueError("Shape of y_true and y_pred must be the same.")
 
     # Get unique labels
@@ -68,6 +71,7 @@ def classification_report(
     n_labels = len(labels)
     if target_names is not None:
         if len(target_names) != n_labels:
+            logger.error("target_names length must match number of labels")
             raise ValueError("target_names length must match number of labels")
     else:
         target_names = [str(label) for label in labels]
@@ -121,4 +125,6 @@ def classification_report(
         f"{avg_f1:>10.{digits}f}"
         f"{total_support:>10}\n"
     )
+
+    logger.info("Classification Report generated.")
     return report

@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
+import logging
+from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.metrics.mean import mean
 
-def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
+def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray, verbose:bool=False) -> float:
     """
     Computes the accuracy classification score.
 
@@ -14,6 +17,8 @@ def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
 
     y_pred : array-like or pandas Series/DataFrame column of shape (n_samples,)
         Estimated targets as returned by a classifier.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
@@ -30,10 +35,16 @@ def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     >>> import pandas as pd
     >>> df = pd.DataFrame({'true': [1, 0, 1], 'pred': [1, 1, 1]})
     >>> accuracy_score(df['true'], df['pred'])
-    0.6666666666666666
     """
+    logger = get_logger('accuracy_score', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating Accuracy Score...")
+    # Check for empty input
+    if y_true is None or y_pred is None:
+        logger.error("y_true and y_pred must not be None.")
+        raise ValueError("y_true and y_pred must not be None.")
     # If input is a DataFrame, raise error (must select column)
     if isinstance(y_true, pd.DataFrame) or isinstance(y_pred, pd.DataFrame):
+        logger.error("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
         raise ValueError("y_true and y_pred must be 1D array-like or pandas Series, not DataFrame. Select a column.")
 
     # Convert pandas Series to numpy array
@@ -52,4 +63,5 @@ def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     correct = np.sum(y_true == y_pred)
     total = y_true.size
     accuracy = correct / total
+    logger.info("Accuracy score calculation complete.")
     return accuracy
