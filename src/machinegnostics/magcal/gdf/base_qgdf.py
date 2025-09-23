@@ -132,7 +132,7 @@ class BaseQGDF(BaseDistFuncCompute):
         R = zi_n.reshape(-1, 1) / (zi_d.reshape(1, -1) + self._NUMERICAL_EPS)
         
         # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
+        gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=S)
         
         # Calculate fidelities and irrelevances
@@ -1002,7 +1002,7 @@ class BaseQGDF(BaseDistFuncCompute):
         R = zi_eval.reshape(-1, 1) / (zi_data.reshape(1, -1) + eps)
         
         # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
+        gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=self.S_opt)
         
         # Store fidelities and irrelevances

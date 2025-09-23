@@ -196,7 +196,7 @@ class BaseELDF(BaseEGDF):
         R = zi_n.reshape(-1, 1) / (zi_d.reshape(1, -1) + self._NUMERICAL_EPS)
         
         # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
+        gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=S)
         
         # Calculate fidelities and irrelevances
@@ -688,7 +688,7 @@ class BaseELDF(BaseEGDF):
         R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
 
         # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
+        gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=self.S_opt)
         
         # Store fidelities and irrelevances

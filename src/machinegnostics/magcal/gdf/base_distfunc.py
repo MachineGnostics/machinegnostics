@@ -575,7 +575,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         # Apply gnostic weights for non-homogeneous data
         if not self.homogeneous:
             self.logger.info("Applying gnostic weights for non-homogeneous data.")
-            gw = GnosticsWeights()
+            gw = GnosticsWeights(verbose=self.verbose)
             self.gweights = gw._get_gnostic_weights(self.z)
             self.weights = self.gweights * self.weights
         
@@ -836,7 +836,7 @@ class BaseDistFuncCompute(BaseDistFunc):
         R = zi_n.reshape(-1, 1) / (zi_d + eps).reshape(1, -1)
 
         # Get characteristics
-        gc = GnosticsCharacteristics(R=R)
+        gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=self.S_opt)
 
         return gc, q, q1
