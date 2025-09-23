@@ -100,8 +100,13 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i') -> floa
 
     # Compute correlation
     def compute_correlation(hc_data_1: np.ndarray, hc_data_2: np.ndarray) -> float:
-        corr = np.sum(hc_data_1 * hc_data_2) / (np.sqrt(np.sum(hc_data_1**2)) * np.sqrt(np.sum(hc_data_2**2)))
+        numerator = np.sum(hc_data_1 * hc_data_2)
+        denominator = (np.sqrt(np.sum(hc_data_1**2)) * np.sqrt(np.sum(hc_data_2**2))) 
+        corr = numerator / denominator
+        if denominator == 0:
+            return np.nan
         return corr
-
+    
+    # Compute correlation
     corr = compute_correlation(hc_data_1, hc_data_2)
     return corr
