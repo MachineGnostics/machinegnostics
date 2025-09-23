@@ -59,7 +59,7 @@ def std(data: np.ndarray,
     >>> mg.std(data)
     (2.9403976979154143, 3.0599336862362043)
     """
-    logger = get_logger('mean', level=logging.WARNING if not verbose else logging.INFO)
+    logger = get_logger('std', level=logging.WARNING if not verbose else logging.INFO)
     logger.info("Calculating standard deviation...")
 
     # Validate input

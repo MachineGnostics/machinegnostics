@@ -4,11 +4,12 @@ Copyright (C) 2025  ManGo Team
 
 Author: Nirmal Parmar
 '''
-
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
 
-def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
+def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool = False) -> float:
     """
     Compute the Robust R-squared (RobR2) value for evaluating the goodness of fit between observed data and model predictions.
 
@@ -25,6 +26,8 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     w : np.ndarray, optional
         Weights for the data points. Must be a 1D array of the same shape as `y` if provided. Defaults to `None`, in which 
         case equal weights are assumed.
+    verbose : bool, optional
+        If True, enables detailed logging for debugging purposes. Default is False.
 
     Returns
     -------
@@ -68,32 +71,49 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None) -> float:
     >>> w = np.array([1.0, 1.0, 1.0, 1.0])
     >>> result = robr2(y, y_fit, w)
     >>> print(result)
-    0.98  # Example output (actual value depends on the data)
 
     Comparison with Classical R-squared
     -----------------------------------
     The classical R-squared metric assumes equal weights and is sensitive to outliers. RobR2, on the other hand, 
     incorporates weights and is robust to outliers, making it more reliable for datasets with irregularities or noise.
     """
+    logger = get_logger('RobR2', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Calculating Robust R-squared...")
+
     # Check if y and y_fit are of the same shape
     if y.shape != y_fit.shape:
+        logger.error("y and y_fit must have the same shape")
         raise ValueError("y and y_fit must have the same shape")
     
     # Check with w shape
     if w is not None and y.shape != w.shape:
+        logger.error("y and w must have the same shape")
         raise ValueError("y and w must have the same shape")
     
     # 1D array check
     if y.ndim != 1 or y_fit.ndim != 1:
+        logger.error("y and y_fit must be 1D arrays")
         raise ValueError("y and y_fit must be 1D arrays")
     
-        # Convert to numpy arrays and flatten
+    # Convert to numpy arrays and flatten
     y_true = np.asarray(y).flatten()
     y_pred = np.asarray(y_fit).flatten()
+
+    # dimensions of y and y_fit validation
+    if y_true.ndim != 1 or y_pred.ndim != 1:
+        logger.error("y and y_fit must be 1D arrays")
+        raise ValueError("y and y_fit must be 1D arrays")
+    
+    # inf and nan check
+    if np.any(np.isnan(y_true)) or np.any(np.isnan(y_pred)):
+        logger.error("y and y_fit must not contain NaN values")
+        raise ValueError("y and y_fit must not contain NaN values")
     
     # CE
+    logger.info("Initializing CriteriaEvaluator...")
     ce = CriteriaEvaluator(y=y, y_fit=y_fit, w=w)
 
     # Compute the robust R-squared
     robr2_value = ce._robr2()
+    logger.info(f"Gnostic Robust R-squared calculated.")
     return robr2_value
