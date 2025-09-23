@@ -104,6 +104,9 @@ class GnosticsCharacteristics:
         self.logger.info("Calculating q and q1.")
         # Add small constant to prevent division by zero
         R_safe = np.abs(self.R) + self.eps
+
+        # avoid overflow in exponentiation
+        S = np.maximum(S, 0.01)  # Ensure S is at least 0.01 to avoid division by zero
         
         # Calculate exponents
         exp_pos = 2.0 / S
@@ -425,8 +428,10 @@ class GnosticsCharacteristics:
         if p_i.shape != self.q.shape:
             self.logger.error("p_i and q must have the same shape")
             raise ValueError("p_i and q must have the same shape")
-        epsilon = 1e-8
-        Ii = -p_i * np.log(p_i+epsilon) - (1 - p_i) * np.log(1 - p_i)
+        epsilon = 1e-12
+        # avoid log(0)
+        p_i = np.clip(p_i, 0 + epsilon, 1 - epsilon)
+        Ii = -p_i * np.log(p_i + epsilon) - (1 - p_i) * np.log(1 - p_i + epsilon)
         return Ii
     
     def _info_j(self, p_j):
@@ -449,6 +454,7 @@ class GnosticsCharacteristics:
             self.logger.error("p_j and q must have the same shape")
             raise ValueError("p_j and q must have the same shape")
         epsilon = 1e-12
+        # avoid log(0)
         p_j = np.clip(p_j, 0 + epsilon, 1 - epsilon)
-        Ij = -p_j * np.log(p_j + epsilon) - (1 - p_j) * np.log(1 - p_j)
+        Ij = -p_j * np.log(p_j + epsilon) - (1 - p_j) * np.log(1 - p_j + epsilon)
         return Ij
