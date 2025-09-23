@@ -3,6 +3,8 @@ ManGo - Machine Gnostics Library
 Copyright (C) 2025  ManGo Team
 
 Author: Nirmal Parmar
+
+This class is deprecated. Use GnosticsCharacteristics class instead.
 '''
 
 import numpy as np
