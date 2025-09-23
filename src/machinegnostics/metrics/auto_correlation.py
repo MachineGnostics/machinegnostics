@@ -7,6 +7,7 @@ Author: Nirmal Parmar
 Machine Gnostics
 """
 
+from re import VERBOSE
 import numpy as np
 from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 
@@ -105,6 +106,16 @@ def auto_correlation(data: np.ndarray, lag: int = 0, case: str = 'i') -> float:
         # Stop overflow by limiting big value in hc up to 1e12
         hc_data = np.clip(hc_data, 1, 1e12)
         hc_data_lagged = np.clip(hc_data_lagged, 1, 1e12)
+        
+    # raise warning if data is not homogeneous
+    if not is_homo_data:
+        print("Warning: Data 1 is not homogeneous. Please check the data distribution. For better results, use scale parameter as 1.")
+        egdf_data_1 = EGDF(flush=FLUSH, verbose=verbose, S=1)
+        egdf_data_1.fit(data)
+    if not is_homo_data_lagged:
+        print("Warning: Data 2 is not homogeneous. Please check the data distribution. For better results, use scale parameter as 1.")
+        egdf_data_2 = EGDF(flush=FLUSH, verbose=verbose, S=1)
+        egdf_data_2.fit(data_lagged)
 
     # Compute correlation
     def compute_correlation(hc_data_1: np.ndarray, hc_data_2: np.ndarray) -> float:
@@ -115,5 +126,8 @@ def auto_correlation(data: np.ndarray, lag: int = 0, case: str = 'i') -> float:
             return np.nan
         return corr
     auto_corr = compute_correlation(hc_data, hc_data_lagged)
+
+    if auto_corr < 1e-6:
+        auto_corr = 0.0
 
     return auto_corr
