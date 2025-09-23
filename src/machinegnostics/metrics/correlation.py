@@ -29,18 +29,6 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     serves as a generalization of data products. Normalized estimates of their means
     provide robust estimates of correlations.
 
-    This function computes the Gnostic correlation coefficient using the following steps:
-    1. Validate the input data for consistency, shape, and content.
-    2. Depending on the `case` parameter:
-       - For `case='i'` (estimating geometry):
-         - Use Estimation Geometry Distribution Functions (EGDF) to compute estimating irrelevances.
-         - Assess data homogeneity using DataHomogeneity.
-       - For `case='j'` (quantifying geometry):
-         - Use Quantifying Geometry Distribution Functions (QGDF) to compute quantifying irrelevances.
-         - Clip extreme values to prevent overflow.
-         - Assess data homogeneity using EGDF and DataHomogeneity.
-    3. Compute the correlation coefficient as the normalized product of irrelevances.
-
     Parameters:
     ----------
     data_1 : np.ndarray
@@ -51,6 +39,8 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
         Specifies the type of geometry to use:
         - 'i': Estimation geometry (EGDF).
         - 'j': Quantifying geometry (QGDF).
+    verbose : bool, optional, default=False
+        If True, enables detailed logging for debugging purposes.
 
     Returns:
     -------
