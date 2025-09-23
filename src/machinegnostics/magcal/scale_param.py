@@ -12,6 +12,8 @@ ideas:
 import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics
 from scipy.optimize import minimize_scalar
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class ScaleParam():
     """
@@ -33,34 +35,11 @@ class ScaleParam():
     - Variable scale: Creates a vector of scale parameters for kernel-based estimation
     """
     
-    # def _gscale_loc(self, F):
-    #     '''
-    #     For internal use only
 
-    #     calculates the local scale parameter for given calculated F at Scale = 1.
-    #     S with be in the same shape as F.
-    #     Solve for scale parameter using Newton-Raphson."
-    #     '''
-    #     m2pi = 2 / np.pi
-    #     sqrt2 = np.sqrt(2)
-        
-    #     if F < m2pi * sqrt2 / 3:
-    #         S = np.pi
-    #     elif F < m2pi:
-    #         S = 3 * np.pi / 4
-    #     elif F < m2pi * sqrt2:
-    #         S = np.pi / 2
-    #     else:
-    #         S = np.pi / 4
+    def __init__(self, verbose: bool = False):
+        self.logger = get_logger('ScaleParam', level=logging.WARNING if not verbose else logging.INFO)
+        self.logger.info("ScaleParam initialized.")
 
-    #     epsilon = 1e-5
-    #     for _ in range(100):
-    #         delta = (np.sin(S) - S * F) / (np.cos(S) - F)
-    #         S -= delta
-    #         if abs(delta) < epsilon:
-    #             break
-    #     return S * m2pi
-    
     def _gscale_loc(self, F):
         """
         Calculate the local scale parameter for a given fidelity parameter F.
@@ -88,6 +67,7 @@ class ScaleParam():
         
         The method iteratively refines this estimate until convergence.
         """
+        self.logger.info("Calculating local scale parameter...")
         m2pi = 2 / np.pi
         sqrt2 = np.sqrt(2)
         epsilon = 1e-5
@@ -107,6 +87,7 @@ class ScaleParam():
                 if abs(delta) < epsilon:
                     break
             return S * m2pi
+        self.logger.info("Local scale parameter calculation complete.")
 
         # Check if F is scalar
         if np.isscalar(F):
@@ -186,6 +167,7 @@ class ScaleParam():
         edge cases to ensure numerical stability. In case of invalid calculations,
         it falls back to the default scale parameter.
         """
+        self.logger.info("Calculating local scale parameters...")
         Z = np.asarray(Z).reshape(-1, 1)
     
         if W is None:
@@ -220,7 +202,7 @@ class ScaleParam():
         
         # Check for any remaining NaN values and replace them
         Sz[np.isnan(Sz)] = S
-        
+        self.logger.info("Local scale parameters calculation complete.")
         return Sz
 
     def estimate_global_scale_egdf(self, Fk, Ek, tolerance=0.1):
@@ -246,6 +228,7 @@ class ScaleParam():
         This function finds the minimum scale parameter S where fidelity is maximized,
         with early stopping when fidelity change is less than the specified tolerance.
         """
+        self.logger.info("Estimating global scale parameter...")
         Fk = np.asarray(Fk)
         Ek = np.asarray(Ek)
     
@@ -291,11 +274,40 @@ class ScaleParam():
                 optimal_s = s
             
             previous_fidelity = current_fidelity
-        
+        self.logger.info("Global scale parameter estimation complete.")
         # If no convergence found, return the S with maximum fidelity
         if optimal_s is not None:
             final_fidelity = compute_fidelity(optimal_s)
-            print(f"No convergence found. Returning S={optimal_s:.4f} with max fidelity={final_fidelity:.4f}")
+            self.logger.warning(f"No convergence found. Returning S={optimal_s:.4f} with max fidelity={final_fidelity:.4f}")
             return optimal_s
         else:
+            self.logger.error("Failed to find optimal scale parameter.")
             raise RuntimeError("Failed to find optimal scale parameter.")
+        
+    # def _gscale_loc(self, F):
+    #     '''
+    #     For internal use only
+
+    #     calculates the local scale parameter for given calculated F at Scale = 1.
+    #     S with be in the same shape as F.
+    #     Solve for scale parameter using Newton-Raphson."
+    #     '''
+    #     m2pi = 2 / np.pi
+    #     sqrt2 = np.sqrt(2)
+        
+    #     if F < m2pi * sqrt2 / 3:
+    #         S = np.pi
+    #     elif F < m2pi:
+    #         S = 3 * np.pi / 4
+    #     elif F < m2pi * sqrt2:
+    #         S = np.pi / 2
+    #     else:
+    #         S = np.pi / 4
+
+    #     epsilon = 1e-5
+    #     for _ in range(100):
+    #         delta = (np.sin(S) - S * F) / (np.cos(S) - F)
+    #         S -= delta
+    #         if abs(delta) < epsilon:
+    #             break
+    #     return S * m2pi
