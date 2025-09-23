@@ -1,4 +1,4 @@
-# from machinegnostics.metrics.accu import accuracy_score
+# metrics functions
 from machinegnostics.metrics.mae import mean_absolute_error
 from machinegnostics.metrics.rmse import root_mean_squared_error
 from machinegnostics.metrics.mse import mean_squared_error
