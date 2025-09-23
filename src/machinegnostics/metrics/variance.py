@@ -7,15 +7,18 @@ Authors: Nirmal Parmar
 Machine Gnostics
 '''
 import numpy as np
+import logging
 from machinegnostics.metrics.mean import mean
-from machinegnostics.magcal import ELDF
+from machinegnostics.magcal import ELDF, QLDF
+from machinegnostics.magcal.util.logging import get_logger
 
 def variance(data: np.ndarray,
              case: str = 'i', 
              S: float = 1, 
              z0_optimize: bool = True, 
              data_form: str = 'a',
-             tolerance: float = 1e-6) -> float:
+             tolerance: float = 1e-6,
+             verbose: bool = False) -> float:
     """
     Calculate the gnostic variance of the given data.
 
@@ -48,28 +51,47 @@ def variance(data: np.ndarray,
     >>> mg.variance(data)
     0.002685330177795109
     """
+    logger = get_logger('variance', level=logging.WARNING if not verbose else logging.INFO)
+
+    logger.info("Calculating gnostic variance...")
     # Validate input
     if not isinstance(data, np.ndarray):
+        logger.error("Input must be a numpy array.")
         raise TypeError("Input must be a numpy array.")
     if data.ndim != 1:
+        logger.error("Input data must be a one-dimensional array.")
         raise ValueError("Input data must be a one-dimensional array.")
     if len(data) == 0:
+        logger.error("Input data array is empty.")
         raise ValueError("Input data array is empty.")
+    if np.any(np.isnan(data)):
+        logger.error("Input data contains NaN values.")
+        raise ValueError("Input data contains NaN values.")
+    if np.any(np.isinf(data)):
+        logger.error("Input data contains Inf values.")
+        raise ValueError("Input data contains Inf values.")
+    # Check for valid case
+    if case not in ['i', 'j']:
+        logger.error("Case must be 'i' for estimating variance or 'j' for quantifying variance.")
+        raise ValueError("Case must be 'i' for estimating variance or 'j' for quantifying variance.")
+    
+    if case == 'i':
+        logger.info("Using ELDF for variance calculation...")
+        # Compute eldf
+        eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
+        eldf.fit(data, plot=False)
+        hi = eldf.hi
+        hc = np.mean(hi**2)
+    
+    if case == 'j':
+        logger.info("Using QLDF for variance calculation...")
+        # Compute qldf
+        qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
+        qldf.fit(data)
+        hj = qldf.hj
+        hc = np.mean(hj**2)
 
-    # Compute eldf
-    eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)
-    eldf.fit(data, plot=False)
-
-    # point specific GC
-    gc, q, q1 = eldf._calculate_gcq_at_given_zi(eldf.z0)
-
-    # Compute irrelevance 
-    if case.lower() == 'i':
-        hc = np.mean(gc._hi(q, q1))
-    elif case.lower() == 'j':
-        hc = np.mean(gc._hj(q, q1))
-    else:
-        raise ValueError("case must be either 'i' or 'j'. i for estimating variance, j for quantifying variance.")
+    logger.info(f"Gnostic variance (hc): {hc}")
 
     return float(hc)
 
