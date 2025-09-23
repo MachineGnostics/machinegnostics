@@ -513,6 +513,9 @@ class BaseQGDF(BaseDistFuncCompute):
         
         h_zj = mean_irrelevance / denominator
         
+        # Clip h_zj to avoid overflow
+        h_zj = np.clip(h_zj, 1, 1e12)
+        
         # Calculate h_GQ = h_Z,j / √(1 + h_Z,j²)
         h_zj_squared = np.minimum(h_zj**2, max_safe_value)  # Prevent overflow
         h_gq_denominator = np.sqrt(1 + h_zj_squared)
@@ -535,6 +538,10 @@ class BaseQGDF(BaseDistFuncCompute):
         # PDF = (1/S) * derivative_term where derivative_term comes from differentiating h_GQ
         
         # This is a simplified but more mathematically sound approach
+        # clip values to avoid overflow in multiplications [0, 1e12]
+        mean_irrelevance = np.clip(mean_irrelevance, 1, 1e12)
+        mean_fidelity = np.clip(mean_fidelity, 0, 1e12)
+        fh = np.clip(fh, -1e12, 1e12)
         derivative_factor = f2 - h2 + mean_fidelity * mean_irrelevance * fh
         
         # Apply scaling and ensure positive values
