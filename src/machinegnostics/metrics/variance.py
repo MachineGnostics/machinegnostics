@@ -22,6 +22,11 @@ def variance(data: np.ndarray,
     """
     Calculate the gnostic variance of the given data.
 
+    The Gnostic variance metric is based on the principles of gnostic theory, which
+    provides robust estimates of data relationships. This metric leverages the concepts
+    of estimating irrelevances and quantifying irrelevances, which are robust measures
+    of data uncertainty. These irrelevances are aggregated differently:
+
     Parameters:
     -----------
     data : np.ndarray
