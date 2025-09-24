@@ -60,7 +60,7 @@ class DataMembership:
         >>> results = membership.results()
 
     Example:
-        >>> from machinegnostics.magcal.gdf.egdf import EGDF
+        >>> from machinegnostics.magcal import EGDF, DataMembership
         >>> egdf_instance = EGDF(data=[1.2, 1.5, 1.7, 1.9], S=2.0)
         >>> egdf_instance.fit()
         >>> membership = DataMembership(egdf_instance, verbose=True)
