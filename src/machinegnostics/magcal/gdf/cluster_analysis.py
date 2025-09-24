@@ -107,7 +107,7 @@ class ClusterAnalysis:
 
     Example
     -------
-    >>> from machinegnostics.magcal.gdf import ClusterAnalysis
+    >>> from machinegnostics.magcal import ClusterAnalysis
     >>> data = np.random.normal(0, 1, 1000)
     >>> ca = ClusterAnalysis(verbose=True)
     >>> LCB, UCB = ca.fit(data)
