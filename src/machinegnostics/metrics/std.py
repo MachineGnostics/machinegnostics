@@ -35,8 +35,8 @@ def std(data: np.ndarray,
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating variance, 'j' for quantifying variance.
-    S : float, optional
-        Scaling parameter for ELDF. Default is 1.
+    Scaling parameter for ELDF. Default is 1. Can be 'auto' to optimize using EGDF.
+            Suggested range is [0.01, 2].
     z0_optimize : bool, optional
         Whether to optimize z0 in ELDF. Default is True.    
     data_form : str, optional
@@ -111,7 +111,8 @@ def std(data: np.ndarray,
     if isinstance(S, str):
         if S == 'auto':
             logger.info("Optimizing S using EGDF...")
-            egdf = EGDF(data, z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose)
+            egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose)
+            egdf.fit(data=data, plot=False)
             S = egdf.S_opt
             # S value limits [0.01, 1e3]
             S = np.clip(S, 0.01, 1e3)
@@ -130,8 +131,8 @@ def std(data: np.ndarray,
         if 1 - np.sqrt(v) <= 0:
             logger.warning("Encountered negative sqrt value, returning 0,0. Use case 'i' for estimating geometry.")
             return 0, 0
-        std_value_ub = m * ((1 + np.sqrt(v)) / ( 1 - np.sqrt(v)))**(S/2)
-        std_value_lb = m * ((1 - np.sqrt(v)) / ( 1 + np.sqrt(v)))**(S/2)
+        std_value_ub = m * ((np.sqrt(v)) + ( 1 + np.sqrt(v)))**(S/2)
+        std_value_lb = m * ((np.sqrt(v)) + ( 1 - np.sqrt(v)))**(S/2)
 
     else:
         raise ValueError("case must be either 'i' or 'j'. i for estimating variance, j for quantifying variance.")
