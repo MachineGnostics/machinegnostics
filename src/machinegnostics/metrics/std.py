@@ -16,7 +16,7 @@ from machinegnostics.magcal import EGDF
 
 def std(data: np.ndarray,
         case: str = 'i',
-        S: float = 1,
+        S: float = 'auto',
         z0_optimize: bool = True,
         data_form: str = 'a',
         tolerance: float = 1e-6,
