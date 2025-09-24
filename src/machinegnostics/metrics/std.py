@@ -127,11 +127,13 @@ def std(data: np.ndarray,
 
     elif case.lower() == 'j':
         logger.info("Calculating standard deviation the quantifying geometry...")
-        # safe v
-        if 1 - np.sqrt(v) <= 0:
-            logger.warning("Encountered negative sqrt value, returning 0,0. Use case 'i' for estimating geometry.")
-            return 0, 0
+
         std_value_ub = m * ((np.sqrt(v)) + ( 1 + np.sqrt(v)))**(S/2)
+        # safe v
+        if 1 - np.sqrt(v) < 0:
+            logger.warning("Encountered negative sqrt value, returning 0,0. Use case 'i' for estimating geometry.")
+            return 0, std_value_ub
+        
         std_value_lb = m * ((np.sqrt(v)) + ( 1 - np.sqrt(v)))**(S/2)
 
     else:
