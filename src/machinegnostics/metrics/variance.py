@@ -85,18 +85,17 @@ def variance(data: np.ndarray,
         # Compute eldf
         eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
         eldf.fit(data, plot=False)
-        hi = eldf.hi
-        hc = np.mean(hi**2)
+        gc, q, q1 = eldf._calculate_gcq_at_given_zi(eldf.z0)
+        hc = np.mean(gc._hi(q, q1)**2)
     
     if case == 'j':
         logger.info("Using QLDF for variance calculation...")
         # Compute qldf
         qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
         qldf.fit(data)
-        hj = qldf.hj
-        hc = np.mean(hj**2)
+        gc, q, q1 = qldf._calculate_gcq_at_given_zi(qldf.z0)
+        hc = np.mean(gc._hj(q, q1)**2)
 
     logger.info(f"Gnostic variance calculated.")
 
     return float(hc)
-
