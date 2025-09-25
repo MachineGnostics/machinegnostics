@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
 class CrossValidator:
     """
@@ -23,6 +25,9 @@ class CrossValidator:
 
     random_seed : int or None, default=None
         Seed used to shuffle the data. Ignored if `shuffle=False`.
+    
+    verbose : bool, default=False
+        If True, enables detailed logging.
 
     Attributes
     ----------
@@ -43,13 +48,16 @@ class CrossValidator:
     >>> print("Mean Score:", np.mean(scores))
     """
 
-    def __init__(self, model , X:np.ndarray, y:np.ndarray, k=5, shuffle=True, random_seed=None):
+    def __init__(self, model , X:np.ndarray, y:np.ndarray, k=5, shuffle=True, random_seed=None, verbose: bool = False):
         self.model = model
         self.X = np.array(X)
         self.y = np.array(y)
         self.k = k
         self.shuffle = shuffle
         self.random_seed = random_seed
+        self.verbose = verbose
+
+        self.logger = get_logger('CrossValidator', level=logging.WARNING if not verbose else logging.INFO)
 
     def split(self):
         """
@@ -60,6 +68,7 @@ class CrossValidator:
         folds : list of tuple
             A list of (train_indices, test_indices) for each fold.
         """
+        self.logger.info("Starting k-Fold split...")
         n_samples = len(self.X)
         indices = np.arange(n_samples)
 
@@ -78,6 +87,7 @@ class CrossValidator:
             train_idx = np.concatenate([indices[:start], indices[stop:]])
             folds.append((train_idx, test_idx))
             current = stop
+        self.logger.info("Completed k-Fold split.")
         return folds
 
     def evaluate(self, scoring_func):
@@ -94,6 +104,7 @@ class CrossValidator:
         scores : list of float
             Evaluation scores for each fold.
         """
+        self.logger.info("Starting cross-validation evaluation...")
         scores = []
         for train_idx, test_idx in self.split():
             X_train, y_train = self.X[train_idx], self.y[train_idx]
@@ -103,4 +114,5 @@ class CrossValidator:
             y_pred = self.model.predict(X_test)
             score = scoring_func(y_test, y_pred)
             scores.append(score)
+        self.logger.info("Completed cross-validation evaluation.")
         return scores

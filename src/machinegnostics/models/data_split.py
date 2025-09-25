@@ -1,6 +1,8 @@
 import numpy as np
+import logging
+from machinegnostics.magcal.util.logging import get_logger
 
-def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_seed=None):
+def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_seed=None, verbose: bool = False):
     """
     Splits arrays or matrices into random train and test subsets.
 
@@ -21,6 +23,9 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
 
     random_seed : int or None, optional (default=None)
         Controls the shuffling applied to the data before splitting.
+
+    verbose : bool, optional (default=False)
+        If True, enables detailed logging.
 
     Returns
     -------
@@ -47,6 +52,9 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
     >>> print("y_train:", y_train)
     >>> print("y_test:", y_test)
     """
+    logger = get_logger('train_test_split', level=logging.WARNING if not verbose else logging.INFO)
+    logger.info("Starting train_test_split...")
+
     # Convert inputs to np arrays
     X = np.asarray(X)
     if y is not None:
@@ -54,6 +62,7 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
 
     # Validate shapes
     if y is not None and len(X) != len(y):
+        logger.error(f"X and y must have the same number of samples, got {len(X)} and {len(y)}.")
         raise ValueError(f"X and y must have the same number of samples, got {len(X)} and {len(y)}.")
 
     n_samples = len(X)
@@ -61,13 +70,16 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
     # Validate and compute test size
     if isinstance(test_size, float):
         if not 0.0 < test_size < 1.0:
+            logger.error("If test_size is a float, it must be between 0.0 and 1.0.")
             raise ValueError("If test_size is a float, it must be between 0.0 and 1.0.")
         n_test = int(np.ceil(test_size * n_samples))
     elif isinstance(test_size, int):
         if not 0 < test_size < n_samples:
+            logger.error("If test_size is an int, it must be between 1 and len(X) - 1.")
             raise ValueError("If test_size is an int, it must be between 1 and len(X) - 1.")
         n_test = test_size
-    else:
+    else:   
+        logger.error("test_size must be either a float or an int.")
         raise TypeError("test_size must be either a float or an int.")
 
     n_train = n_samples - n_test
@@ -89,5 +101,6 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
         y_test = y[test_idx]
     else:
         y_train = y_test = None
+    logger.info("Completed train_test_split.")
 
     return X_train, X_test, y_train, y_test
