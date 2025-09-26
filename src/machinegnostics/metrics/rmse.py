@@ -42,15 +42,15 @@ def root_mean_squared_error(y_true: np.ndarray, y_pred: np.ndarray, verbose: boo
         logger.error("y_pred must be array-like.")
         raise TypeError("y_pred must be array-like.")
     # Validate input shapes
-    if np.ndim(y_true) > 1:
-        logger.error("y_true must be a 1D array.")
-        raise ValueError("y_true must be a 1D array.")
-    if np.ndim(y_pred) > 1:
-        logger.error("y_pred must be a 1D array.")
-        raise ValueError("y_pred must be a 1D array.")
-    if np.shape(y_true) != np.shape(y_pred):
-        logger.error("y_true and y_pred must have the same shape.")
-        raise ValueError("y_true and y_pred must have the same shape.")
+    # if np.ndim(y_true) > 1:
+    #     logger.error("y_true must be a 1D array.")
+    #     raise ValueError("y_true must be a 1D array.")
+    # if np.ndim(y_pred) > 1:
+    #     logger.error("y_pred must be a 1D array.")
+    #     raise ValueError("y_pred must be a 1D array.")
+    # if np.shape(y_true) != np.shape(y_pred):
+    #     logger.error("y_true and y_pred must have the same shape.")
+    #     raise ValueError("y_true and y_pred must have the same shape.")
     if len(y_true) == 0:
         logger.error("y_true and y_pred must not be empty.")
         raise ValueError("y_true and y_pred must not be empty.")

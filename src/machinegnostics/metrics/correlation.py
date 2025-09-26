@@ -32,7 +32,7 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     Parameters:
     ----------
     data_1 : np.ndarray
-        The first data sample. Must be a 1D numpy array without NaN or Inf values.
+        The first data sample. Must be a D numpy array without NaN or Inf values.
     data_2 : np.ndarray
         The second data sample. Must be a 1D numpy array without NaN or Inf values.
     case : str, optional, default='i'
@@ -84,12 +84,9 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
         logger.error("Inputs must be numpy arrays.")
         raise ValueError("Inputs must be numpy arrays.")
-    # flatten the arrays if they are not 1D
-    data_1 = data_1.flatten()
-    data_2 = data_2.flatten()
-    if data_1.ndim != 1 or data_2.ndim != 1:
-        logger.error("Input arrays must be 1D.")
-        raise ValueError("Input arrays must be 1D.")
+    # if data_2.ndim != 1 or data_1.ndim != 1:
+    #     logger.error("Input arrays must be 1D.")
+    #     raise ValueError("Input arrays must be 1D.")
     # avoid inf and nan in data
     if np.any(np.isnan(data_1)) or np.any(np.isnan(data_2)):
         logger.error("Input arrays must not contain NaN values.")
@@ -100,7 +97,9 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     if case not in ['i', 'j']:
         logger.error("Case must be 'i' for estimation geometry or 'j' for quantifying geometry.")
         raise ValueError("Case must be 'i' for estimation geometry or 'j' for quantifying geometry.")
-    
+    # flatten the arrays if they are not 1D
+    data_1 = data_1.flatten()
+    data_2 = data_2.flatten()
     # default arg
     FLUSH = False
     VERBOSE = False
