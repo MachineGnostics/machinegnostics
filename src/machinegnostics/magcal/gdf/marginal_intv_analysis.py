@@ -49,7 +49,7 @@ class IntervalAnalysis:
         Convergence tolerance for optimization.
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
-    n_points : int, default=500
+    n_points : int, default=100
         Number of points for distribution evaluation.
     homogeneous : bool, default=True
         Whether to assume data homogeneity (enables homogeneity testing).
@@ -131,7 +131,7 @@ class IntervalAnalysis:
                 z0_optimize: bool = True,
                 tolerance: float = 1e-5,
                 data_form: str = 'a',
-                n_points: int = 500,
+                n_points: int = 100,
                 homogeneous: bool = True,
                 catch: bool = True,
                 weights: np.ndarray = None,
@@ -222,7 +222,7 @@ class IntervalAnalysis:
             self.dh = DataHomogeneity(gdf=egdf, verbose=self.verbose)
             is_homogeneous = self.dh.fit()
             if not is_homogeneous:
-                warning_msg = "Data is not homogeneous. Interval estimation may be unreliable."
+                warning_msg = "Data is not homogeneous. Interval estimation may get affected."
                 self._add_warning(warning_msg)
                 if self.catch:
                     self.params['warnings'].append(warning_msg)
@@ -371,7 +371,7 @@ class IntervalAnalysis:
             # final check on homogeneity, raise warning, that cannot converted to homogeneous, check data
             if not is_homogeneous_2:
                 warning_msg = "Data is not homogeneous after re-estimation."
-                warning_msg += "Switching S=1, to improve stability of interval analysis. Advised to process with outliers and re-run."
+                warning_msg += "Switching S=1, to improve stability of interval analysis. Advised to process with outliers and re-run OR set S value manually."
                 self._add_warning(warning_msg)
                 if self.catch:
                     self.params['warnings'].append(warning_msg)
