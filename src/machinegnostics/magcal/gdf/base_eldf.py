@@ -572,7 +572,7 @@ class BaseELDF(BaseEGDF):
         self.logger.info('ELDF: Computing Z0 point using Z0Estimator...')
 
         try:
-            # Create Z0Estimator instance with proper constructor signature
+                # Create Z0Estimator instance with proper constructor signature
             z0_estimator = Z0Estimator(
                 gdf_object=self,  # Pass the ELDF object itself
                 optimize=use_optimize,
@@ -586,13 +586,13 @@ class BaseELDF(BaseEGDF):
             if self.catch:
                 estimation_info = z0_estimator.get_estimation_info()
                 self.params.update({
-                    'z0': float(self.z0),
+                    'z0': float(self.z0) if self.z0 is not None else None,
                     'z0_method': estimation_info.get('z0_method', 'unknown'),
                     'z0_estimation_info': estimation_info
                 })
             
             method_used = z0_estimator.get_estimation_info().get('z0_method', 'unknown')
-            self.logger.info(f'ELDF: Z0 point computed successfully: {self.z0:.6f} (method: {method_used})')
+            self.logger.info(f'ELDF: Z0 point computed successfully, (method: {method_used})')
 
         except Exception as e:
             # Log the error
@@ -633,7 +633,7 @@ class BaseELDF(BaseEGDF):
         max_idx = np.argmax(self.pdf_points)
         self.z0 = self.di_points_n[max_idx]
 
-        self.logger.info(f"Z0 point (fallback method): {self.z0:.6f}")
+        self.logger.info(f"Z0 point (fallback method).")
 
     def analyze_z0(self, figsize: tuple = (12, 6)) -> Dict[str, Any]:
         """
