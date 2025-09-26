@@ -4,20 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machinegnostics"
-version = "0.0.13"
-description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from Mathematical Gnostics"
+version = "0.0.22"
+description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from Mathematical Gnostics, the non-statistical and deterministic approach."
 readme = "README.md"
 requires-python = ">=3.9"
+
 authors = [
-  { name="Nirmal Parmar", email="machinegnostics@gmail.com" },
+  { name="Nirmal Parmar", email="info.machinegnostics@gmail.com" },
 ]
+
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
-    "Development Status :: 3 - Alpha"
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Operating System :: OS Independent"
 ]
+
 license = "GPL-3.0-only"
 license-files = ["LICEN[CS]E*"]
+
 keywords = [
     "machine learning", 
     "AI", 
@@ -29,14 +38,16 @@ keywords = [
     "Machine Gnostics",
     "Mathematical Gnostics"
 ]
+
 dependencies = [
-    "numpy",
-    "pandas",
-    "scipy",
-    "fastapi",
-    "SQLAlchemy",
-    "pydantic"
+  "fastapi",
+  "numpy",
+  "pandas",
+  "pydantic",
+  "scipy",
+  "SQLAlchemy"
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/MachineGnostics"

@@ -154,10 +154,13 @@ class QLDF(BaseQLDF):
             ValueError: If max_data_size is not positive.
 
         Examples:
-            >>> qldf = QLDF()
-            >>> qldf = QLDF(DLB=0, DUB=5)
-            >>> qldf = QLDF(data_form='m')
-            >>> qldf = QLDF(tolerance=1e-6, opt_method='SLSQP', max_data_size=5000)
+        >>> import numpy as np
+        >>> from machinegnostics.magcal import QLDF
+        >>> data = np.array([ -13.5, 0, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.])
+        >>> qldf = QLDF()
+        >>> qldf.fit(data)
+        >>> qldf.plot()
+        >>> print(qldf.params)
         """
         self.DLB = DLB
         self.DUB = DUB

@@ -175,17 +175,13 @@ class EGDF(BaseEGDF):
 
         Examples:
         
-            Basic initialization:
+            >>> import numpy as np
+            >>> from machinegnostics.magcal import EGDF
+            >>> data = np.array([ -13.5, 0, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.])
             >>> egdf = EGDF()
-            
-            With custom bounds and weights:
-            >>> egdf = EGDF(DLB=0, DUB=5)
-            
-            Multiplicative form with custom parameters:
-            >>> egdf = EGDF(data_form='m')
-            
-            High precision setup:
-            >>> egdf = EGDF(tolerance=1e-12, opt_method='SLSQP', max_data_size=5000)
+            >>> egdf.fit(data)
+            >>> egdf.plot()
+            >>> print(egdf.params)
         
         Notes:
             - The initialization process does not perform any fitting; call fit(data) method afterwards
