@@ -290,7 +290,7 @@ class Z0Estimator:
         # error in mean
         self.logger.info("Computing error properties at estimated Z0.")
         self._compute_error_properties_for_mean(self.z0)
-        self.logger.info(f"Estimated Z0: {self.z0:.6f}")
+        self.logger.info(f"Estimated Z0.")
         return self.z0
         
 
@@ -319,7 +319,7 @@ class Z0Estimator:
             self.z0 = self._find_z0_advanced_median(closest_idx, di_points, dist_points, target_value)
             
             method_used = self._get_last_method_used()
-            self.logger.info(f"Advanced estimation complete. Method: {method_used}, Z0: {self.z0:.8f}")
+            self.logger.info(f"Advanced estimation complete. Method: {method_used}")
         else:
             self.z0 = closest_location
             
@@ -334,7 +334,7 @@ class Z0Estimator:
                 'target_type': 'median (0.5)'
             }
 
-            self.logger.info(f"Simple estimation: Using discrete closest to 0.5 at Z0={self.z0:.6f}")
+            self.logger.info(f"Simple estimation: Using discrete closest to 0.5")
 
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
@@ -385,7 +385,7 @@ class Z0Estimator:
                 'target_type': 'pdf_maximum'
             }
 
-            self.logger.info(f"Simple estimation: Using discrete PDF maximum at Z0={self.z0:.6f}")
+            self.logger.info(f"Simple estimation: Using discrete PDF maximum at Z0")
 
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
