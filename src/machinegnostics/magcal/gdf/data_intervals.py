@@ -314,9 +314,9 @@ class DataIntervals:
         try:
             self._argument_validation()
 
-            self.logger.info("\nDataIntervals: Fit process started.")
+            self.logger.info("Fit process started.")
             self._reset_results()
-    
+
             # Scan intervals and extract boundaries
             self._scan_intervals()
             self._extract_intervals_with_ordering()
