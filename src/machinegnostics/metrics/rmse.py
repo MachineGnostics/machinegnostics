@@ -25,6 +25,16 @@ def root_mean_squared_error(y_true: np.ndarray, y_pred: np.ndarray, verbose: boo
     float
         Square root of the average of squared errors.
 
+    Examples
+    --------
+    Example 1: Basic usage with simple arrays
+    >>> import numpy as np
+    >>> from machinegnostics.metrics import root_mean_squared_error
+    >>> y_true = np.array([3, -0.5, 2, 7])
+    >>> y_pred = np.array([2.5, 0.0, 2, 8])
+    >>> rmse = root_mean_squared_error(y_true, y_pred, verbose=True)
+    >>> print(f"RMSE: {rmse}")
+
     Raises
     ------
     TypeError
@@ -34,23 +44,23 @@ def root_mean_squared_error(y_true: np.ndarray, y_pred: np.ndarray, verbose: boo
     """
     logger = get_logger('RMSE', level=logging.WARNING if not verbose else logging.INFO)
     logger.info("Calculating Root Mean Squared Error...")
-    # Validate input types
-    if not isinstance(y_true, (list, np.ndarray)):
-        logger.error("y_true must be array-like.")
-        raise TypeError("y_true must be array-like.")
-    if not isinstance(y_pred, (list, np.ndarray)):
-        logger.error("y_pred must be array-like.")
-        raise TypeError("y_pred must be array-like.")
-    # Validate input shapes
-    # if np.ndim(y_true) > 1:
-    #     logger.error("y_true must be a 1D array.")
-    #     raise ValueError("y_true must be a 1D array.")
-    # if np.ndim(y_pred) > 1:
-    #     logger.error("y_pred must be a 1D array.")
-    #     raise ValueError("y_pred must be a 1D array.")
-    # if np.shape(y_true) != np.shape(y_pred):
-    #     logger.error("y_true and y_pred must have the same shape.")
-    #     raise ValueError("y_true and y_pred must have the same shape.")
+    # Convert to numpy arrays and flatten
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    # Ensure 1D arrays (one column)
+    if y_true.ndim != 1:
+        logger.error("y_true must be a 1D array (single column).")
+        raise ValueError("y_true must be a 1D array (single column).")
+    if y_pred.ndim != 1:
+        logger.error("y_pred must be a 1D array (single column).")
+        raise ValueError("y_pred must be a 1D array (single column).")
+
+    # Validate shapes
+    if y_true.shape != y_pred.shape:
+        logger.error("y_true and y_pred must have the same shape.")
+        raise ValueError("y_true and y_pred must have the same shape.")
+
     if len(y_true) == 0:
         logger.error("y_true and y_pred must not be empty.")
         raise ValueError("y_true and y_pred must not be empty.")
@@ -60,10 +70,6 @@ def root_mean_squared_error(y_true: np.ndarray, y_pred: np.ndarray, verbose: boo
     if np.any(np.isinf(y_true)) or np.any(np.isinf(y_pred)):
         logger.error("y_true and y_pred must not contain Inf values.")
         raise ValueError("y_true and y_pred must not contain Inf values.")
-
-    # Convert to numpy arrays and flatten
-    y_true = np.asarray(y_true).flatten()
-    y_pred = np.asarray(y_pred).flatten()
 
     # Compute RMSE
     rmse = float(np.sqrt(mean((y_true - y_pred) ** 2)))

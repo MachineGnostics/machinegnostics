@@ -12,29 +12,17 @@ from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 
-def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose: bool = False) -> float:
+def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = False) -> float:
     """
-    Calculate the Gnostic correlation coefficient between two data samples.
-
-    The Gnostic correlation metric is based on the principles of gnostic theory, which
-    provides robust estimates of data correlations. This metric leverages the concepts
-    of estimating irrelevances and quantifying irrelevances, which are robust measures
-    of data uncertainty. These irrelevances are aggregated differently:
-
-    - Quantifying irrelevances are aggregated additively as hyperbolic sines.
-    - Estimating irrelevances are aggregated as trigonometric sines.
-
-    Both types of irrelevances converge to linear errors of observed data in cases of
-    weak uncertainty. The product of quantifying irrelevances and estimating irrelevances
-    serves as a generalization of data products. Normalized estimates of their means
-    provide robust estimates of correlations.
+    Calculate the Gnostic correlation coefficient between a feature array X and a target array y.
 
     Parameters:
     ----------
-    data_1 : np.ndarray
-        The first data sample. Must be a D numpy array without NaN or Inf values.
-    data_2 : np.ndarray
-        The second data sample. Must be a 1D numpy array without NaN or Inf values.
+    X : np.ndarray
+        The feature data sample. Must be a numpy array without NaN or Inf values.
+        If X has more than one column, pass each column one by one to this function.
+    y : np.ndarray
+        The target data sample. Must be a 1D numpy array without NaN or Inf values.
     case : str, optional, default='i'
         Specifies the type of geometry to use:
         - 'i': Estimation geometry (EGDF).
@@ -52,10 +40,17 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     Example 1: Compute correlation for two simple datasets
     >>> import numpy as np
     >>> from machinegnostics.metrics import correlation
-    >>> data_1 = np.array([1, 2, 3, 4, 5])
-    >>> data_2 = np.array([5, 4, 3, 2, 1])
-    >>> corr = correlation(data_1, data_2, case='i', verbose=False)
+    >>> X = np.array([1, 2, 3, 4, 5])
+    >>> y = np.array([5, 4, 3, 2, 1])
+    >>> corr = correlation(X, y, case='i', verbose=False)
     >>> print(f"Correlation (case='i'): {corr}")
+
+    Example 2: For multi-column X
+    >>> X = np.array([[1, 10], [2, 20], [3, 30], [4, 40], [5, 50]])
+    >>> y = np.array([5, 4, 3, 2, 1])
+    >>> for i in range(X.shape[1]):
+    ...     corr = correlation(X[:, i], y)
+    ...     print(f"Correlation for column {i}: {corr}")
 
     Raises:
     ------
@@ -65,6 +60,8 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
 
     Notes:
     -----
+    - If X has more than one column, pass each column separately (e.g., X[:, i]).
+    - y must be a 1D array.
     - This metric is robust to data uncertainty and provides meaningful estimates even
       in the presence of noise or outliers.
     - Ensure that the input data is preprocessed and cleaned for optimal results.
@@ -75,119 +72,107 @@ def correlation(data_1: np.ndarray, data_2: np.ndarray, case: str = 'i', verbose
     logger.info("Starting correlation computation.")
 
     # Validate inputs
-    if len(data_1) != len(data_2):
-        logger.error("Input arrays must have the same length.")
-        raise ValueError("Input arrays must have the same length.")
-    if len(data_1) == 0 or len(data_2) == 0:
-        logger.error("Input arrays must not be empty.")
-        raise ValueError("Input arrays must not be empty.")
-    if not isinstance(data_1, np.ndarray) or not isinstance(data_2, np.ndarray):
+    if not isinstance(X, np.ndarray) or not isinstance(y, np.ndarray):
         logger.error("Inputs must be numpy arrays.")
         raise ValueError("Inputs must be numpy arrays.")
-    # if data_2.ndim != 1 or data_1.ndim != 1:
-    #     logger.error("Input arrays must be 1D.")
-    #     raise ValueError("Input arrays must be 1D.")
-    # avoid inf and nan in data
-    if np.any(np.isnan(data_1)) or np.any(np.isnan(data_2)):
+
+    # Flatten X and y to 1D if possible
+    X = X.flatten()
+    y = y.flatten()
+
+    if len(X) != len(y):
+        logger.error("Input arrays must have the same length.")
+        raise ValueError("Input arrays must have the same length.")
+    if len(X) == 0 or len(y) == 0:
+        logger.error("Input arrays must not be empty.")
+        raise ValueError("Input arrays must not be empty.")
+    if np.any(np.isnan(X)) or np.any(np.isnan(y)):
         logger.error("Input arrays must not contain NaN values.")
         raise ValueError("Input arrays must not contain NaN values.")
-    if np.any(np.isinf(data_1)) or np.any(np.isinf(data_2)):
+    if np.any(np.isinf(X)) or np.any(np.isinf(y)):
         logger.error("Input arrays must not contain Inf values.")
         raise ValueError("Input arrays must not contain Inf values.")
     if case not in ['i', 'j']:
         logger.error("Case must be 'i' for estimation geometry or 'j' for quantifying geometry.")
         raise ValueError("Case must be 'i' for estimation geometry or 'j' for quantifying geometry.")
-    # flatten the arrays if they are not 1D
-    data_1 = data_1.flatten()
-    data_2 = data_2.flatten()
+
     # default arg
     FLUSH = False
     VERBOSE = False
-    
+
+    # ...existing code logic, replacing data_1 with X and data_2 with y...
     if case == 'i':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        # EGDF 
-        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE)
-        egdf_data_1.fit(data_1)
+        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_X.fit(X)
 
-        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE)
-        egdf_data_2.fit(data_2)
+        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_y.fit(y)
 
-        # Data Homogeneity
         logger.info("Performing data homogeneity check.")
-        dh_data_1 = DataHomogeneity(gdf=egdf_data_1, verbose=VERBOSE, flush=FLUSH)
-        is_homo_data_1 = dh_data_1.fit()
+        dh_X = DataHomogeneity(gdf=egdf_X, verbose=VERBOSE, flush=FLUSH)
+        is_homo_X = dh_X.fit()
 
-        dh_data_2 = DataHomogeneity(gdf=egdf_data_2, verbose=VERBOSE, flush=FLUSH)
-        is_homo_data_2 = dh_data_2.fit()
+        dh_y = DataHomogeneity(gdf=egdf_y, verbose=VERBOSE, flush=FLUSH)
+        is_homo_y = dh_y.fit()
 
-        # check
-        if not is_homo_data_1:
-            logger.warning("Data 1 is not homogeneous. Switching to S=1 for better results.")
+        if not is_homo_X:
+            logger.warning("X is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
-            egdf_data_1.fit(data_1)
+            egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_X.fit(X)
 
-        if not is_homo_data_2:
-            logger.warning("Data 2 is not homogeneous. Switching to S=1 for better results.")
+        if not is_homo_y:
+            logger.warning("y is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
-            egdf_data_2.fit(data_2)
+            egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_y.fit(y)
 
-        # get irrelevance of the data sample
-        hc_data_1 = np.mean(egdf_data_1.hi, axis=0)
-        hc_data_2 = np.mean(egdf_data_2.hi, axis=0)
+        hc_X = np.mean(egdf_X.hi, axis=0)
+        hc_y = np.mean(egdf_y.hi, axis=0)
 
     if case == 'j':
-        # EGDF 
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE)
-        egdf_data_1.fit(data_1)
+        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_X.fit(X)
 
-        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE)
-        egdf_data_2.fit(data_2)
+        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_y.fit(y)
 
-        # data homogeneity
         logger.info("Checking data homogeneity.")
-        dh_data_1 = DataHomogeneity(gdf=egdf_data_1, verbose=VERBOSE, flush=FLUSH)
-        is_homo_data_1 = dh_data_1.fit()
+        dh_X = DataHomogeneity(gdf=egdf_X, verbose=VERBOSE, flush=FLUSH)
+        is_homo_X = dh_X.fit()
 
-        dh_data_2 = DataHomogeneity(gdf=egdf_data_2, verbose=VERBOSE, flush=FLUSH)
-        is_homo_data_2 = dh_data_2.fit()
+        dh_y = DataHomogeneity(gdf=egdf_y, verbose=VERBOSE, flush=FLUSH)
+        is_homo_y = dh_y.fit()
 
-        # homogeneity check
-        if not is_homo_data_1:
-            logger.warning("Data 1 is not homogeneous. Switching to S=1 for better results.")
-        if not is_homo_data_2:
-            logger.warning("Data 2 is not homogeneous. Switching to S=1 for better results.")
+        if not is_homo_X:
+            logger.warning("X is not homogeneous. Switching to S=1 for better results.")
+        if not is_homo_y:
+            logger.warning("y is not homogeneous. Switching to S=1 for better results.")
 
-        # QGDF
         logger.info("Using Quantification Global Distribution Function (QGDF) for correlation computation.")
-        qgdf_data_1 = QGDF(flush=FLUSH, verbose=VERBOSE, S=1)
-        qgdf_data_1.fit(data_1)
+        qgdf_X = QGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+        qgdf_X.fit(X)
 
-        qgdf_data_2 = QGDF(flush=FLUSH, verbose=VERBOSE)
-        qgdf_data_2.fit(data_2)
+        qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE)
+        qgdf_y.fit(y)
 
-        # get irrelevance of the data sample
-        hc_data_1 = np.mean(qgdf_data_1.hj, axis=0)
-        hc_data_2 = np.mean(qgdf_data_2.hj, axis=0)
+        hc_X = np.mean(qgdf_X.hj, axis=0)
+        hc_y = np.mean(qgdf_y.hj, axis=0)
 
-        # stop overflow by limiting big value in hc up to 1e12
-        hc_data_1 = np.clip(hc_data_1, 1, 1e12)
-        hc_data_2 = np.clip(hc_data_2, 1, 1e12)
+        hc_X = np.clip(hc_X, 1, 1e12)
+        hc_y = np.clip(hc_y, 1, 1e12)
 
-    # Compute correlation
-    def compute_correlation(hc_data_1: np.ndarray, hc_data_2: np.ndarray) -> float:
+    def compute_correlation(hc_X: np.ndarray, hc_y: np.ndarray) -> float:
         logger.info("Computing correlation.")
-        numerator = np.sum(hc_data_1 * hc_data_2)
-        denominator = (np.sqrt(np.sum(hc_data_1**2)) * np.sqrt(np.sum(hc_data_2**2))) 
+        numerator = np.sum(hc_X * hc_y)
+        denominator = (np.sqrt(np.sum(hc_X**2)) * np.sqrt(np.sum(hc_y**2))) 
         corr = numerator / denominator
         if denominator == 0:
             return np.nan
         return corr
-    
-    # Compute correlation
-    corr = compute_correlation(hc_data_1, hc_data_2)
+
+    corr = compute_correlation(hc_X, hc_y)
     logger.info("Correlation computed successfully.")
     return corr
