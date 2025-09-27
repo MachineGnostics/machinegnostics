@@ -59,6 +59,9 @@ def mean(data: np.ndarray,
     """
     logger = get_logger('mean', level=logging.WARNING if not verbose else logging.INFO)
     logger.info("Calculating gnostic mean...")
+
+    # flatten data
+    data = np.asarray(data).flatten()
     # Validate input
     if not isinstance(data, np.ndarray):
         logger.error("Input must be a numpy array.")

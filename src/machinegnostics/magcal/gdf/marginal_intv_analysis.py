@@ -371,7 +371,7 @@ class IntervalAnalysis:
             # final check on homogeneity, raise warning, that cannot converted to homogeneous, check data
             if not is_homogeneous_2:
                 warning_msg = "Data is not homogeneous after re-estimation."
-                warning_msg += "Switching S=1, to improve stability of interval analysis. Advised to process with outliers and re-run OR set S value manually."
+                warning_msg += "Suggested to switch S=1, to improve stability of interval analysis. Advised to process with outliers and re-run OR set S value manually."
                 self._add_warning(warning_msg)
                 if self.catch:
                     self.params['warnings'].append(warning_msg)
@@ -386,7 +386,7 @@ class IntervalAnalysis:
                 'DUB': self.DUB,
                 'LB': self.LB,
                 'UB': self.UB,
-                'S': self.S if (is_homogeneous_1 and self.S == 'auto') else 1, # for non-homogeneous data, set S=1
+                'S': self.S, #if (is_homogeneous_1 and self.S == 'auto') else 1, # for non-homogeneous data, set S=1
                 'z0_optimize': self.z0_optimize,
                 'tolerance': self.tolerance,
                 'data_form': self.data_form,
