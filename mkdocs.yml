@@ -1,0 +1,15 @@
+site_name: ManGo - Machine Gnostics
+site_description: A python library for machine learning and data science based on non-statistical methods.
+site_author: Nirmal Parmar
+
+theme:
+  name: material
+  logo: images/logo.png
+  palette:
+    scheme: slate  # Optional but highly recommended theme
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Foundation: foundation.md
+  - Usage: usage.md
