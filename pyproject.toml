@@ -11,7 +11,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 
 authors = [
-  { name = "Nirmal Parmar", email = "nirmalparmarphd@gmail.com" }
+  { name = "Nirmal Parmar", email = "info.machinegnostics@gmail.com" }
 ]
 maintainers = [
   { name = "Nirmal Parmar", email = "info.machinegnostics@gmail.com" }
