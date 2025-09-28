@@ -209,7 +209,7 @@ plt.show()
 
 - **Still Stuck**
 
-  - [Contact us](contact.md) or open an issue on [GitHub](https://github.com/MachineGnostics/machinegnostics).
+  - [Contact us](https://machinegnostics.info/contact/) or open an issue on [GitHub](https://github.com/MachineGnostics/machinegnostics).
 
 ---
 
