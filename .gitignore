@@ -177,6 +177,10 @@ tests/models/mlruns
 # tests/exm
 examples/mlruns
 tests/checks/
+tests/exm/
+tests/exm/*.ipynb
+docs/*
+tests/*
 
 # take out old dist func
 .DS_Store
