@@ -202,9 +202,11 @@ plt.show()
   ```cmd
   pip install --upgrade pip
   ```
-- **Install from a Clean Environment:**If you encounter conflicts, try creating a fresh virtual environment and reinstalling.
-- **Check Your Internet Connection:**Download errors often result from network issues. Make sure you are connected.
-- **Permission Issues:**If you see permission errors, avoid using `sudo pip install`. Instead, use a virtual environment.
+
+**Install from a Clean Environment:** If you encounter conflicts, try creating a fresh virtual environment and reinstalling.
+**Check Your Internet Connection:** Download errors often result from network issues. Make sure you are connected.
+**Permission Issues:** If you see permission errors, avoid using `sudo pip install`. Instead, use a virtual environment.
+
 - **Still Stuck**
 
   - [Contact us](contact.md) or open an issue on [GitHub](https://github.com/MachineGnostics/machinegnostics).
