@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machinegnostics"
-version = "0.0.24"
+version = "0.0.1"
 description = "Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from Mathematical Gnostics, the non-statistical and deterministic approach. Laws of Nature, Encoded—For Everyone!"
 
 readme = "README.md"
 requires-python = ">=3.9"
 
 authors = [
-  { name="Nirmal Parmar", email="info.machinegnostics@gmail.com" },
+  { name = "Nirmal Parmar", email = "nirmalparmarphd@gmail.com" }
+]
+maintainers = [
+  { name = "Nirmal Parmar", email = "info.machinegnostics@gmail.com" }
 ]
 
 classifiers = [
@@ -53,3 +56,4 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/MachineGnostics"
 Issues = "https://github.com/MachineGnostics/machinegnostics"
+Website = "https://machinegnostics.info/"
