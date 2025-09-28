@@ -15,10 +15,10 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', verbose: bool = 
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
 
     i  - for estimating gnostic relevance
-        For case 'i': Range [0, 1]. Close to zero indicates less relevance
+        For case 'i': Range [0, 1]. Close to one indicates less relevance
     
     j  - for estimating gnostic irrelevance
-        For case 'j': Range [1, ∞) (measures strength of relationship). Close to 1 indicates less irrelevance.
+        For case 'j': Range [0, ∞) (measures strength of relationship). Close to 1 indicates less irrelevance.
 
     The HC metric is used to evaluate the performance of a model by comparing
     the predicted values with the true values's relevance or irrelevance.
