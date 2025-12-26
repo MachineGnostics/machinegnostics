@@ -139,20 +139,13 @@ class DistFuncEngine:
     4. Regularization weight is global (could be parameter-specific)
     5. No adaptive optimization strategy based on problem characteristics
     
-    TODO/FUTURE IMPROVEMENTS:
-    =========================
-    1. Add support for custom bounds per parameter
-    2. Implement multi-start optimization for better global convergence
-    3. Add automatic hyperparameter tuning based on problem size
-    4. Consider using more advanced optimizers (e.g., differential evolution)
-    5. Add optimization warm-starting from previous results
     """
     
     # Class constants for optimization bounds
     # These bounds are derived from practical experience with ManGo data
     _OPTIMIZATION_BOUNDS = {
-        'S_MIN': 0.05,      # Below this, numerical instability in distribution functions
-        'S_MAX': 100.0,     # Above this, diminishing returns and numerical issues
+        'S_MIN': 0.1,      # Below this, numerical instability in distribution functions
+        'S_MAX': 10.0,     # Above this, diminishing returns and numerical issues
         'LB_MIN': 1e-6,     # Practical lower limit for meaningful bounds
         'LB_MAX': np.exp(-1.000001),  # Slightly less than e^-1 to avoid edge case
         'UB_MIN': np.exp(1.000001),   # Slightly more than e^1 to avoid edge case  
@@ -177,9 +170,9 @@ class DistFuncEngine:
                  UB: float = None,
                  LB_init: float = None,
                  UB_init: float = None,
-                 tolerance: float = 1e-3,
+                 tolerance: float = 1e-6,
                  opt_method: str = 'L-BFGS-B',
-                 max_iterations: int = 10000,
+                 max_iterations: int = 100000,
                  regularization_weight: float = None,
                  verbose: bool = False,
                  catch_errors: bool = True):
@@ -440,275 +433,130 @@ class DistFuncEngine:
             return 'use_provided'
 
     def _optimize_all_parameters(self) -> Tuple[float, float, float]:
-        """Optimize all parameters (S, LB, UB) using normalized parameter space."""
-        self.logger.info("Optimizing all parameters (S, LB, UB)...")
-            
-        bounds = self._OPTIMIZATION_BOUNDS
-        
-        def normalize_params(s, lb, ub):
-            s_norm = (s - bounds['S_MIN']) / (bounds['S_MAX'] - bounds['S_MIN'])
-            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return np.array([s_norm, lb_norm, ub_norm])
-        
-        def denormalize_params(norm_params):
-            s_norm, lb_norm, ub_norm = norm_params
-            s = bounds['S_MIN'] + s_norm * (bounds['S_MAX'] - bounds['S_MIN'])
-            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return s, lb, ub
-        
-        def objective_function(norm_params):
+        """Simple robust optimization of S, LB, UB using direct parameter space."""
+        self.logger.info("Optimizing all parameters (S, LB, UB) [simple version]...")
+    
+        bounds = [
+            (self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX']),
+            (self._OPTIMIZATION_BOUNDS['LB_MIN'], self._OPTIMIZATION_BOUNDS['LB_MAX']),
+            (self._OPTIMIZATION_BOUNDS['UB_MIN'], self._OPTIMIZATION_BOUNDS['UB_MAX']),
+        ]
+    
+        def objective(params):
+            s, lb, ub = params
+            if s <= 0.1 or lb >= ub:
+                return 1e8  # Penalize invalid region
             try:
-                s, lb, ub = denormalize_params(norm_params)
-                
-                # Check parameter validity
-                if s <= 0 or ub <= lb:
-                    return 1e6
-                
-                # Compute distribution values
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                
-                # Calculate loss
-                diff = np.mean(np.abs(dist_values - self.target_values) * self.weights)
-                
-                # Add regularization
-                regularization = np.sum(norm_params)
-                total_loss = diff + regularization
-                
-                if self.verbose and hasattr(self, '_opt_iteration'):
-                    self._opt_iteration += 1
-                    if self._opt_iteration % 50 == 0:
-                        self.logger.debug(f"  Iteration {self._opt_iteration}: Loss={diff:.6f}, Total={total_loss:.6f}, "
-                              f"S={s:.3f}, LB={lb:.6f}, UB={ub:.3f}")
-                
-                return total_loss
-                
+                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                return loss
             except Exception as e:
-                error_msg = f"Objective function failed: {str(e)}"
-                self.logger.error(error_msg)
-                self.optimization_errors.append({
-                    'method': '_optimize_all_parameters.objective_function',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__,
-                    'parameters': norm_params.tolist() if hasattr(norm_params, 'tolist') else list(norm_params)
-                })
+                self.logger.error(f"Objective failed: {e}")
                 return 1e6
-        
-        # Set initial values
-        s_init = 1
-        lb_init = self.LB_init if self.LB_init is not None else bounds['LB_MIN'] * 10
-        ub_init = self.UB_init if self.UB_init is not None else bounds['UB_MIN'] * 10
-        
-        # Ensure valid initial bounds
-        if lb_init >= ub_init:
-            lb_init = bounds['LB_MIN'] * 10
-            ub_init = bounds['UB_MIN'] * 10
-            
-        initial_params = normalize_params(s_init, lb_init, ub_init)
-        norm_bounds = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)]
-        
+    
+        # Reasonable initial guess
+        s0 = 10
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] * 10
+        ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
+    
+        x0 = [s0, lb0, ub0]
+    
         try:
-            if self.verbose:
-                self._opt_iteration = 0
-                
             result = minimize(
-                objective_function,
-                initial_params,
+                objective,
+                x0,
+                bounds=bounds,
                 method=self.opt_method,
-                bounds=norm_bounds,
-                options={'maxiter': self.max_iterations, 'ftol': self.tolerance},
-                tol=self.tolerance
+                options={'maxiter': self.max_iterations, 'ftol': self.tolerance}
             )
-            
-            s_opt, lb_opt, ub_opt = denormalize_params(result.x)
-            
-            # Validate results
+            s_opt, lb_opt, ub_opt = result.x
             if lb_opt >= ub_opt or s_opt <= 0:
                 self.logger.warning("Invalid optimized parameters, using fallback")
                 return self._get_fallback_parameters()
-            
-            # Store optimization info
-            self.optimization_results['all_params_optimization'] = {
-                'success': result.success,
-                'fun': float(result.fun),
-                'nit': int(result.nit),
-                'message': result.message
-            }
-            
             return s_opt, lb_opt, ub_opt
-            
         except Exception as e:
-            error_msg = f"All parameters optimization failed: {str(e)}"
-            self.logger.error(error_msg)
-            self.optimization_errors.append({
-                'method': '_optimize_all_parameters',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-                
+            self.logger.error(f"Optimization failed: {e}")
             return self._get_fallback_parameters()
+
 
     def _optimize_s_parameter(self, lb: float, ub: float) -> float:
         """Optimize only S parameter with fixed bounds."""
-        self.logger.info("Optimizing S parameter...")
+        self.logger.info("Optimizing S parameter (with fixed LB, UB)...")
 
-        def objective_function(s_array):
+        bounds = [(self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX'])]
+
+        def objective(s_array):
+            s = s_array[0]
+            if s <= 0:
+                return 1e8
             try:
-                s = s_array[0]
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                diff = np.mean(np.abs(dist_values - self.target_values) * self.weights)
-
-                self.logger.debug(f"  S optimization - Loss: {diff:.6f}, S: {s:.3f}")
-
-                return diff
-                
+                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                return loss
             except Exception as e:
-                error_msg = f"S optimization objective failed: {str(e)}"
-                self.logger.error(error_msg)
-                self.optimization_errors.append({
-                    'method': '_optimize_s_parameter.objective_function',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__
-                })
+                self.logger.error(f"S objective failed: {e}")
                 return 1e6
-        
-        bounds = self._OPTIMIZATION_BOUNDS
-        s_bounds = [(bounds['S_MIN'], bounds['S_MAX'])]
-        
+
         try:
             result = minimize(
-                objective_function,
+                objective,
                 [1.0],  # Initial S value
-                bounds=s_bounds,
+                bounds=bounds,
                 method=self.opt_method,
                 options={'maxiter': 1000, 'ftol': self.tolerance}
             )
-            
-            # Store optimization info
-            self.optimization_results['s_optimization'] = {
-                'success': result.success,
-                'fun': float(result.fun),
-                'nit': int(result.nit),
-                'message': result.message
-            }
-            
-            return result.x[0]
-            
+            s_opt = result.x[0]
+            if s_opt <= 0:
+                self.logger.warning("Invalid optimized S, using fallback")
+                return self._FALLBACK_VALUES['S']
+            return s_opt
         except Exception as e:
-            error_msg = f"S parameter optimization failed: {str(e)}"
-            self.logger.error(error_msg)
-            self.optimization_errors.append({
-                'method': '_optimize_s_parameter',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            
-                
+            self.logger.error(f"S optimization failed: {e}")
             return self._FALLBACK_VALUES['S']
 
     def _optimize_bounds_parameters(self, s: float) -> Tuple[float, float, float]:
         """Optimize LB and UB parameters with fixed S."""
-        self.logger.info("Optimizing LB and UB parameters...")
+        self.logger.info("Optimizing LB and UB parameters (with fixed S)...")
 
-        bounds = self._OPTIMIZATION_BOUNDS
-        
-        def normalize_bounds(lb, ub):
-            lb_norm = (lb - bounds['LB_MIN']) / (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub_norm = (ub - bounds['UB_MIN']) / (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return np.array([lb_norm, ub_norm])
-        
-        def denormalize_bounds(norm_params):
-            lb_norm, ub_norm = norm_params
-            lb = bounds['LB_MIN'] + lb_norm * (bounds['LB_MAX'] - bounds['LB_MIN'])
-            ub = bounds['UB_MIN'] + ub_norm * (bounds['UB_MAX'] - bounds['UB_MIN'])
-            return lb, ub
-        
-        def objective_function(norm_params):
+        bounds = [
+            (self._OPTIMIZATION_BOUNDS['LB_MIN'], self._OPTIMIZATION_BOUNDS['LB_MAX']),
+            (self._OPTIMIZATION_BOUNDS['UB_MIN'], self._OPTIMIZATION_BOUNDS['UB_MAX']),
+        ]
+
+        def objective(params):
+            lb, ub = params
+            if lb >= ub:
+                return 1e8  # Penalize invalid region
             try:
-                lb, ub = denormalize_bounds(norm_params)
-                
-                if lb <= 0 or ub <= lb:
-                    return 1e6
-                
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                diff = np.mean(np.abs(dist_values - self.target_values) * self.weights)
-                
-                # Add regularization
-                regularization = np.sum(norm_params**2)
-                total_loss = diff + regularization
-
-                # print only 50th iteration
-                if self.verbose and hasattr(self, '_opt_iteration'):
-                    self._opt_iteration += 1
-                    if self._opt_iteration % 50 == 0:
-                        self.logger.debug(f"  Iteration {self._opt_iteration}: Loss={diff:.6f}, Total={total_loss:.6f}, "
-                              f"LB={lb:.6f}, UB={ub:.3f}")
-
-                return total_loss
-                
+                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                return loss
             except Exception as e:
-                error_msg = f"Bounds optimization objective failed: {str(e)}"
-                self.optimization_errors.append({
-                    'method': '_optimize_bounds_parameters.objective_function',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__
-                })
+                self.logger.error(f"Bounds objective failed: {e}")
                 return 1e6
-        
-        # Set initial values
-        lb_init = self.LB_init if self.LB_init is not None else bounds['LB_MIN'] * 10
-        ub_init = self.UB_init if self.UB_init is not None else bounds['UB_MIN'] * 10
-        
-        # Ensure valid bounds
-        lb_init = np.clip(lb_init, bounds['LB_MIN'], bounds['LB_MAX'])
-        ub_init = np.clip(ub_init, bounds['UB_MIN'], bounds['UB_MAX'])
-        
-        if lb_init >= ub_init:
-            lb_init = bounds['LB_MIN'] * 10
-            ub_init = bounds['UB_MIN'] * 10
-        
-        initial_params = normalize_bounds(lb_init, ub_init)
-        norm_bounds = [(0.0, 1.0), (0.0, 1.0)]
-        
+
+        # Reasonable initial guess
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] * 10
+        ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
+
+        x0 = [lb0, ub0]
+
         try:
             result = minimize(
-                objective_function,
-                initial_params,
+                objective,
+                x0,
+                bounds=bounds,
                 method=self.opt_method,
-                bounds=norm_bounds,
-                options={'maxiter': self.max_iterations, 'ftol': self.tolerance},
-                tol=self.tolerance
+                options={'maxiter': self.max_iterations, 'ftol': self.tolerance}
             )
-            
-            lb_opt, ub_opt = denormalize_bounds(result.x)
-            
-            # Validate results
+            lb_opt, ub_opt = result.x
             if lb_opt >= ub_opt:
-                if self.verbose:
-                    self.logger.warning("Warning - Invalid optimized bounds, using initial values")
-                return s, lb_init, ub_init
-            
-            # Store optimization info
-            self.optimization_results['bounds_optimization'] = {
-                'success': result.success,
-                'fun': float(result.fun),
-                'nit': int(result.nit),
-                'message': result.message
-            }
-            
+                self.logger.warning("Invalid optimized bounds, using fallback")
+                return s, lb0, ub0
             return s, lb_opt, ub_opt
-            
         except Exception as e:
-            error_msg = f"Bounds optimization failed: {str(e)}"
-            self.logger.error(error_msg)
-            self.optimization_errors.append({
-                'method': '_optimize_bounds_parameters',
-                'error': error_msg,
-                'exception_type': type(e).__name__
-            })
-            
-            return s, lb_init, ub_init
+            self.logger.error(f"Bounds optimization failed: {e}")
+            return s, lb0, ub0
 
     def _get_fallback_parameters(self) -> Tuple[float, float, float]:
         """Get fallback parameters when optimization fails."""
