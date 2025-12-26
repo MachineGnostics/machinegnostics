@@ -170,7 +170,7 @@ class DistFuncEngine:
                  UB: float = None,
                  LB_init: float = None,
                  UB_init: float = None,
-                 tolerance: float = 1e-6,
+                 tolerance: float = 1e-9,
                  opt_method: str = 'L-BFGS-B',
                  max_iterations: int = 100000,
                  regularization_weight: float = None,
@@ -456,7 +456,7 @@ class DistFuncEngine:
     
         # Reasonable initial guess
         s0 = 10
-        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] * 10
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] / 10
         ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
     
         x0 = [s0, lb0, ub0]
