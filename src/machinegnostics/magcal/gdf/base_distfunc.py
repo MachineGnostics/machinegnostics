@@ -746,6 +746,50 @@ class BaseDistFuncCompute(BaseDistFunc):
             self.LB_opt = self.LB_init
             self.UB_opt = self.UB_init
 
+    def _determine_optimization_strategy_eldf(self, egdf: bool = True):
+        """Determine optimization strategy for S, LB, and UB."""
+        self.logger.info("Determining optimization strategy for S, LB, and UB.")
+        try:
+            self.logger.info("Initializing optimization Engine...")
+                
+            # For EGDF and QGDF optimization Engine
+            engine = DistFuncEngine(
+                compute_func=self._compute_egdf_core if egdf else self._compute_qgdf_core, # NOTE switch between egdf and qgdf
+                target_values=self.df_values,
+                weights=self.weights,
+                S='auto', # S is always auto for ELDF and QLDF, manual argument replace S-local value
+                LB=self.LB,
+                UB=self.UB,
+                LB_init=self.LB_init,
+                UB_init=self.UB_init,
+                tolerance=self.tolerance,
+                opt_method=self.opt_method,
+                max_iterations=10000, # Engine will set default
+                regularization_weight=None, # Engine will set default
+                verbose=self.verbose,
+                catch_errors=self.catch
+            )
+
+            results = engine.optimize(wedf=self.wedf)
+            self.S_opt = results['S']
+            self.LB_opt = results['LB']
+            self.UB_opt = results['UB']
+
+        except Exception as e:
+            error_msg = f"Optimization strategy determination failed: {str(e)}"
+            self.logger.error(error_msg)
+            self.params['errors'].append({
+                'method': '_determine_optimization_strategy',
+                'error': error_msg,
+                'exception_type': type(e).__name__
+            })
+            self.logger.error(error_msg)
+            # Fallback to initial values
+            self.logger.info("Falling back to initial values for S, LB, and UB.")
+            self.S_opt = self.S if isinstance(self.S, (int, float)) else 1.0
+            self.LB_opt = self.LB_init
+            self.UB_opt = self.UB_init
+
 
     def _transform_bounds_to_original_domain(self):
         """Transform optimized bounds back to original domain."""
