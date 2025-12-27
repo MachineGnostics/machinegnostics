@@ -346,9 +346,13 @@ class DistFuncEngine:
             self.logger.error("LB must be less than UB when both are provided")
             raise ValueError("LB must be less than UB when both are provided")
 
-    def optimize(self) -> Dict[str, float]:
+    def optimize(self, wedf: bool = False) -> Dict[str, float]:
         """
         Main optimization method. Determines strategy and optimizes parameters.
+
+        Args:
+        -----
+        wedf: WEDF vs KSDF calculation switch. This will also change S-global calculation between S-global-KS and S-global-ME.
         
         Returns:
         --------
@@ -365,13 +369,13 @@ class DistFuncEngine:
 
             # Execute optimization based on strategy
             if strategy == 'optimize_all':
-                self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters()
+                self.S_opt, self.LB_opt, self.UB_opt = self._optimize_all_parameters(wedf=wedf)
             elif strategy == 'optimize_s_only':
-                self.S_opt = self._optimize_s_parameter(self.LB_init, self.UB_init)
+                self.S_opt = self._optimize_s_parameter(self.LB_init, self.UB_init, wedf=wedf)
                 self.LB_opt = self.LB_init
                 self.UB_opt = self.UB_init
             elif strategy == 'optimize_bounds_only':
-                _, self.LB_opt, self.UB_opt = self._optimize_bounds_parameters(self.S)
+                _, self.LB_opt, self.UB_opt = self._optimize_bounds_parameters(self.S, wedf=wedf)
                 self.S_opt = self.S
             else:  # use_provided
                 self.S_opt = self.S if isinstance(self.S, (int, float)) else self._FALLBACK_VALUES['S']
@@ -432,7 +436,7 @@ class DistFuncEngine:
             self.UB_init = self.UB_init
             return 'use_provided'
 
-    def _optimize_all_parameters(self) -> Tuple[float, float, float]:
+    def _optimize_all_parameters(self, wedf:bool = False) -> Tuple[float, float, float]:
         """Simple robust optimization of S, LB, UB using direct parameter space."""
         self.logger.info("Optimizing all parameters (S, LB, UB) [simple version]...")
     
@@ -448,14 +452,23 @@ class DistFuncEngine:
                 return 1e8  # Penalize invalid region
             try:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                
+                if not wedf:
+                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
+                    # S_global_KS
+                    loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
+                else:
+                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
+                    # S_global_ME
+                    f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
+                    loss = - np.sum(f_E)
                 return loss
             except Exception as e:
                 self.logger.error(f"Objective failed: {e}")
                 return 1e6
     
         # Reasonable initial guess
-        s0 = 10
+        s0 = 0.1
         lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] / 10
         ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
     
@@ -479,7 +492,7 @@ class DistFuncEngine:
             return self._get_fallback_parameters()
 
 
-    def _optimize_s_parameter(self, lb: float, ub: float) -> float:
+    def _optimize_s_parameter(self, lb: float, ub: float, wedf: bool = False) -> float:
         """Optimize only S parameter with fixed bounds."""
         self.logger.info("Optimizing S parameter (with fixed LB, UB)...")
 
@@ -491,7 +504,15 @@ class DistFuncEngine:
                 return 1e8
             try:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                if not wedf:
+                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
+                    # S_global_KS
+                    loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
+                else:
+                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
+                    # S_global_ME
+                    f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
+                    loss = - np.sum(f_E)
                 return loss
             except Exception as e:
                 self.logger.error(f"S objective failed: {e}")
@@ -500,7 +521,7 @@ class DistFuncEngine:
         try:
             result = minimize(
                 objective,
-                [1.0],  # Initial S value
+                [0.1],  # Initial S value
                 bounds=bounds,
                 method=self.opt_method,
                 options={'maxiter': 1000, 'ftol': self.tolerance}
@@ -514,7 +535,7 @@ class DistFuncEngine:
             self.logger.error(f"S optimization failed: {e}")
             return self._FALLBACK_VALUES['S']
 
-    def _optimize_bounds_parameters(self, s: float) -> Tuple[float, float, float]:
+    def _optimize_bounds_parameters(self, s: float, wedf: bool = False) -> Tuple[float, float, float]:
         """Optimize LB and UB parameters with fixed S."""
         self.logger.info("Optimizing LB and UB parameters (with fixed S)...")
 
@@ -529,14 +550,22 @@ class DistFuncEngine:
                 return 1e8  # Penalize invalid region
             try:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
-                loss = np.mean((dist_values - self.target_values) ** 2 * self.weights)
+                if not wedf:
+                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
+                    # S_global_KS
+                    loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
+                else:
+                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
+                    # S_global_ME
+                    f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
+                    loss = - np.sum(f_E)
                 return loss
             except Exception as e:
                 self.logger.error(f"Bounds objective failed: {e}")
                 return 1e6
 
         # Reasonable initial guess
-        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] * 10
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] / 10
         ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
 
         x0 = [lb0, ub0]
