@@ -34,7 +34,7 @@ class EGDF(BaseEGDF):
         n_points (int): Number of points to generate in the distribution function (default: 500).
         catch (bool): Whether to store intermediate calculated values (default: True).
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
-        wedf (bool): Whether to use Weighted Empirical Distribution Function (default: False).
+        wedf (bool): Whether to use Weighted Empirical Distribution Function or Kolmogorov-Smirnov Distribution Function with a Gnostic S-global-KS approach (default: False).
         opt_method (str): Optimization method for parameter estimation (default: 'L-BFGS-B').
         tolerance (float): Convergence tolerance for optimization (default: 1e-9).
         verbose (bool): Whether to print detailed progress information (default: False).
@@ -153,8 +153,7 @@ class EGDF(BaseEGDF):
                                           as data array when fit() is called. If None, uniform weights 
                                           (all ones) are used. Weights should be positive values.
             wedf (bool, optional): Whether to use Weighted Empirical Distribution Function in
-                                 calculations. Default is False. When True, incorporates weights
-                                 into the empirical distribution estimation.
+                                 calculations. Default is False. Default it uses Kolmogorov-Smirnov Distribution Function along with a Gnostic S-global-KS approach.
             opt_method (str, optional): Optimization method for parameter estimation. Default is
                                       'L-BFGS-B'. Other options include 'SLSQP', 'TNC', etc.
                                       Must be a valid scipy.optimize method name.
