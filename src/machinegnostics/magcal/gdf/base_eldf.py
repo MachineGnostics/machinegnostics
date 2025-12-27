@@ -120,7 +120,7 @@ class BaseELDF(BaseEGDF):
             
             # Step 4: Parameter optimization
             self.logger.info("Optimizing parameters...")
-            self._determine_optimization_strategy()
+            self._determine_optimization_strategy_eldf()
             
             # Step 5: Calculate final ELDF and PDF
             self.logger.info("Computing final ELDF and PDF values...")
@@ -214,6 +214,28 @@ class BaseELDF(BaseEGDF):
         eldf_values = (1 - mean_irrelevance) / 2
 
         return eldf_values.flatten()
+    
+    def _calculate_S_local(self):
+        """Calculate local S values for varying S estimation."""
+        self.logger.info("Calculating local S parameter value...")
+        # calculating arithmetic mean of data
+        data_mean = np.median(self.data)
+        # convert data mean to z domain
+        if self.data_form == 'a':
+            z_data_mean = DataConversion._convert_az(data_mean, self.DLB, self.DUB)
+        else:
+            z_data_mean = DataConversion._convert_mz(data_mean, self.DLB, self.DUB)
+        # convert to finite infinite domain
+        zi_mean = DataConversion._convert_fininf(z_data_mean, self.LB_opt, self.UB_opt)
+        # calculate R local
+        R_local = self.zi.reshape(-1, 1) / (zi_mean + self._NUMERICAL_EPS)
+        gc = GnosticsCharacteristics(R=R_local, verbose=self.verbose)
+        q, q1 = gc._get_q_q1(S=1.0)  # initial S=1.0
+        fi_mean = np.mean(gc._fi(q=q, q1=q1))
+        # calculate S local
+        scale = ScaleParam(verbose=self.verbose)
+        S_local = scale._gscale_loc(F=fi_mean)
+        return S_local
 
     def _compute_final_results(self):
         """Compute the final results for the ELDF model."""
@@ -222,8 +244,14 @@ class BaseELDF(BaseEGDF):
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         self.zi = zi_d
 
+        # calculate S local
+        if isinstance(self.S, (int, float)):
+            self.S_local = self.S
+        else:
+            self.S_local = self._calculate_S_local()
+
         # Calculate ELDF and get moments
-        eldf_values, fi, hi = self._compute_eldf_core(self.S_opt, self.LB_opt, self.UB_opt)
+        eldf_values, fi, hi = self._compute_eldf_core(self.S_local, self.LB_opt, self.UB_opt)
 
         # Store for derivative calculations
         self.fi = fi
@@ -238,7 +266,7 @@ class BaseELDF(BaseEGDF):
                 'eldf': self.eldf.copy(),
                 'pdf': self.pdf.copy(),
                 'zi': self.zi.copy(),
-                # 'S_var': self.S_var.copy() if self.varS else None
+                'S_local': float(self.S_local),
             })
 
     def _compute_eldf_pdf(self, fi, hi):
@@ -248,7 +276,7 @@ class BaseELDF(BaseEGDF):
 
         # fi_mean
         fi_mean = np.sum(weights * fi, axis=0) / np.sum(weights)
-        pdf_values = ((fi_mean)**2)/(self.S_opt)
+        pdf_values = ((fi_mean)**2)/(self.S_local)
         return pdf_values.flatten()
 
     def _generate_smooth_curves(self):
@@ -258,7 +286,7 @@ class BaseELDF(BaseEGDF):
             self.logger.info("Generating smooth curves without varying S...")
 
             smooth_eldf, self.smooth_fi, self.smooth_hi = self._compute_eldf_core(
-                self.S_opt, self.LB_opt, self.UB_opt,
+                self.S_local, self.LB_opt, self.UB_opt,
                 zi_data=self.z_points_n, zi_eval=self.z
             )
             smooth_pdf = self._compute_eldf_pdf(self.smooth_fi, self.smooth_hi) 
@@ -469,7 +497,7 @@ class BaseELDF(BaseEGDF):
         fh = (self.fi**2) * self.hi
         
         # Weight and scale by S^2
-        weighted_fh = fh * (weights / (self.S_opt**2))
+        weighted_fh = fh * (weights / (self.S_local**2))
         
         # Sum over data points
         second_derivative = 4 * np.sum(weighted_fh, axis=0) / np.sum(weights)
@@ -496,7 +524,7 @@ class BaseELDF(BaseEGDF):
         
         # Calculate the expression: 8 * (2 * f^2 * h^2 - f^4) * (W / S^3)
         expression = 2 * f2h2 - f4
-        weighted_expression = expression * (weights / (self.S_opt**3))
+        weighted_expression = expression * (weights / (self.S_local**3))
         
         # Sum over data points
         third_derivative = 8 * np.sum(weighted_expression, axis=0) / np.sum(weights)
@@ -525,7 +553,7 @@ class BaseELDF(BaseEGDF):
         f4h = (f2**2) * h  # f^4 * h
         
         # Weight and scale by (2/S)^4
-        scale_factor = (2 / self.S_opt)**4
+        scale_factor = (2 / self.S_local)**4
         weighted_f2h3 = f2h3 * (weights * scale_factor)
         weighted_f4h = f4h * (weights * scale_factor)
         
@@ -689,7 +717,7 @@ class BaseELDF(BaseEGDF):
 
         # Get characteristics
         gc = GnosticsCharacteristics(R=R, verbose=self.verbose)
-        q, q1 = gc._get_q_q1(S=self.S_opt)
+        q, q1 = gc._get_q_q1(S=self.S_local)
         
         # Store fidelities and irrelevances
         self.fi = gc._fi(q=q, q1=q1)
