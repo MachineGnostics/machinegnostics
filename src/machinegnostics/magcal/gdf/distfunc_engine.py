@@ -10,6 +10,7 @@ Key Design Decisions:
 - Strategy-based optimization (auto-detect what needs optimization)
 - Comprehensive error handling with fallback mechanisms
 - Modular design for easy extension to new distribution functions
+- S global optimization options (KS-based and ME-based) with KSDF/WEDF targets.
 
 Performance Considerations:
 - Uses scipy.optimize.minimize with L-BFGS-B for bounded optimization
