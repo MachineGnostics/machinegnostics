@@ -202,7 +202,7 @@ class BaseDistFuncCompute(BaseDistFunc):
                 raise ValueError(error_msg)
             
             # S parameter validation
-            if not isinstance(self.S, (int, float, str)):
+            if not isinstance(self.S, (int, float, str, np.ndarray)):
                 error_msg = "S must be a numeric positive value or 'auto'."
                 self.logger.error(error_msg)
                 self.params['errors'].append({
@@ -824,7 +824,7 @@ class BaseDistFuncCompute(BaseDistFunc):
             if hasattr(self, attr):
                 delattr(self, attr)
 
-        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points', 'qldf_points', 'qgdf_points']
+        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points', 'qldf_points', 'qgdf_points', 'S_var_points']
 
         for param in long_array_params:
             if param in self.params:
