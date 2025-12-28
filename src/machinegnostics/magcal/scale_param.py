@@ -10,8 +10,7 @@ ideas:
 - VarS
 '''
 import numpy as np
-from machinegnostics.magcal import GnosticsCharacteristics
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 
@@ -97,114 +96,6 @@ class ScaleParam():
             return np.array([_single_scale(f) for f in F])
 
 
-    # def var_s(self, Z, W=None, S=1):
-    #     """
-    #     Calculates vector of scale parameters for each kernel.
-        
-    #     Parameters:
-    #     Z (array-like): Data vector
-    #     W (array-like, optional): Weight vector
-    #     S (float, optional): Scalar scale factor (default is 1)
-        
-    #     Returns:
-    #     numpy.ndarray: Scale vector (same length as Z)
-    #     """
-    #     Z = np.asarray(Z).reshape(-1, 1)
-
-    #     if W is None:
-    #         W = np.ones_like(Z) / len(Z)
-    #     else:
-    #         W = np.asarray(W).reshape(-1, 1)
-    #         if len(Z) != len(W):
-    #             raise ValueError("Z and W must be of the same length")
-    #         W = W / np.sum(W)
-
-    #     Sz = np.zeros_like(Z, dtype=float)
-
-    #     for k in range(len(W)):
-    #         V = Z / Z[k]
-    #         V = V ** (2/S) + 1.0 / (V ** (2/S))
-    #         Sz[k] = self._gscale_loc(np.sum(2.0 / V * W))
-
-    #     Sx = S * Sz / np.mean(Sz)
-    #     return Sx
-
-    def var_s(self, Z, W=None, S=1):
-        """
-        Calculate a vector of scale parameters for each kernel in the distribution.
-        
-        This method computes individualized scale parameters for each data point, allowing
-        for adaptive scaling in gnostic estimations. It handles numerical edge cases to
-        ensure stability.
-        
-        Parameters
-        ----------
-        Z : array-like
-            Data vector containing the values for which to calculate scale parameters.
-        W : array-like, optional
-            Weight vector for each data point. If not provided, uniform weights are used.
-        S : float, optional
-            Base scalar scale factor, default is 1.
-            
-        Returns
-        -------
-        ndarray
-            Vector of scale parameters, one for each element in Z.
-            
-        Raises
-        ------
-        ValueError
-            If Z and W are provided but have different lengths.
-            
-        Notes
-        -----
-        The method calculates relative relationships between data points and applies
-        the local scale parameter calculation for each point. For each data point k,
-        it computes a ratio V of all data points relative to Z[k], then calculates
-        a transformation of this ratio to determine the local scale parameter.
-        
-        The implementation includes safeguards against division by zero and handles
-        edge cases to ensure numerical stability. In case of invalid calculations,
-        it falls back to the default scale parameter.
-        """
-        self.logger.info("Calculating local scale parameters...")
-        Z = np.asarray(Z).reshape(-1, 1)
-    
-        if W is None:
-            W = np.ones_like(Z) / len(Z)
-        else:
-            W = np.asarray(W).reshape(-1, 1)
-            if len(Z) != len(W):
-                raise ValueError("Z and W must be of the same length")
-            W = W / np.sum(W)
-    
-        Sz = np.zeros_like(Z, dtype=float)
-        
-        # Small value to prevent division by zero
-        eps = np.finfo(float).eps * 100
-    
-        for k in range(len(W)):
-            # Skip calculation if Z[k] is too close to zero
-            if abs(Z[k]) < eps:
-                Sz[k] = S  # Use default S value
-                continue
-                
-            # Safe division with epsilon to prevent division by zero
-            V = Z / (Z[k] + (Z[k]==0)*eps)
-            V = V ** 2 + 1.0 / (V ** 2 + eps)
-            
-            # Calculate sum and ensure it's valid
-            sum_val = np.sum(2.0 / V * W)
-            if np.isnan(sum_val) or np.isinf(sum_val):
-                Sz[k] = S  # Use default S value
-            else:
-                Sz[k] = self._gscale_loc(sum_val)
-        
-        # Check for any remaining NaN values and replace them
-        Sz[np.isnan(Sz)] = S
-        self.logger.info("Local scale parameters calculation complete.")
-        return Sz
-
     def estimate_global_scale_egdf(self, Fk, Ek, tolerance=0.1):
         """
         Estimate the optimal global scale parameter S_optimize to find minimum S where fidelity is maximized.
@@ -284,30 +175,139 @@ class ScaleParam():
             self.logger.error("Failed to find optimal scale parameter.")
             raise RuntimeError("Failed to find optimal scale parameter.")
         
-    # def _gscale_loc(self, F):
-    #     '''
-    #     For internal use only
+    def estimate_varS(self, data, zi, gdf, tdf, weights, S_global: float) -> np.ndarray:
+        """
+        Estimate variable scale parameters for kernel-based estimation.
+    
+        Parameters
+        ----------
+        data : array-like
+            Input data points.
+        weights : array-like, optional
+            Weights corresponding to data points (default is None, equal weights).
+        S_global : float
+            Global scale parameter to base variable scales on.
+        gdf : Gnostic Distribution Function [ELDF/QGDF]
+            The gnostic distribution function to use EGDF or QGDF calculations.
+        tdf : Target Distribution Function
+            The target distribution function to compare against.
+    
+        Returns
+        -------
+        varS : ndarray
+            Estimated variable scale vector for each zi.
+        """
+        self.logger.info("Estimating variable scale parameters...")
 
-    #     calculates the local scale parameter for given calculated F at Scale = 1.
-    #     S with be in the same shape as F.
-    #     Solve for scale parameter using Newton-Raphson."
-    #     '''
-    #     m2pi = 2 / np.pi
-    #     sqrt2 = np.sqrt(2)
+        from machinegnostics.magcal import EGDF, QGDF
+    
+        data = np.asarray(data)
+
+        if weights is None:
+            weights = np.ones_like(data)
+        else:
+            weights = np.asarray(weights)
+
+    
+        def fidelity_loss(params):
+            S0, gamma = params
+            if S0 <= 0:
+                return 1e8  # Penalize invalid S0
+            S_vec = S0 * np.exp(gamma * zi)
+            if gdf == 'EGDF':
+                egdf = EGDF(verbose=False, S=S_vec)
+                egdf.fit(data)
+                egdf_vals = egdf.egdf
+                wedf_values = tdf
+            else:  # gdf is QGDF
+                qgdf = QGDF(verbose=False, S=S_vec)
+                qgdf.fit(data)
+                qgdf_vals = qgdf.qgdf
+                wedf_values = tdf
+            
+            # Maximum Fidelity criterion (sum of fidelities)
+            f_E = 2 / ((egdf_vals / (wedf_values + 1e-12))**2 + (wedf_values / (egdf_vals + 1e-12))**2)
+            loss = -np.sum(f_E * weights)
+            return loss
+    
+        x0 = [S_global, 0.0]
+        bounds = [(1e-6, 1e3), (-2, 2)]
+    
+        result = minimize(
+            fidelity_loss,
+            x0,
+            bounds=bounds,
+            method='L-BFGS-B',
+            options={'maxiter': 1000, 'ftol': 1e-6}
+        )
+    
+        S0_opt, gamma_opt = result.x
+        varS = S0_opt * np.exp(gamma_opt * zi)
         
-    #     if F < m2pi * sqrt2 / 3:
-    #         S = np.pi
-    #     elif F < m2pi:
-    #         S = 3 * np.pi / 4
-    #     elif F < m2pi * sqrt2:
-    #         S = np.pi / 2
-    #     else:
-    #         S = np.pi / 4
+        # Store optimal parameters
+        self.S0 = S0_opt
+        self.gamma = gamma_opt
+        self.varS = varS
 
-    #     epsilon = 1e-5
-    #     for _ in range(100):
-    #         delta = (np.sin(S) - S * F) / (np.cos(S) - F)
-    #         S -= delta
-    #         if abs(delta) < epsilon:
-    #             break
-    #     return S * m2pi
+        self.logger.info(f"Variable scale parameter estimation complete.")
+        return self.varS
+
+
+
+# # ...existing code...
+#         self.logger.info("Estimating variable scale parameters...")
+
+#         from machinegnostics.magcal import EGDF, QGDF
+    
+#         data = np.asarray(data)
+#         zi = np.asarray(zi)
+
+#         if weights is None:
+#             weights = np.ones_like(data)
+#         else:
+#             weights = np.asarray(weights)
+
+#         # Derive adaptive bounds from zi span and desired variation K
+#         zi_min, zi_max = float(np.min(zi)), float(np.max(zi))
+#         zi_span = max(1e-9, zi_max - zi_min)
+
+#         K = 5.0  # desired max multiplicative change in S across the zi span
+#         gamma_bound = np.log(K) / zi_span
+
+#         S_min = max(1e-6, S_global / 10.0)
+#         S_max = S_global * 10.0
+
+#         def fidelity_loss(params):
+#             S0, gamma = params
+#             if S0 <= 0:
+#                 return 1e8  # Penalize invalid S0
+#             # Keep S within safe range to avoid numerical issues
+#             S_vec = np.clip(S0 * np.exp(gamma * zi), S_min, S_max)
+
+#             if gdf == 'EGDF':
+#                 egdf = EGDF(verbose=False, S=S_vec)
+#                 egdf.fit(data)
+#                 egdf_vals = egdf.egdf
+#                 wedf_values = tdf
+#             else:  # gdf is QGDF
+#                 qgdf = QGDF(verbose=False, S=S_vec)
+#                 qgdf.fit(data)
+#                 qgdf_vals = qgdf.qgdf
+#                 wedf_values = tdf
+            
+#             eps = 1e-12
+#             f_E = 2.0 / ((egdf_vals / (wedf_values + eps))**2 + (wedf_values / (egdf_vals + eps))**2)
+#             loss = -np.sum(f_E * weights)
+#             return loss
+    
+#         x0 = [S_global, 0.0]
+#         bounds = [(S_min, S_max), (-gamma_bound, gamma_bound)]
+    
+#         result = minimize(
+#             fidelity_loss,
+#             x0,
+#             bounds=bounds,
+#             method='L-BFGS-B',
+#             options={'maxiter': 1000, 'ftol': 1e-3}
+#         )
+# # ...existing code...
