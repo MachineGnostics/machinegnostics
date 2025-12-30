@@ -323,8 +323,8 @@ class BaseQGDF(BaseDistFuncCompute):
         # Clip to reasonable range to prevent further overflow/underflow
         h_gq_final = np.clip(h_gq_final, -10, 10)
         
-        # Calculate QGDF using the processed hGQ values
-        qgdf_from_hgq = (1 + h_gq_final) / 2
+        # Calculate QGDF using the processed hGQ values (minus form per definition)
+        qgdf_from_hgq = (1 - h_gq_final) / 2
         
         # Also calculate using direct ratio as backup with small value protection
         mean_fidelity_safe = np.where(np.abs(mean_fidelity) < min_safe_value,
@@ -451,105 +451,65 @@ class BaseQGDF(BaseDistFuncCompute):
     
     def _calculate_pdf_from_moments(self, fidelities, irrelevances):
         self.logger.info("Calculating PDF from moments.")
-        """Calculate PDF from fidelities and irrelevances with corrected mathematical formulation."""
-        self.logger.info("Calculating PDF from moments")
+        """Calculate PDF using definition: dQG/dZ0 = (1/(S*Z0)) * [1 - (h̄Q/f̄Q)^2]."""
         if fidelities is None or irrelevances is None:
-            # log error
             self.logger.error("Fidelities and irrelevances must be calculated first.")
             raise ValueError("Fidelities and irrelevances must be calculated first")
-        
-        weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
-        
-        # Numerical stability constants
-        max_safe_value = np.sqrt(np.finfo(float).max) / 10
-        min_safe_value = np.sqrt(np.finfo(float).eps) * 100
-        
-        def safe_clip_for_pdf(values, name="values"):
-            """Safely clip values for PDF calculations."""
-            values_magnitude = np.abs(values)
-            too_small_mask = values_magnitude < min_safe_value
-            too_large_mask = values_magnitude > max_safe_value
-            
-            values_safe = np.where(too_small_mask, 
-                                  np.sign(values) * min_safe_value, values)
-            values_safe = np.where(too_large_mask, 
-                                  np.sign(values_safe) * max_safe_value, values_safe)
-            return values_safe
-        
-        # Apply clipping
-        fidelities_safe = safe_clip_for_pdf(fidelities, "fidelity")
-        irrelevances_safe = safe_clip_for_pdf(irrelevances, "irrelevance")
-        
-        # Calculate weighted means
-        mean_fidelity = np.sum(weights * fidelities_safe, axis=0) / np.sum(weights)  # f̄Q
-        mean_irrelevance = np.sum(weights * irrelevances_safe, axis=0) / np.sum(weights)  # h̄Q
-        
-        # Apply safety to means
-        mean_fidelity = safe_clip_for_pdf(mean_fidelity, "mean_fidelity")
-        mean_irrelevance = safe_clip_for_pdf(mean_irrelevance, "mean_irrelevance")
-        
-        # CORRECTED PDF CALCULATION FOR QGDF
-        # The PDF should be the derivative of QGDF with respect to the data points
-        # Based on QGDF = (1 + h_GQ)/2, where h_GQ = h̄Q/√(f̄Q² - h̄Q²)/√(1 + (h̄Q/√(f̄Q² - h̄Q²))²)
-        
+
+        # Weights
+        weights = self._computation_cache['weights_normalized']
+        if weights is None:
+            self.logger.warning("Weights not normalized in cache; falling back to self.weights.")
+            weights = self.weights
+        weights = weights.reshape(-1, 1)
+
+        # Numeric guards
+        eps = np.finfo(float).eps
+        min_safe = np.sqrt(eps)
+
+        # Weighted means
+        mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
+        mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
+
+        # Guard small fidelity
+        mean_fidelity_safe = np.where(np.abs(mean_fidelity) < min_safe,
+                                      np.sign(mean_fidelity) * min_safe,
+                                      mean_fidelity)
+        ratio = mean_irrelevance / mean_fidelity_safe
+        # Optional tight clamp for stability without distorting theory
+        ratio = np.clip(ratio, -1 + 1e-12, 1 - 1e-12)
+
+        # Select Z0 vector based on context
+        Z0_used = None
+        try:
+            # If computed over evaluation grid (smooth curves)
+            if hasattr(self, 'z_points_n') and fidelities.shape[1] == len(self.z_points_n):
+                Z0_used = self.z_points_n
+            # Else if computed directly over transformed data
+            elif hasattr(self, 'z') and fidelities.shape[1] == len(self.z):
+                Z0_used = self.z
+        except Exception:
+            Z0_used = None
+
+        # Fallback to scalar z0 if available; else ones
+        if Z0_used is None:
+            if hasattr(self, 'z0') and self.z0 is not None:
+                Z0_used = np.full_like(ratio, fill_value=float(self.z0), dtype=float)
+            else:
+                Z0_used = np.ones_like(ratio, dtype=float)
+
+        # Guard small Z0
+        Z0_used_safe = np.where(np.abs(Z0_used) < min_safe,
+                                np.sign(Z0_used) * min_safe,
+                                Z0_used)
+
         S_value = self.S_opt if hasattr(self, 'S_opt') else 1.0
-        
-        # Calculate the denominator √(f̄Q² - h̄Q²) with protection
-        mean_fidelity_safe = np.where(np.abs(mean_fidelity) < min_safe_value,
-                                     np.sign(mean_fidelity) * min_safe_value, mean_fidelity)
-        
-        # For QGDF, the correct mathematical relationship is different from what's implemented
-        # The PDF should be derived from d(QGDF)/dz, not from an empirical ratio formula
-        
-        # Corrected approach: Use the mathematical derivative of the QGDF equation
-        # d(QGDF)/dz = (1/2) * d(h_GQ)/dz
-        
-        # Calculate h_Z,j = h̄Q / √(f̄Q² - h̄Q²)
-        denominator_squared = mean_fidelity_safe**2 - mean_irrelevance**2
-        
-        # Ensure denominator is positive and safe
-        denominator_squared = np.maximum(denominator_squared, min_safe_value)
-        denominator = np.sqrt(denominator_squared)
-        
-        h_zj = mean_irrelevance / denominator
-        
-        # Clip h_zj to avoid overflow
-        h_zj = np.clip(h_zj, 1, 1e12)
-        
-        # Calculate h_GQ = h_Z,j / √(1 + h_Z,j²)
-        h_zj_squared = np.minimum(h_zj**2, max_safe_value)  # Prevent overflow
-        h_gq_denominator = np.sqrt(1 + h_zj_squared)
-        h_gq = h_zj / h_gq_denominator
-        
-        # For PDF calculation, we need the derivative of h_GQ with respect to z
-        # This involves second-order moments which should be calculated properly
-        
-        # Second order moments (this is where the original method had issues)
-        f2 = np.sum(weights * fidelities_safe**2, axis=0) / np.sum(weights)
-        h2 = np.sum(weights * irrelevances_safe**2, axis=0) / np.sum(weights)
-        fh = np.sum(weights * fidelities_safe * irrelevances_safe, axis=0) / np.sum(weights)
-        
-        # Apply safety to second moments
-        f2 = safe_clip_for_pdf(f2, "f2")
-        h2 = safe_clip_for_pdf(h2, "h2") 
-        fh = safe_clip_for_pdf(fh, "fh")
-        
-        # Corrected PDF formula for QGDF:
-        # PDF = (1/S) * derivative_term where derivative_term comes from differentiating h_GQ
-        
-        # This is a simplified but more mathematically sound approach
-        # clip values to avoid overflow in multiplications [0, 1e12]
-        mean_irrelevance = np.clip(mean_irrelevance, 1, 1e12)
-        mean_fidelity = np.clip(mean_fidelity, 0, 1e12)
-        fh = np.clip(fh, -1e12, 1e12)
-        derivative_factor = f2 - h2 + mean_fidelity * mean_irrelevance * fh
-        
-        # Apply scaling and ensure positive values
-        pdf_values = (1 / S_value) * np.maximum(derivative_factor, min_safe_value)
-        
-        # Final clipping
-        pdf_values = np.clip(pdf_values, min_safe_value, max_safe_value)
-        
+        denom = S_value * Z0_used_safe
+        denom = np.where(np.abs(denom) < min_safe, np.sign(denom) * min_safe, denom)
+
+        pdf_values = (1.0 / denom) * (1.0 - ratio**2)
+        # Ensure finite values
+        pdf_values = np.where(np.isfinite(pdf_values), pdf_values, 0.0)
         return pdf_values.flatten()
 
     def _calculate_final_results(self):

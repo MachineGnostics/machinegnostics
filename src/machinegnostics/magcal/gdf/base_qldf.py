@@ -285,12 +285,9 @@ class BaseQLDF(BaseQGDF):
         fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)  # f̄Q
         hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
 
-        # hQL
-        hQL = hQ_mean / (np.sqrt(1 + hQ_mean**2) + self._NUMERICAL_EPS)
-
         # Apply equation (15.34): dQL/dZ₀ = (1/SZ₀) * f̄Q/((1 + (h̄Q)²)^(3/2))
-        # Note: We use S instead of SZ₀ for the scaling factor
-        denominator = (1 + hQL**2)**(3/2)
+        # Use h̄Q directly per citation (not hQL)
+        denominator = (1 + hQ_mean**2)**(3/2)
         
         # Handle division by zero
         eps = np.finfo(float).eps
@@ -1092,12 +1089,9 @@ class BaseQLDF(BaseQGDF):
         fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)  # f̄Q
         hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
 
-        # hQL
-        hQL = hQ_mean / (np.sqrt(1 + hQ_mean**2) + self._NUMERICAL_EPS)
-
         # Apply equation (15.34): dQL/dZ₀ = (1/SZ₀) * f̄Q/((1 + (h̄Q)²)^(3/2))
-        # Note: We use S instead of SZ₀ for the scaling factor
-        denominator = (1 + hQL**2)**(3/2)
+        # Use h̄Q directly per citation (not hQL)
+        denominator = (1 + hQ_mean**2)**(3/2)
         
         # Handle division by zero
         eps = np.finfo(float).eps
