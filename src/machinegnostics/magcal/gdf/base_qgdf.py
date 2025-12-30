@@ -38,7 +38,7 @@ class BaseQGDF(BaseDistFuncCompute):
                  UB: float = None,
                  S = 'auto',
                  z0_optimize: bool = True,
-                 tolerance: float = 1e-3,
+                 tolerance: float = 1e-6,
                  data_form: str = 'a',
                  n_points: int = 500,
                  homogeneous: bool = True,
