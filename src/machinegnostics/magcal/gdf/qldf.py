@@ -98,7 +98,7 @@ class QLDF(BaseQLDF):
                  DUB: float = None,
                  LB: float = None,
                  UB: float = None,
-                 S = 1,
+                 S = 'auto',
                  varS: bool = False,
                  z0_optimize: bool = True,
                  tolerance: float = 1e-9,
@@ -129,7 +129,7 @@ class QLDF(BaseQLDF):
             S (float or str, optional): Scale parameter for the distribution. If 'auto' is provided,
                                       the scale will be automatically estimated from the data during
                                       fitting. If a float is provided, it will be used as a fixed
-                                      scale parameter. Default is 1 for QLDF.
+                                      scale parameter. Default is 'auto' for QLDF.
             varS (bool, optional): Whether to allow variable scale parameter during optimization to handle heteroscedasticity.
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
             tolerance (float, optional): Convergence tolerance for the optimization process.
