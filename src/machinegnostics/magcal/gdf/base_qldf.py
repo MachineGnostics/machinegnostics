@@ -85,7 +85,7 @@ class BaseQLDF(BaseQGDF):
             self._store_initial_params()
 
         # Validate all inputs
-        # self._validate_inputs()
+        self._validate_inputs()
 
         # logger setup
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
@@ -120,7 +120,7 @@ class BaseQLDF(BaseQGDF):
             
             # Step 4: Parameter optimization
             self.logger.info("Optimizing parameters...")
-            self._determine_optimization_strategy(egdf=False)  # QLDF does not use egdf 
+            self._determine_optimization_strategy_eldf(egdf=False)  # QLDF does not use egdf 
             
             # Step 5: Calculate final QLDF and PDF
             self.logger.info("Computing final QLDF and PDF...")
@@ -221,31 +221,48 @@ class BaseQLDF(BaseQGDF):
 
         return qldf_values.flatten()
 
+    def _calculate_S_local(self):
+        """Calculate local S values for varying S estimation."""
+        self.logger.info("Calculating local S parameter value...")
+        # calculating arithmetic mean of data
+        data_mean = np.median(self.data)
+        # convert data mean to z domain
+        if self.data_form == 'a':
+            z_data_mean = DataConversion._convert_az(data_mean, self.DLB, self.DUB)
+        else:
+            z_data_mean = DataConversion._convert_mz(data_mean, self.DLB, self.DUB)
+        # convert to finite infinite domain
+        zi_mean = DataConversion._convert_fininf(z_data_mean, self.LB_opt, self.UB_opt)
+        # calculate R local
+        R_local = self.zi.reshape(-1, 1) / (zi_mean + self._NUMERICAL_EPS)
+        gc = GnosticsCharacteristics(R=R_local, verbose=self.verbose)
+        q, q1 = gc._get_q_q1(S=1.0)  # initial S=1.0
+        fi_mean = np.mean(gc._fi(q=q, q1=q1))
+        # calculate S local
+        scale = ScaleParam(verbose=self.verbose)
+        S_local = scale._gscale_loc(F=fi_mean)
+        return S_local
+
     def _compute_final_results(self):
         """Compute the final results for the QLDF model."""
-        self.logger.debug("Computing final QLDF results...")
+        self.logger.debug("Computing final QLDF and PDF results...")
 
         # Convert data to infinite domain
         zi_d = DataConversion._convert_fininf(self.z, self.LB_opt, self.UB_opt)
         self.zi = zi_d
 
+        # calculate S local
+        if isinstance(self.S, (int, float)):
+            self.S_local = self.S
+        else:
+            self.S_local = self._calculate_S_local()
+
         # Calculate QLDF and get moments
-        qldf_values, fj, hj = self._compute_qldf_core(self.S_opt, self.LB_opt, self.UB_opt)
+        qldf_values, fj, hj = self._compute_qldf_core(self.S_local, self.LB_opt, self.UB_opt)
 
         # Store for derivative calculations
         self.fj = fj  # quantifying fidelities
         self.hj = hj  # quantifying irrelevances
-
-        # # varS - Variable S parameter
-        # if self.varS:
-        #     fj_m = np.sum(self.fj * self.weights, axis=0) / np.sum(self.weights)
-        #     scale = ScaleParam()
-        #     self.S_var = np.abs(scale._gscale_loc(fj_m) * self.S_opt) # NOTE fi or fj?
-        #     # cap value for minimum S_var array
-        #     self.S_var = np.maximum(self.S_var, 0.1)
-        #     qldf_values, fj, hj = self._compute_qldf_core(self.S_var, self.LB_opt, self.UB_opt)
-        #     self.fj = fj
-        #     self.hj = hj
 
         self.qldf = qldf_values
         self.pdf = self._compute_qldf_pdf(self.fj, self.hj)
@@ -255,7 +272,7 @@ class BaseQLDF(BaseQGDF):
                 'qldf': self.qldf.copy(),
                 'pdf': self.pdf.copy(),
                 'zi': self.zi.copy(),
-                # 'S_var': self.S_var.copy() if self.varS else None
+                'S_local': float(self.S_local)
             })
 
     def _compute_qldf_pdf(self, fj, hj):
@@ -279,7 +296,7 @@ class BaseQLDF(BaseQGDF):
         eps = np.finfo(float).eps
         denominator = np.where(denominator == 0, eps, denominator)
 
-        pdf_values = (1 / self.S_opt) * fQ_mean / denominator
+        pdf_values = (1 / self.S_local) * fQ_mean / denominator
 
         return pdf_values.flatten()
 
@@ -292,7 +309,7 @@ class BaseQLDF(BaseQGDF):
                 self.logger.info("Generating smooth curves without varying S...")
 
             smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
-                self.S_opt, self.LB_opt, self.UB_opt,
+                self.S_local, self.LB_opt, self.UB_opt,
                 zi_data=self.z_points_n, zi_eval=self.z
             )
             smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj) 
@@ -925,32 +942,75 @@ class BaseQLDF(BaseQGDF):
     
     def _varS_calculation(self):
         """Calculate varS if enabled."""
-        self.logger.debug("Calculating varS for QLDF...")
+        self.logger.debug("Calculating varying S (varS)...")
 
-        from machinegnostics import variance
+        self.scale_engine = ScaleParam(verbose=self.verbose)
 
-        self.logger.info("Calculating varS for QLDF...")
-        # estimate fi hi at z0
-        gc, q, q1 = self._calculate_gcq_at_given_zi(self.z0)
+        def varS_objective(params):
+            self.S0, self.gamma = params
+            if self.S0 <= 0:
+                return 1e8  # Penalize non-physical values
+            S_vec = self.S0 * np.exp(self.gamma * self.zi)
 
-        fi_z0 = gc._fj(q=q, q1=q1)
+            # varsS calculation
+            # qldf initial calculation
+            qldf_values_varS, _, _ = self._compute_qldf_core(S_vec, self.LB_opt, self.UB_opt)
+            # maximum Fidelity
+            f_E = 2 / ((qldf_values_varS / (self.df_values + 1e-12))**2 + (self.df_values / (qldf_values_varS + 1e-12))**2)
+            loss = -np.sum(f_E * self.weights)
+            return loss
 
-        scale = ScaleParam()
-        self.S_local = scale._gscale_loc(fi_z0)
+        # NOTE: Initial guess and bounds, can be adjusted as needed or logic can be improved
+        x0 = [2, 0.0]  # Initial guess for S0 and gamma
+        bounds = [(0, 10), (-2, 2)]
+    
+        result = minimize(
+            varS_objective,
+            x0,
+            bounds=bounds,
+            method='L-BFGS-B',
+            options={'maxiter': 1000, 'ftol': 1e-6}
+        )
+    
+        S0_opt, gamma_opt = result.x
+        self.S_var = S0_opt * np.exp(gamma_opt * self.zi)
 
-        self.S_local = np.maximum(self.S_local, 0.1)  # cap value for minimum S_local array
+        # varS check
+        self.S_var = np.round(self.S_var, 1)
+        # minimum value 0.01
+        self.S_var = np.maximum(self.S_var, 0.01)
 
-        # # s0 # NOTE for future exploration
-        # self.S0, self.sigma = self._estimate_s0_sigma(
-        #     z0=self.z0,
-        #     s_local=fi_z0,
-        #     s_global=self.S_opt,
-        #     mode="sum"
-        # )
+        # If all values are same means homoscedastic data
+        scd_test = np.all(self.S_var == self.S_var[0])
+        self.logger.info(f"Varying S (varS) homoscedasticity test result: {'Homoscedastic' if scd_test else 'Heteroscedastic'}")
+        if scd_test:
+            # generate array with n_points, all values set to S_var[0]
+            self.S_var_points = np.full(self.n_points, self.S_var[0])
+        else:
+            # Remove duplicates in self.zi for interpolation
+            unique_zi, idx = np.unique(self.zi, return_inverse=True)
+            S_var_avg = np.zeros_like(unique_zi, dtype=float)
+            for i, uz in enumerate(unique_zi):
+                S_var_avg[i] = np.mean(self.S_var[idx == i])
+            # Interpolate S_var to n_points using cubic interpolation
+            from scipy.interpolate import interp1d
+            interp_func = interp1d(unique_zi, S_var_avg, kind='quadratic', fill_value="extrapolate")
+            self.S_var_points = interp_func(self.z_points_n)
+        
+        # saving to params
+        if self.catch:
+            self.params.update({
+                'Scadesticity_test': 'Homoscedastic' if scd_test else 'Heteroscedastic',
+                'S_var': self.S_var.copy(),
+                'S_var_points': self.S_var_points.copy(),
+                'S0_varS': float(self.S0),
+                'gamma_varS': float(self.gamma)
+            })
+    
+        self.logger.info("Varying S (varS) calculation completed.")
 
-        # Svar
-        self.S_var = self.S_local * self.S_opt
-        return self.S_var
+        return self.S_var, self.S_var_points
+        
 
     def _compute_final_results_varS(self):
         """Compute the final results for the QLDF model."""
@@ -964,7 +1024,7 @@ class BaseQLDF(BaseQGDF):
         self.hj = hj
 
         self.qldf = qldf_values
-        self.pdf = self._compute_qldf_pdf(self.fj, self.hj)
+        self.pdf = self._compute_qldf_pdf_varS(self.fj, self.hj, self.S_var)
         
         if self.catch:
             self.params.update({
@@ -981,13 +1041,16 @@ class BaseQLDF(BaseQGDF):
             self.logger.info("Generating smooth curves with varying S...")
 
             smooth_qldf, self.smooth_fj, self.smooth_hj = self._compute_qldf_core(
-                self.S_var, self.LB_opt, self.UB_opt,
+                self.S_var_points, self.LB_opt, self.UB_opt,
                 zi_data=self.z_points_n, zi_eval=self.z
             )
-            smooth_pdf = self._compute_qldf_pdf(self.smooth_fj, self.smooth_hj) 
+            smooth_pdf = self._compute_qldf_pdf_varS(self.smooth_fj, self.smooth_hj, self.S_var_points) 
         
             self.qldf_points = smooth_qldf
             self.pdf_points = smooth_pdf
+
+            # Store zi_n for derivative calculations
+            self.zi_n = DataConversion._convert_fininf(self.z_points_n, self.LB_opt, self.UB_opt)
             
             # Mark as generated
             self._computation_cache['smooth_curves_generated'] = True
@@ -1017,3 +1080,29 @@ class BaseQLDF(BaseQGDF):
             self.qldf_points = self.qldf.copy() if hasattr(self, 'qldf') else None
             self.pdf_points = self.pdf.copy() if hasattr(self, 'pdf') else None
             self._computation_cache['smooth_curves_generated'] = False
+
+
+    def _compute_qldf_pdf_varS(self, fj, hj, S):
+        """Compute the PDF for the QLDF model using equation (15.34): dQL/dZ₀ = (1/SZ₀) * f̄Q/((1 + (h̄Q)²)^(3/2))."""
+        self.logger.debug("Computing PDF for QLDF...")
+
+        weights = self.weights.reshape(-1, 1)
+
+        # Calculate weighted means of quantifying fidelities and irrelevances
+        fQ_mean = np.sum(weights * fj, axis=0) / np.sum(weights)  # f̄Q
+        hQ_mean = np.sum(weights * hj, axis=0) / np.sum(weights)  # h̄Q
+
+        # hQL
+        hQL = hQ_mean / (np.sqrt(1 + hQ_mean**2) + self._NUMERICAL_EPS)
+
+        # Apply equation (15.34): dQL/dZ₀ = (1/SZ₀) * f̄Q/((1 + (h̄Q)²)^(3/2))
+        # Note: We use S instead of SZ₀ for the scaling factor
+        denominator = (1 + hQL**2)**(3/2)
+        
+        # Handle division by zero
+        eps = np.finfo(float).eps
+        denominator = np.where(denominator == 0, eps, denominator)
+
+        pdf_values = (1 / S) * fQ_mean / denominator
+
+        return pdf_values.flatten()
