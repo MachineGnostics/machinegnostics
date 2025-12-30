@@ -811,7 +811,7 @@ class BaseELDF(BaseEGDF):
         self.S_var = S0_opt * np.exp(gamma_opt * self.zi)
 
         # varS check
-        self.S_var = np.round(self.S_var, 4)
+        self.S_var = np.round(self.S_var, 1)
         # minimum value 0.01
         self.S_var = np.maximum(self.S_var, 0.01)
 
