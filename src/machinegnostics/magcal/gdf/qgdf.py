@@ -97,7 +97,7 @@ class QGDF(BaseQGDF):
                  DUB: float = None,
                  LB: float = None,
                  UB: float = None,
-                 S = 1,
+                 S = 'auto',
                  z0_optimize: bool = True,
                  tolerance: float = 1e-9,
                  data_form: str = 'a',
@@ -127,7 +127,7 @@ class QGDF(BaseQGDF):
             S (float or str, optional): Scale parameter for the distribution. If 'auto' is provided,
                                       the scale will be automatically estimated from the data during
                                       fitting. If a float is provided, it will be used as a fixed
-                                      scale parameter. Default is 1 for QGDF.
+                                      scale parameter. Default is 'auto' for QGDF.
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
             tolerance (float, optional): Convergence tolerance for the optimization process.
             data_form (str, optional): Form of data processing. Options are:
