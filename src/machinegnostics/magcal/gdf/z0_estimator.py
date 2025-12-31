@@ -2,8 +2,7 @@
 Z0 Estimator - Universal class for estimating Z0 point for GDF distributions
 
 Z0 is the point where:
-- For EGDF/ELDF: PDF reaches its global maximum
-- For QLDF/QGDF: Distribution function equals 0.5 (median/50th percentile)
+- For EGDF, ELDF, QLDF, QGDF: PDF reaches its global maximum
 
 Author: Nirmal Parmar
 Machine Gnostics
@@ -19,8 +18,7 @@ class Z0Estimator:
     Universal Z0 estimator for all GDF (Gnostics Distribution Function) types.
     
     This class automatically detects the distribution type and finds the appropriate Z0 point:
-    - For EGDF/ELDF: Finds the point where PDF reaches its global maximum
-    - For QLDF/QGDF: Finds the point where the distribution function equals 0.5
+    - For all GDF types (EGDF, ELDF, QLDF, QGDF): Finds the point where the PDF reaches its global maximum
     
     The estimator uses multiple advanced methods including spline optimization, polynomial fitting,
     refined interpolation, and parabolic interpolation to achieve high accuracy.
@@ -39,7 +37,7 @@ class Z0Estimator:
         gdf_type (str): Detected distribution type ('egdf', 'eldf', 'qldf', 'qgdf')
         optimize (bool): Whether to use advanced optimization methods
         verbose (bool): Whether to print detailed progress information
-        find_median (bool): True for QLDF/QGDF (find 0.5 point), False for EGDF/ELDF (find PDF max)
+        find_median (bool): Deprecated. Always False; Z0 is the PDF maximum for all types.
         z0 (float): Estimated Z0 value (None until fit() is called)
         estimation_info (dict): Detailed information about the estimation process
     
@@ -60,7 +58,7 @@ class Z0Estimator:
         print(f"Z0 at PDF maximum: {z0}")
         ```
         
-        2. Q-distributions Usage:
+        2. Q-distributions Usage (same logic as E: PDF maximum):
         ```python
         from machinegnostics.magcal import QLDF
         from machinegnostics.magcal import Z0Estimator
@@ -69,10 +67,10 @@ class Z0Estimator:
         qldf = QLDF(data=your_data)
         qldf.fit()
         
-        # Estimate Z0 at median (0.5)
+        # Estimate Z0 at PDF maximum
         estimator = Z0Estimator(qldf, optimize=True, verbose=True)
         z0 = estimator.fit()
-        print(f"Z0 at median (0.5): {z0}")
+        print(f"Z0 at PDF maximum: {z0}")
         ```
         
         3. Simple vs Advanced Estimation:
@@ -95,10 +93,7 @@ class Z0Estimator:
         print(f"Distribution type: {info['gdf_type']}")
         
         # Check what the estimator is looking for
-        if estimator.find_median:
-            print("Looking for median (0.5 point)")
-        else:
-            print("Looking for PDF maximum")
+        print("Looking for PDF maximum")
         ```
         
         5. Visualization:
@@ -110,12 +105,7 @@ class Z0Estimator:
     
     Advanced Methods (when optimize=True):
         
-    For Q-distributions (median finding):
-        - Spline interpolation with root finding
-        - Linear interpolation between bracketing points
-        - Polynomial fitting with root solving
-        
-    For E-distributions (PDF maximum finding):
+    For PDF maximum finding (all types):
         - Spline optimization over entire domain
         - Polynomial fitting with critical point analysis
         - Refined interpolation with fine grid search
@@ -135,8 +125,7 @@ class Z0Estimator:
     
     Notes:
         - The GDF object must be fitted before passing to Z0Estimator
-        - For Q-distributions: finds where distribution function = 0.5 (median/50th percentile)
-        - For E-distributions: finds where PDF reaches its global maximum
+        - Z0 is the location where the PDF reaches its global maximum (mode)
         - Advanced methods are tried in order of sophistication and reliability
         - The estimated Z0 is automatically assigned back to the GDF object
         - All methods handle flat regions by finding the middle point
@@ -209,8 +198,8 @@ class Z0Estimator:
         self.optimize = optimize
         self.verbose = verbose
 
-        # Determine what we're looking for
-        self.find_median = self.gdf_type.lower() in ['qldf', 'qgdf']
+        # Determine what we're looking for (deprecated: always PDF maximum)
+        self.find_median = False
         
         # Results storage
         self.z0 = None
@@ -250,8 +239,7 @@ class Z0Estimator:
         """
         Estimate the Z0 point.
         
-        For EGDF/ELDF distributions, finds the point where PDF reaches its global maximum.
-        For QLDF/QGDF distributions, finds the point where the distribution function equals 0.5.
+        Finds the point where the PDF reaches its global maximum (all types).
         
         Returns:
             float: The estimated Z0 value
@@ -267,8 +255,7 @@ class Z0Estimator:
             >>> print(f"GDF Z0: {estimator.gdf.z0:.6f}")
         
         Notes:
-            - For Q-distributions: finds closest point to 0.5 in distribution function
-            - For E-distributions: finds PDF maximum (existing logic)
+            - Uses PDF maximum, with robust advanced and fallback methods
             - Advanced methods adapt to the target type automatically
             - The estimated Z0 is automatically assigned to the original GDF object
         """
@@ -280,68 +267,23 @@ class Z0Estimator:
             return self.z0
         
         self.logger.info("Fitting Z0 estimator.")
-        if self.find_median:
-            self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
-            self.z0 = self._fit_median()
-        else:
-            self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")  
-            self.z0 = self._fit_pdf_maximum()
+        self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} PDF reaches maximum")  
+        self.z0 = self._fit_pdf_maximum()
         
         # error in mean
         self.logger.info("Computing error properties at estimated Z0.")
-        self._compute_error_properties_for_mean(self.z0)
+        if self.z0 is not None:
+            self._compute_error_properties_for_mean(self.z0)
         self.logger.info(f"Estimated Z0.")
         return self.z0
         
 
     def _fit_median(self) -> float:
-        """Find Z0 where Q-distribution equals 0.5 (median)."""
-        self.logger.info(f"Finding Z0 where {self.gdf_type.upper()} = 0.5 (median)")
-
-        # Get distribution function points and data points
-        dist_points = self._get_distribution_points()
-        di_points = self._get_di_points()
-        
-        if len(dist_points) == 0:
-            self.logger.error("No distribution function data available for Z0 estimation")
-            raise ValueError("No distribution function data available for Z0 estimation")
-        
-        # Find the point closest to 0.5
-        target_value = 0.5
-        diff_from_target = np.abs(dist_points - target_value)
-        closest_idx = np.argmin(diff_from_target)
-        closest_value = dist_points[closest_idx]
-        closest_location = di_points[closest_idx]
-
-        self.logger.info(f"Discrete closest to 0.5: {self.gdf_type.upper()}={closest_value:.6f} at x={closest_location:.6f} (index {closest_idx})")
-
-        if self.optimize:
-            self.z0 = self._find_z0_advanced_median(closest_idx, di_points, dist_points, target_value)
-            
-            method_used = self._get_last_method_used()
-            self.logger.info(f"Advanced estimation complete. Method: {method_used}")
-        else:
-            self.z0 = closest_location
-            
-            # Store simple estimation info
-            self.estimation_info = {
-                'z0': self.z0,
-                'z0_method': 'discrete_closest_to_median',
-                'z0_target_value': target_value,
-                'z0_actual_value': closest_value,
-                'z0_target_index': closest_idx,
-                'gdf_type': self.gdf_type,
-                'target_type': 'median (0.5)'
-            }
-
-            self.logger.info(f"Simple estimation: Using discrete closest to 0.5")
-
-        # Update GDF object with Z0
-        self.gdf.z0 = self.z0
-        if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
-            self.gdf.params['z0'] = float(self.z0)
-        
-        return self.z0
+        """Deprecated: Z0 is defined at the PDF maximum for all types.
+        Delegates to _fit_pdf_maximum for backward compatibility.
+        """
+        self.logger.info("Median-based Z0 is deprecated. Using PDF maximum instead.")
+        return self._fit_pdf_maximum()
     
     def _fit_pdf_maximum(self) -> float:
         """Find Z0 where PDF reaches maximum (existing logic for EGDF/ELDF)."""
@@ -367,29 +309,37 @@ class Z0Estimator:
 
         if self.optimize:
             z0_candidate = self._find_z0_advanced_pdf_max(global_max_idx, di_points, pdf_points)
-            # Check if advanced method is close to discrete maximum
-            if abs(z0_candidate - global_max_location) > 1e-6:
-                self.logger.info(f"Advanced method z0 ({z0_candidate}) differs from discrete max ({global_max_location}), using discrete max.")
+            # If candidate is invalid or far, fallback to discrete maximum
+            if (z0_candidate is None) or (abs(z0_candidate - global_max_location) > 1e-6):
+                if self.verbose:
+                    self.logger.info(
+                        f"Advanced method z0 ({z0_candidate}) differs or failed; using discrete max ({global_max_location})."
+                    )
                 self.z0 = global_max_location
-                self.estimation_info['z0_method'] = 'discrete_pdf_maximum'
+                method = 'discrete_pdf_maximum'
             else:
                 self.z0 = z0_candidate
-            
-            # Store simple estimation info
-            self.estimation_info = {
-                'z0': self.z0,
-                'z0_method': 'discrete_pdf_maximum',
-                'z0_extremum_pdf_value': global_max_value,
-                'z0_extremum_pdf_index': global_max_idx,
-                'gdf_type': self.gdf_type,
-                'target_type': 'pdf_maximum'
-            }
+                method = self._get_last_method_used()
+        else:
+            # Simple mode: use discrete maximum directly
+            self.z0 = global_max_location
+            method = 'discrete_pdf_maximum'
+            if self.verbose:
+                self.logger.info("Simple estimation: Using discrete PDF maximum at Z0")
 
-            self.logger.info(f"Simple estimation: Using discrete PDF maximum at Z0")
+        # Store estimation info
+        self.estimation_info = {
+            'z0': self.z0,
+            'z0_method': method,
+            'z0_extremum_pdf_value': global_max_value,
+            'z0_extremum_pdf_index': global_max_idx,
+            'gdf_type': self.gdf_type,
+            'target_type': 'pdf_maximum'
+        }
 
         # Update GDF object with Z0
         self.gdf.z0 = self.z0
-        if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params'):
+        if hasattr(self.gdf, 'catch') and self.gdf.catch and hasattr(self.gdf, 'params') and (self.z0 is not None):
             self.gdf.params['z0'] = float(self.z0)
         
         return self.z0
@@ -451,7 +401,7 @@ class Z0Estimator:
         
         # Plot 1: PDF with Z0 point
         ax1.plot(di_points, pdf_points, 'b-', linewidth=2, label='PDF')
-        target_desc = "Median (0.5)" if self.find_median else "PDF Maximum"
+        target_desc = "PDF Maximum"
         ax1.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
                    label=f'Z0 ({target_desc}): {self.z0:.4f}')
         ax1.scatter([self.z0], [np.interp(self.z0, di_points, pdf_points)], 
@@ -462,36 +412,18 @@ class Z0Estimator:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
-        # Plot 2: Distribution function or CDF
-        if self.find_median:
-            # Plot Q-distribution function
-            dist_points = self._get_distribution_points()
-            if len(dist_points) > 0:
-                ax2.plot(di_points, dist_points, 'g-', linewidth=2, label=f'{self.gdf_type.upper()}')
-                ax2.axhline(0.5, color='orange', linestyle=':', linewidth=2, label='Target (0.5)')
-                ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
-                           label=f'Z0: {self.z0:.4f}')
-                ax2.scatter([self.z0], [0.5], color='red', s=100, zorder=5)
-                ax2.set_xlabel('Value')
-                ax2.set_ylabel(f'{self.gdf_type.upper()}')
-                ax2.set_title(f'{self.gdf_type.upper()} with Z0 at Median')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-            else:
-                self._plot_info_panel(ax2)
+        # Plot 2: Any available distribution-related curve (CDF or QLDF/QGDF)
+        dist_points = self._get_distribution_points()
+        if len(dist_points) > 0:
+            ax2.plot(di_points, dist_points, 'g-', linewidth=2, label=f'{self.gdf_type.upper()}')
+            ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, label=f'Z0: {self.z0:.4f}')
+            ax2.set_xlabel('Value')
+            ax2.set_ylabel(f'{self.gdf_type.upper()}')
+            ax2.set_title(f'{self.gdf_type.upper()} with Z0 (PDF Maximum)')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
         else:
-            # Plot CDF if available for E-distributions
-            if hasattr(self.gdf, 'cdf_points') and self.gdf.cdf_points is not None:
-                ax2.plot(di_points, self.gdf.cdf_points, 'g-', linewidth=2, label='CDF')
-                ax2.axvline(self.z0, color='red', linestyle='--', linewidth=2, 
-                           label=f'Z0: {self.z0:.4f}')
-                ax2.set_xlabel('Value')
-                ax2.set_ylabel('CDF')
-                ax2.set_title(f'{self.gdf_type.upper()} CDF with Z0 Point')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-            else:
-                self._plot_info_panel(ax2)
+            self._plot_info_panel(ax2)
         
         plt.tight_layout()
         plt.show()
@@ -499,7 +431,7 @@ class Z0Estimator:
     def _plot_info_panel(self, ax):
         """Plot estimation information panel."""
         self.logger.info("Creating Z0 estimation information panel.")
-        target_desc = "Median (0.5)" if self.find_median else "PDF Maximum"
+        target_desc = "PDF Maximum"
         info_text = f"Z0 Estimation Info:\n"
         info_text += f"Value: {self.z0:.6f}\n"
         info_text += f"Method: {self.estimation_info.get('z0_method', 'unknown')}\n"
@@ -567,23 +499,12 @@ class Z0Estimator:
             raise ValueError("GDF object must be fitted before Z0 estimation")
         
         # Check for required data based on distribution type
-        temp_gdf_type = self._detect_gdf_type_from_object(gdf_object)
-        
-        if temp_gdf_type.lower() in ['qldf', 'qgdf']:
-            # For Q-distributions, need distribution function data
-            has_dist_data = (hasattr(gdf_object, 'cdf_points') and gdf_object.cdf_points is not None) or \
-                           (hasattr(gdf_object, 'qgdf_points') and gdf_object.qgdf_points is not None) or \
-                           (hasattr(gdf_object, 'qldf_points') and gdf_object.qldf_points is not None)
-            if not has_dist_data:
-                self.logger.error("Q-distribution object must contain distribution function data")
-                raise ValueError("Q-distribution object must contain distribution function data")
-        else:
-            # For E-distributions, need PDF data
-            has_pdf_points = hasattr(gdf_object, 'pdf_points') and gdf_object.pdf_points is not None
-            has_pdf = hasattr(gdf_object, 'pdf') and gdf_object.pdf is not None
-            if not (has_pdf_points or has_pdf):
-                self.logger.error("E-distribution object must contain PDF data")
-                raise ValueError("E-distribution object must contain PDF data")
+        # For all distributions, we require PDF data (since Z0 is PDF maximum)
+        has_pdf_points = hasattr(gdf_object, 'pdf_points') and gdf_object.pdf_points is not None
+        has_pdf = hasattr(gdf_object, 'pdf') and gdf_object.pdf is not None
+        if not (has_pdf_points or has_pdf):
+            self.logger.error("GDF object must contain PDF data for Z0 estimation")
+            raise ValueError("GDF object must contain PDF data for Z0 estimation")
         
         # Check for data points
         has_di_points = hasattr(gdf_object, 'di_points_n') and gdf_object.di_points_n is not None
@@ -1042,6 +963,6 @@ class Z0Estimator:
             return np.array([])
     
     def __repr__(self):
-        target_type = "median (0.5)" if self.find_median else "PDF maximum"
+        target_type = "PDF maximum"
         status = f"fitted (Z0={self.z0:.6f})" if self.z0 is not None else "not fitted"
         return f"Z0Estimator(gdf_type='{self.gdf_type}', target='{target_type}', {status})"
