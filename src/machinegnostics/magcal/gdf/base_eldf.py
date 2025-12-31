@@ -214,7 +214,12 @@ class BaseELDF(BaseEGDF):
 
         mean_irrelevance = np.sum(weights * irrelevance, axis=0) / np.sum(weights)
 
+        # Base ELDF from irrelevance only (local): p_i = (1 - h)/2
         eldf_values = (1 - mean_irrelevance) / 2
+
+        # Enforce monotonicity and valid range [0, 1]
+        eldf_values = np.maximum.accumulate(eldf_values)
+        eldf_values = np.clip(eldf_values, 0.0, 1.0)
 
         return eldf_values.flatten()
     
@@ -279,7 +284,10 @@ class BaseELDF(BaseEGDF):
 
         # fi_mean
         fi_mean = np.sum(weights * fi, axis=0) / np.sum(weights)
-        pdf_values = ((fi_mean)**2)/(self.S_local)
+        # Add small epsilon to avoid division by zero; ensure non-negativity
+        eps = np.finfo(float).eps
+        pdf_values = (fi_mean ** 2) / (self.S_local + eps)
+        pdf_values = np.clip(pdf_values, 0.0, None)
         return pdf_values.flatten()
 
     def _generate_smooth_curves(self):
@@ -575,8 +583,8 @@ class BaseELDF(BaseEGDF):
             raise RuntimeError("Must fit ELDF before getting results.")
         
         # selected key from params if exists
-        keys = ['DLB', 'DUB', 'LB', 'UB', 'S_opt', 'z0', 'eldf', 'pdf',
-                'eldf_points', 'pdf_points', 'zi', 'zi_points', 'weights']
+        keys = ['DLB', 'DUB', 'LB', 'UB', 'S_opt', 'S_local', 'S_var', 'z0', 'eldf', 'pdf',
+            'eldf_points', 'pdf_points', 'zi', 'zi_points', 'weights']
         results = {key: self.params.get(key) for key in keys if key in self.params}
         return results
     
@@ -924,5 +932,7 @@ class BaseELDF(BaseEGDF):
 
         # fi_mean
         fi_mean = np.sum(weights * fi, axis=0) / np.sum(weights)
-        pdf_values = ((fi_mean)**2)/(S + 1e-12)
+        # Stabilize division and ensure non-negativity
+        pdf_values = (fi_mean ** 2) / (S + np.finfo(float).eps)
+        pdf_values = np.clip(pdf_values, 0.0, None)
         return pdf_values.flatten()
