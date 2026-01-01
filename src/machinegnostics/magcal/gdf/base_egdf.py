@@ -140,7 +140,7 @@ class BaseEGDF(BaseDistFuncCompute):
 
     def _estimate_egdf_from_moments(self, fidelities, irrelevances):
         """Estimate EGDF from fidelities and irrelevances."""
-        # self.logger.info("Estimating EGDF from moments.")
+        self.logger.info("Estimating EGDF from moments.")
         weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
         
         mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)

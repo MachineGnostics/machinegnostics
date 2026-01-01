@@ -142,312 +142,77 @@ class BaseQGDF(BaseDistFuncCompute):
         # Estimate QGDF
         return self._estimate_qgdf_from_moments(fj, hj), fj, hj
 
-    def _estimate_qgdf_from_moments_complex(self, fidelities, irrelevances):
-        """Estimate QGDF using complex number approach to handle all cases."""
-        self.logger.info("Estimating QGDF using complex number approach.")
-
-        weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
-        
-        # Add numerical stability for both large and small values
-        max_safe_value = np.sqrt(np.finfo(float).max) / 100  # More conservative
-        min_safe_value = np.sqrt(np.finfo(float).eps) * 100  # Avoid very small numbers
-        
-        # Comprehensive clipping for extreme values (both large and small)
-        def safe_clip_values(values, name="values"):
-            """Safely clip values to prevent both overflow and underflow issues."""
-            # Handle very small values (close to zero)
-            values_magnitude = np.abs(values)
-            too_small_mask = values_magnitude < min_safe_value
-            
-            # Handle very large values
-            too_large_mask = values_magnitude > max_safe_value
-            
-            if np.any(too_small_mask) and self.verbose:
-                small_count = np.sum(too_small_mask)
-                self.logger.info(f"Warning: {small_count} very small {name} values detected (< {min_safe_value:.2e})")
-            
-            if np.any(too_large_mask) and self.verbose:
-                large_count = np.sum(too_large_mask)
-                self.logger.info(f"Warning: {large_count} very large {name} values detected (> {max_safe_value:.2e})")
-            
-            # Clip small values to minimum safe value (preserving sign)
-            values_safe = np.where(too_small_mask, 
-                                  np.sign(values) * min_safe_value, 
-                                  values)
-            
-            # Clip large values to maximum safe value (preserving sign)
-            values_safe = np.where(too_large_mask, 
-                                  np.sign(values_safe) * max_safe_value, 
-                                  values_safe)
-            
-            return values_safe
-        
-        # Apply safe clipping to both fidelities and irrelevances
-        fidelities_safe = safe_clip_values(fidelities, "fidelity")
-        irrelevances_safe = safe_clip_values(irrelevances, "irrelevance")
-        
-        # Calculate weighted means (f̄Q and h̄Q from equation 15.35)
-        mean_fidelity = np.sum(weights * fidelities_safe, axis=0) / np.sum(weights)  # f̄Q
-        mean_irrelevance = np.sum(weights * irrelevances_safe, axis=0) / np.sum(weights)  # h̄Q
-        
-        # Apply safe clipping to means as well
-        mean_fidelity = safe_clip_values(mean_fidelity, "mean_fidelity")
-        mean_irrelevance = safe_clip_values(mean_irrelevance, "mean_irrelevance")
-        
-        # Convert to complex for robust calculation with overflow protection
-        f_complex = mean_fidelity.astype(complex)
-        h_complex = mean_irrelevance.astype(complex)
-        
-        # Calculate the complex square root with comprehensive protection
-        # Check magnitudes before squaring
-        f_magnitude = np.abs(f_complex)
-        h_magnitude = np.abs(h_complex)
-        sqrt_max = np.sqrt(max_safe_value)
-        sqrt_min = np.sqrt(min_safe_value)
-        
-        # Check for both very large and very small values before squaring
-        f_too_large = f_magnitude > sqrt_max
-        h_too_large = h_magnitude > sqrt_max
-        f_too_small = f_magnitude < sqrt_min
-        h_too_small = h_magnitude < sqrt_min
-        
-        if np.any(f_too_large) or np.any(h_too_large) or np.any(f_too_small) or np.any(h_too_small):
-            if self.verbose:
-                self.logger.info("Warning: Extreme values detected in complex calculation. Using scaled approach.")
-            
-            # Scale problematic values to safe range
-            f_scaled = np.where(f_too_large, sqrt_max * (f_complex / f_magnitude), f_complex)
-            f_scaled = np.where(f_too_small, sqrt_min * (f_complex / f_magnitude), f_scaled)
-            
-            h_scaled = np.where(h_too_large, sqrt_max * (h_complex / h_magnitude), h_complex)
-            h_scaled = np.where(h_too_small, sqrt_min * (h_complex / h_magnitude), h_scaled)
-            
-            diff_squared_complex = f_scaled**2 - h_scaled**2
-            scale_factor = 1.0
-        else:
-            diff_squared_complex = f_complex**2 - h_complex**2
-            scale_factor = 1.0
-        
-        # Calculate denominator with protection against both zero and very small values
-        denominator_magnitude = np.abs(diff_squared_complex)
-        denominator_too_small = denominator_magnitude < min_safe_value
-        
-        if np.any(denominator_too_small):
-            if self.verbose:
-                small_denom_count = np.sum(denominator_too_small)
-                self.logger.info(f"Warning: {small_denom_count} very small denominators in complex calculation.")
-        
-        # Use sqrt with protection
-        denominator_complex = np.sqrt(diff_squared_complex)
-        denominator_complex = np.where(denominator_magnitude < min_safe_value,
-                                      min_safe_value + 0j, denominator_complex)
-        
-        # Calculate hZ,j using complex arithmetic with comprehensive protection
-        h_zj_complex = h_complex / denominator_complex
-        
-        # **FIX THE OVERFLOW ISSUE HERE**
-        # Check magnitude of h_zj_complex BEFORE any squaring operation
-        h_zj_magnitude = np.abs(h_zj_complex)
-        sqrt_max_for_square = np.sqrt(sqrt_max)  # Even more conservative for squaring
-        
-        h_zj_too_large_for_square = h_zj_magnitude > sqrt_max_for_square
-        h_zj_too_small = h_zj_magnitude < sqrt_min
-        
-        if np.any(h_zj_too_large_for_square):
-            if self.verbose:
-                large_count = np.sum(h_zj_too_large_for_square)
-                self.logger.info(f"Warning: {large_count} h_zj values too large for safe squaring. Using approximation.")
-            
-            # For very large |h_zj|, use the mathematical limit without squaring
-            # When |h_zj| >> 1: h_zj / sqrt(1 + h_zj²) ≈ h_zj / |h_zj| = sign(h_zj)
-            
-            # Safe calculation for non-large values only
-            h_zj_safe = np.where(h_zj_too_large_for_square, 0, h_zj_complex)  # Zero out large values
-            h_zj_squared_safe = h_zj_safe**2  # Only square the safe values
-            
-            # Calculate result for safe values
-            safe_result = h_zj_safe / np.sqrt(1 + h_zj_squared_safe)
-            
-            # Use approximation for large values
-            large_result = h_zj_complex / h_zj_magnitude
-            
-            # Combine results
-            h_gq_complex = np.where(h_zj_too_large_for_square, large_result, safe_result)
-
-        elif np.any(h_zj_too_small):
-            self.logger.info("Warning: Very small h_zj values in complex calculation.")
-
-            # For very small |h_zj|: h_zj / sqrt(1 + h_zj²) ≈ h_zj (linear approximation)
-            h_gq_complex = np.where(h_zj_too_small,
-                                   h_zj_complex,  # linear approximation - no squaring!
-                                   h_zj_complex / np.sqrt(1 + h_zj_complex**2))  # safe squaring only
-        else:
-            # All values are safe for squaring - proceed normally
-            try:
-                # Only square when we know it's safe
-                h_zj_squared = h_zj_complex**2
-                h_gq_complex = h_zj_complex / np.sqrt(1 + h_zj_squared)
-            except (OverflowError, FloatingPointError, ZeroDivisionError) as e:
-                # log error
-                error_msg = f"Exception in h_gq calculation: {e}"
-                self.params['errors'].append({
-                    'method': '_calculate_pdf_from_moments',
-                    'error': error_msg,
-                    'exception_type': type(e).__name__
-                })
-                if self.verbose:
-                    self.logger.info(f"Warning: Unexpected exception in h_gq calculation ({e}). Using approximation.")
-                # Fallback to magnitude-based approach
-                h_gq_complex = h_zj_complex / (h_zj_magnitude + min_safe_value)
-        
-        # Extract meaningful results from complex calculation
-        h_gq_real = np.real(h_gq_complex)
-        h_gq_imag = np.imag(h_gq_complex)
-        h_gq_magnitude = np.abs(h_gq_complex)
-        
-        # Determine how to handle complex results with small value protection
-        is_purely_real = np.abs(h_gq_imag) < min_safe_value
-        is_real_dominant = np.abs(h_gq_real) >= np.abs(h_gq_imag)
-        
-        if self.verbose and not np.all(is_purely_real):
-            complex_count = np.sum(~is_purely_real)
-            self.logger.info(f"Info: {complex_count} points have complex intermediate results.")
-        
-        # Strategy for handling complex results with numerical stability
-        h_gq_final = np.where(is_purely_real, 
-                             h_gq_real,  # Use real part for essentially real results
-                             np.where(is_real_dominant,
-                                     h_gq_real,  # Use real part when real component dominates
-                                     h_gq_magnitude * np.sign(h_gq_real)))  # Use magnitude with sign
-        
-        # Clip to reasonable range to prevent further overflow/underflow
-        h_gq_final = np.clip(h_gq_final, -10, 10)
-        
-        # Calculate QGDF using the processed hGQ values (minus form per definition)
-        qgdf_from_hgq = (1 - h_gq_final) / 2
-        
-        # Also calculate using direct ratio as backup with small value protection
-        mean_fidelity_safe = np.where(np.abs(mean_fidelity) < min_safe_value,
-                                     np.sign(mean_fidelity) * min_safe_value, mean_fidelity)
-        
-        ratio = mean_irrelevance / mean_fidelity_safe
-        
-        # Handle extreme ratios (both large and small)
-        ratio_magnitude = np.abs(ratio)
-        ratio_too_large = ratio_magnitude > 10
-        ratio_too_small = ratio_magnitude < min_safe_value
-        
-        ratio_safe = np.where(ratio_too_large, 10 * np.tanh(ratio / 10), ratio)
-        ratio_safe = np.where(ratio_too_small, np.sign(ratio) * min_safe_value, ratio_safe)
-        
-        qgdf_from_ratio = (1 - ratio_safe) / 2
-        
-        # Use complex method for difficult cases, ratio method for simple cases
-        use_complex_method = ~is_purely_real | ratio_too_large | ratio_too_small
-        
-        qgdf_values = np.where(use_complex_method,
-                              qgdf_from_hgq,
-                              qgdf_from_ratio)
-        
-        # Apply final constraints
-        qgdf_values = np.clip(qgdf_values, 0, 1)
-        qgdf_values = np.maximum.accumulate(qgdf_values)
-        
-        return qgdf_values.flatten()
     
     def _estimate_qgdf_from_moments(self, fidelities, irrelevances):
-        """Main QGDF estimation method with complex number fallback."""
-        self.logger.info("Estimating QGDF from moments with fallback.")
+        """Main QGDF estimation with robust numerical stabilization."""
+        self.logger.info("Estimating QGDF from moments (robust).")
         try:
-            # First try the complex number approach
-            return self._estimate_qgdf_from_moments_complex(fidelities, irrelevances)
+            if fidelities is None or irrelevances is None:
+                raise ValueError("fidelities and irrelevances must be provided")
+    
+            # Choose high-precision accumulator when available
+            acc_dtype = np.float128 if hasattr(np, "float128") else np.float64
+            eps = getattr(self, "_NUMERICAL_EPS", np.finfo(float).eps)
+    
+            # Weights: use cached normalized if present, else normalize here
+            w = self._computation_cache.get("weights_normalized", None)
+            if w is None:
+                self.logger.warning("Weights not normalized in cache; normalizing locally.")
+                w = self.weights
+            w = np.asarray(w, dtype=acc_dtype).reshape(-1, 1)
+    
+            wsum = np.sum(w, dtype=acc_dtype)
+            if not np.isfinite(wsum) or wsum <= 0:
+                self.logger.warning("Invalid weights; falling back to uniform weights.")
+                n = fidelities.shape[0]
+                w = np.full((n, 1), 1.0 / max(n, 1), dtype=acc_dtype)
+            else:
+                w = w / wsum  # ensure sum(w) == 1 in high precision
+    
+            # Per-column scaling (same scale for f and h, preserves ratio)
+            # scale_j = max(max_i |f_ij|, max_i |h_ij|, 1)
+            abs_f_max = np.max(np.abs(fidelities), axis=0)
+            abs_h_max = np.max(np.abs(irrelevances), axis=0)
+            scale = np.maximum(np.maximum(abs_f_max, abs_h_max), 1.0).astype(acc_dtype)
+    
+            f_s = (fidelities.astype(acc_dtype) / scale)
+            h_s = (irrelevances.astype(acc_dtype) / scale)
+    
+            # Weighted means in high precision (weights already sum to 1)
+            mean_f = np.sum(w * f_s, axis=0, dtype=acc_dtype)
+            mean_h = np.sum(w * h_s, axis=0, dtype=acc_dtype)
+    
+            # Stable denominator via hypot (sqrt(f^2 + h^2))
+            denom = np.hypot(mean_f, mean_h).astype(acc_dtype)
+            denom = np.where(denom > 0, denom, eps)
+    
+            # Ratio is scale-invariant due to common scaling
+            ratio = mean_h / denom
+    
+            # Clamp tiny numerical excursions
+            ratio = np.clip(ratio, -1.0 + 1e-15, 1.0 - 1e-15)
+    
+            qgdf_values = (1.0 - ratio) * 0.5
+    
+            # Clean non-finite values
+            qgdf_values = np.nan_to_num(qgdf_values, nan=0.0, posinf=1.0, neginf=0.0)
+    
+            # Enforce monotonicity and bounds
+            qgdf_values = np.maximum.accumulate(qgdf_values)
+            qgdf_values = np.clip(qgdf_values, 0.0, 1.0)
+    
+            return np.asarray(qgdf_values, dtype=float).flatten()
+    
         except Exception as e:
-            # log error
-            error_msg = f"Exception in complex QGDF estimation: {e}"
+            error_msg = f"Exception in QGDF estimation: {e}"
             self.logger.error(error_msg)
-            if self.verbose:
-                self.logger.info(f"Complex method failed: {e}. Using fallback approach.")
             self.params['errors'].append({
                 'method': '_estimate_qgdf_from_moments',
                 'error': error_msg,
                 'exception_type': type(e).__name__
             })
-
-            # Fallback to the robust real-number approach
-            return self._estimate_qgdf_from_moments_fallback(fidelities, irrelevances)
-    
-    def _estimate_qgdf_from_moments_fallback(self, fidelities, irrelevances):
-        """Fallback method using real numbers only."""
-        self.logger.info("Estimating QGDF using fallback real-number approach.")
-        weights = self._computation_cache['weights_normalized'].reshape(-1, 1)
-        
-        # Calculate weighted means
-        mean_fidelity = np.sum(weights * fidelities, axis=0) / np.sum(weights)
-        mean_irrelevance = np.sum(weights * irrelevances, axis=0) / np.sum(weights)
-                
-        # Direct ratio approach (always mathematically valid)
-        mean_fidelity_safe = np.where(np.abs(mean_fidelity) < self._NUMERICAL_EPS,
-                                     np.sign(mean_fidelity) * self._NUMERICAL_EPS, mean_fidelity)
-        
-        ratio = mean_irrelevance / mean_fidelity_safe
-        ratio_limited = np.where(np.abs(ratio) > 5, 5 * np.tanh(ratio / 5), ratio)
-
-        # hzj NOTE for QGDF book eq not working properly
-        # hzj = mean_irrelevance / (np.sqrt(mean_fidelity_safe**2 + mean_irrelevance**2))
-
-        # # hgq
-        # h_gq = hzj / (np.sqrt(1 + hzj**2))
-
-        # qgdf_values = (1 + h_gq/mean_fidelity_safe) / 2
-        
-        qgdf_values = (1 - ratio_limited) / 2     
-        qgdf_values = np.clip(qgdf_values, 0, 1)
-        qgdf_values = np.maximum.accumulate(qgdf_values)
-        
-        return qgdf_values.flatten()
-    
-    # NOTE fi and hi derivative base logic
-    # this give little of PDF
-    # can be improved
-    # def _calculate_pdf_from_moments(self, fidelities, irrelevances):
-    #     """Calculate first derivative of QGDF (which is the PDF) from stored fidelities and irrelevances."""
-    #     if fidelities is None or irrelevances is None:
-    #         # log error
-    #         error_msg = "Fidelities and irrelevances must be calculated first"
-    #         self.params['errors'].append({
-    #             'method': '_calculate_pdf_from_moments',
-    #             'error': error_msg,
-    #             'exception_type': 'ValueError'
-    #         })
-    #         raise ValueError("Fidelities and irrelevances must be calculated first")
-        
-    #     weights = self.weights.reshape(-1, 1)
-        
-    #     # First order moments using QGDF's fj and hj
-    #     f1 = np.sum(weights * fidelities, axis=0) / np.sum(weights)  # f̄Q
-    #     h1 = np.sum(weights * irrelevances, axis=0) / np.sum(weights)  # h̄Q
-
-    #     # Second order moments (scaled by S as in EGDF pattern)
-    #     f2s = np.sum(weights * (fidelities**2 / self.S_opt), axis=0) / np.sum(weights)  # F2
-    #     h2s = np.sum(weights * (irrelevances**2 / self.S_opt), axis=0) / np.sum(weights)  # H2
-    #     fhs = np.sum(weights * (fidelities * irrelevances / self.S_opt), axis=0) / np.sum(weights)  # FH
-        
-    #     # Calculate Nj = Σ(1/f²ᵢ,ⱼ) + Σ H²ᵢ,ⱼ (from equation 10.8)
-    #     eps = np.finfo(float).eps
-    #     f_inv_squared = np.sum(weights * (1 / (fidelities**2 + eps)), axis=0) / np.sum(weights)
-    #     h_squared = np.sum(weights * irrelevances**2, axis=0) / np.sum(weights)
-    #     Nj = f_inv_squared + h_squared
-    #     Nj = np.where(Nj == 0, eps, Nj)
-        
-    #     # Calculate denominator w = (2 * Nj)^2 for QGDF derivative
-    #     w = (2 * Nj)**2
-    #     w = np.where(w == 0, eps, w)
-        
-    #     # QGDF PDF formula: dQGDF/dZ₀ = (1/SZ₀) * (1/(2 * Nⱼ²)) * [F2 - H2 + f̄_E * h̄_E * FH]
-    #     numerator = f2s - h2s + f1 * h1 * fhs
-    #     first_derivative = (1 / self.S_opt) * numerator / ( Nj**2)
-        
-    #     return first_derivative.flatten()
+            # Best-effort safe fallback
+            return np.zeros(fidelities.shape[1], dtype=float)
     
     def _calculate_pdf_from_moments(self, fidelities, irrelevances):
         self.logger.info("Calculating PDF from moments.")
