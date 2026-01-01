@@ -202,10 +202,6 @@ class BaseEGDF(BaseDistFuncCompute):
         # First derivative formula from MATLAB: y = (f1^2 * f2s + f1 * h1 * fhs) / w
         numerator = f1**2 * f2s + f1 * h1 * fhs
         first_derivative = numerator / w
-        # first_derivative = first_derivative / self.zi
-        
-        # if np.any(first_derivative < 0):
-        #     warnings.warn("EGDF first derivative (PDF) contains negative values, indicating potential non-homogeneous data", RuntimeWarning)
         return first_derivative.flatten()
 
 
