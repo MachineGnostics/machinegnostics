@@ -64,8 +64,6 @@ class DataIntervals:
         Margin factor to avoid searching exactly at the boundaries.
     extrema_search_tolerance : float, default=1e-6
         Tolerance for detecting extrema in Z0 variation.
-    gdf_recompute : bool, default=False
-        If True, recompute the GDF for each candidate datum.
     gnostic_filter : bool, default=False
         If True, apply gnostic clustering to filter outlier Z0 values.
     catch : bool, default=True
@@ -113,7 +111,7 @@ class DataIntervals:
     -------------
     >>> eld = ELDF()
     >>> eld.fit(data)
-    >>> di = DataIntervals(eld, n_points=200, gdf_recompute=True, gnostic_filter=True, verbose=True)
+    >>> di = DataIntervals(eld, n_points=200, gnostic_filter=True, verbose=True)
     >>> di.fit(plot=True)
     >>> print(di.results())
     >>> di.plot_intervals()
@@ -123,7 +121,7 @@ class DataIntervals:
     -----
     - For best results, use with ELDF or QLDF and set 'wedf=False' in the GDF.
     - Increasing 'n_points' improves accuracy but increases computation time.
-    - Enable 'gdf_recompute' and 'gnostic_filter' for maximum robustness, especially with noisy data.
+    - Enable 'gnostic_filter' for maximum robustness, especially with noisy data.
     - The class is designed for research and diagnostic use; adjust parameters for your data and application.
     """
     def __init__(self, gdf: Union[ELDF, EGDF, QLDF, QGDF],
@@ -135,7 +133,6 @@ class DataIntervals:
                  min_search_points: int = 30,
                  boundary_margin_factor: float = 0.001,
                  extrema_search_tolerance: float = 1e-6,
-                 gdf_recompute: bool = False,
                  gnostic_filter: bool = False,
                  catch: bool = True,
                  verbose: bool = False,
@@ -149,7 +146,6 @@ class DataIntervals:
         self.min_search_points = max(min_search_points, 10)
         self.boundary_margin_factor = max(boundary_margin_factor, 1e-6)
         self.extrema_search_tolerance = extrema_search_tolerance
-        self.gdf_recompute = gdf_recompute
         self.gnostic_filter = gnostic_filter
         self.catch = catch
         self.verbose = verbose
@@ -179,10 +175,7 @@ class DataIntervals:
             msg =  f"n_points={self.n_points} is out of recommended range [50, 10000]. Consider adjusting for efficiency and accuracy."
             self._add_warning(msg)
 
-        # if gdf_recompute = True, it is recommended to use gnostic_filter = True to enhance robustness.
-        if self.gdf_recompute and not self.gnostic_filter:
-            msg = "Using gdf_recompute=True without gnostic_filter=True may reduce robustness. Consider enabling gnostic_filter if needed."
-            self._add_warning(msg)
+        # Note: gdf_recompute option removed; consider enabling gnostic_filter to enhance robustness.
 
     def _add_warning(self, message: str):
         self.params['warnings'].append(message)
@@ -206,6 +199,8 @@ class DataIntervals:
             self.UB = float(gdf.UB)
             self.S = getattr(gdf, 'S', 'auto')
             self.S_opt = getattr(gdf, 'S_opt', None)
+            self.S_local = getattr(gdf, 'S_local', None)
+            self.S_var = getattr(gdf, 'S_var', None)
             self.wedf = getattr(gdf, 'wedf', False)
             self.n_points_gdf = getattr(gdf, 'n_points', self.n_points)
             self.opt_method = getattr(gdf, 'opt_method', 'L-BFGS-B')
@@ -223,6 +218,12 @@ class DataIntervals:
             self.RRE = self.gdf.params.get('RRE', None)
             self.residual_entropy = self.gdf.params.get('residual_entropy', None)
             self.gdf_name = type(gdf).__name__
+            # S selection logic
+            if self.gdf_name.lower() in ['eldf', 'qldf']:
+                self.S_gldf = self.gdf.S_local
+            else:
+                self.S_gldf = self.gdf.S_opt
+                    
             if self.catch:
                 self.params['gdf_type'] = self.gdf_name
                 self.params['data_size'] = len(self.data)
@@ -231,6 +232,8 @@ class DataIntervals:
                 self.params['Z0'] = self.Z0
                 self.params['S'] = self.S
                 self.params['S_opt'] = self.S_opt
+                self.params['S_local'] = self.S_local
+                self.params['S_var'] = self.S_var
                 self.params['wedf'] = self.wedf
                 self.params['opt_method'] = self.opt_method
                 self.params['is_homogeneous'] = self.is_homogeneous
@@ -333,7 +336,7 @@ class DataIntervals:
                 self._add_warning(msg)
 
             # std interval
-            self.LSD, self.USD= std(self.data, S=self.S_opt, z0_optimize=self.z0_optimize, data_form=self.gdf.data_form, tolerance=self.tolerance)
+            self.LSD, self.USD= std(self.data, S=self.S_gldf, z0_optimize=self.z0_optimize, data_form=self.gdf.data_form, tolerance=self.tolerance)
             # Update parameters and optionally plot
             self._update_params()
             if plot:
@@ -421,33 +424,22 @@ class DataIntervals:
         # Extend data and fit new GDF, return z0
         extended_data = np.append(self.data, datum)
         gdf_type = type(self.gdf)
-        if self.gdf_recompute:
-            kwargs = {
-                'verbose': False,
-                'flush': True,
-                'opt_method': self.opt_method,
-                'n_points': self.n_points_gdf,
-                'wedf': self.wedf,
-                'homogeneous': self.homogeneous,
-                'z0_optimize': self.z0_optimize,
-                'max_data_size': self.max_data_size,
-                'tolerance': self.tolerance,
-            }
-        else:
-            kwargs = {
-                    'LB': self.LB,
-                    'UB': self.UB,
-                    'S': self.S,
-                    'verbose': False,
-                    'flush': True,
-                    'opt_method': self.opt_method,
-                    'n_points': self.n_points_gdf,
-                    'wedf': self.wedf,
-                    'homogeneous': self.homogeneous,
-                    'z0_optimize': self.z0_optimize,
-                    'max_data_size': self.max_data_size,
-                    'tolerance': self.tolerance,
-                }
+        # Single path (gdf_recompute removed): always pass bounds and appropriate S
+        kwargs = {
+            'LB': self.LB,
+            'UB': self.UB,
+            'S': self.S_gldf if getattr(self, 'S_gldf', None) is not None else self.S,
+            'verbose': False,
+            'flush': True,
+            'opt_method': self.opt_method,
+            'n_points': self.n_points_gdf,
+            'wedf': self.wedf,
+            'homogeneous': self.homogeneous,
+            'z0_optimize': self.z0_optimize,
+            'max_data_size': self.max_data_size,
+            'tolerance': self.tolerance,
+        }
+            
         gdf_new = gdf_type(**kwargs)
         gdf_new.fit(data=extended_data, plot=False)
         return float(gdf_new.z0)
@@ -472,7 +464,7 @@ class DataIntervals:
 
             # Fit ELDF to z0s for clustering
             self.logger.info("Fitting ELDF for clustering...")
-            eldf_cluster = ELDF(catch=False, wedf=False, verbose=False)
+            eldf_cluster = ELDF(catch=False, wedf=False, verbose=False, S='auto')
             eldf_cluster.fit(z0s)
             # Cluster boundaries
             self.logger.info("Fitting DataCluster to identify main cluster...")
