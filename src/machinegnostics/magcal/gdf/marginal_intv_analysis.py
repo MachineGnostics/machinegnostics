@@ -83,8 +83,6 @@ class IntervalAnalysis:
         Margin factor to avoid searching exactly at the boundaries.
     extrema_search_tolerance : float, default=1e-6
         Tolerance for detecting extrema in Z0 variation.
-    gdf_recompute : bool, default=False
-        If True, recompute the GDF for each candidate datum in interval search.
     gnostic_filter : bool, default=False
         If True, apply gnostic clustering to filter outlier Z0 values in interval search.
 
@@ -150,7 +148,6 @@ class IntervalAnalysis:
                 min_search_points: int = 30,
                 boundary_margin_factor: float = 0.001,
                 extrema_search_tolerance: float = 0.000001,
-                gdf_recompute: bool = False,
                 gnostic_filter: bool = False,
                 cluster_bounds: bool = True,
                 membership_bounds: bool = True
@@ -181,7 +178,6 @@ class IntervalAnalysis:
         self.min_search_points = min_search_points
         self.boundary_margin_factor = boundary_margin_factor
         self.extrema_search_tolerance = extrema_search_tolerance
-        self.gdf_recompute = gdf_recompute
         self.gnostic_filter = gnostic_filter
         self.cluster_bounds = cluster_bounds
         self.membership_bounds = membership_bounds
@@ -435,7 +431,6 @@ class IntervalAnalysis:
                     'min_search_points': self.min_search_points,
                     'boundary_margin_factor': self.boundary_margin_factor,
                     'extrema_search_tolerance': self.extrema_search_tolerance,
-                    'gdf_recompute': self.gdf_recompute,
                     'gnostic_filter': self.gnostic_filter,
                     'catch': self.catch,
                     'verbose': self.verbose,
