@@ -50,7 +50,9 @@ class IntervalAnalysis:
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
     n_points : int, default=100
-        Number of points for distribution evaluation.
+        Number of points for interval search and GDF evaluation.
+    n_points_gdf : int, default=1000
+        Number of points for smooth GDF generation.
     homogeneous : bool, default=True
         Whether to assume data homogeneity (enables homogeneity testing).
     catch : bool, default=True
@@ -129,9 +131,10 @@ class IntervalAnalysis:
                 UB: float = None,
                 S: str = 'auto',
                 z0_optimize: bool = True,
-                tolerance: float = 1e-5,
+                tolerance: float = 1e-9,
                 data_form: str = 'a',
                 n_points: int = 100,
+                n_points_gdf: int = 1000,
                 homogeneous: bool = True,
                 catch: bool = True,
                 weights: np.ndarray = None,
@@ -162,6 +165,7 @@ class IntervalAnalysis:
         self.tolerance = tolerance
         self.data_form = data_form
         self.n_points = n_points
+        self.n_points_gdf = n_points_gdf
         self.homogeneous = homogeneous
         self.catch = catch
         self.weights = weights
@@ -390,7 +394,7 @@ class IntervalAnalysis:
                 'z0_optimize': self.z0_optimize,
                 'tolerance': self.tolerance,
                 'data_form': self.data_form,
-                'n_points': self.n_points,
+                'n_points': self.n_points_gdf,
                 'homogeneous': self.homogeneous, # ELDF always assumes homogeneous data
                 'catch': self.catch,
                 'weights': self.weights,
@@ -399,7 +403,7 @@ class IntervalAnalysis:
                 'verbose': self.verbose,
                 'max_data_size': self.max_data_size,
                 'flush': self.flush
-            }
+                }
             self._eldf = ELDF(**kwargs_el)
             self._eldf.fit(data)
             if self.catch:
