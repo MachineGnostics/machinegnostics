@@ -170,6 +170,11 @@ class DataIntervals:
 
         # validation
         # n_points should not less then 50 or more then 10000 else it can be computationally expensive. It balances efficiency and accuracy.
+        # n_points logic = len(data) * 10, with min 50 and max 10000
+        recommended_n_points = max(50, min(len(self.data) * 10, 10000))
+        if self.n_points > recommended_n_points:
+            msg = f"n_points={self.n_points} is higher than recommended {recommended_n_points} based on data size. Consider reducing for efficiency."
+            self._add_warning(msg)
         if self.n_points < 50 or self.n_points > 10000:
             msg =  f"n_points={self.n_points} is out of recommended range [50, 10000]. Consider adjusting for efficiency and accuracy."
             self._add_warning(msg)
@@ -324,7 +329,7 @@ class DataIntervals:
             # Check ordering constraint
             if not self.ordering_valid:
                 msg = ("Interval ordering constraint violated. "
-                       "Try setting 'wedf=False', or setting 'gnostic_filter=True', or increasing 'n_points', or adjusting thresholds for sensitivity.")
+                       "Try setting 'wedf=False', or setting 'gnostic_filter=True', or increasing/decreasing 'n_points', or adjusting thresholds for sensitivity.")
                 self._add_warning(msg)
 
             # std interval
