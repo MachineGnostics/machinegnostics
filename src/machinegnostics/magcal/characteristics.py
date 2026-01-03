@@ -8,6 +8,7 @@ Author: Nirmal Parmar
 import numpy as np
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+import warnings
 
 class GnosticsCharacteristics:
     """
@@ -317,8 +318,8 @@ class GnosticsCharacteristics:
             raise ValueError("fi and fj must have the same shape")
         entropy = fj - fi
         if (entropy < 0).any(): #means something is wrong
-            self.logger.error("Entropy cannot be negative")
-            raise ValueError("Entropy cannot be negative")
+            self.logger.error("Negative Residual Entropy encountered, RE cannot be negative!")
+            warnings.warn("Negative Residual Entropy encountered, RE cannot be negative!")
         return entropy
     
     def _ientropy(self, fi):
