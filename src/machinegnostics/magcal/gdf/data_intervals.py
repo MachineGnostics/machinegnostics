@@ -48,7 +48,7 @@ class DataIntervals:
     ----------
     gdf : ELDF, EGDF, QLDF, or QGDF
         The fitted GDF (Gnostics Distribution Function) object to analyze.
-    n_points : int, default=100
+    n_points : int, default=10
         Number of search points for interval estimation (minimum 50).
     dense_zone_fraction : float, default=0.4
         Fraction of the search domain near Z0 to search densely (range: 0.1 to 0.8).
@@ -111,7 +111,7 @@ class DataIntervals:
     -------------
     >>> eld = ELDF()
     >>> eld.fit(data)
-    >>> di = DataIntervals(eld, n_points=200, gnostic_filter=True, verbose=True)
+    >>> di = DataIntervals(eld, n_points=20, gnostic_filter=True, verbose=True)
     >>> di.fit(plot=True)
     >>> print(di.results())
     >>> di.plot_intervals()
@@ -125,7 +125,7 @@ class DataIntervals:
     - The class is designed for research and diagnostic use; adjust parameters for your data and application.
     """
     def __init__(self, gdf: Union[ELDF, EGDF, QLDF, QGDF],
-                 n_points: int = 100,
+                 n_points: int = 10,
                  dense_zone_fraction: float = 0.4,
                  dense_points_fraction: float = 0.7,
                  convergence_window: int = 15,
@@ -138,7 +138,7 @@ class DataIntervals:
                  verbose: bool = False,
                  flush: bool = False):
         self.gdf = gdf
-        self.n_points = max(n_points, 50)
+        self.n_points = n_points
         self.dense_zone_fraction = np.clip(dense_zone_fraction, 0.1, 0.8)
         self.dense_points_fraction = np.clip(dense_points_fraction, 0.5, 0.9)
         self.convergence_window = max(convergence_window, 5)
@@ -165,14 +165,13 @@ class DataIntervals:
         self._store_init_params()
 
         # validation
-        # n_points should not less then 50 or more then 10000 else it can be computationally expensive. It balances efficiency and accuracy.
-        # n_points logic = len(data) * 10, with min 50 and max 10000
-        recommended_n_points = max(50, min(len(self.data) * 10, 10000))
+        # n_points should not too high
+        recommended_n_points = max(len(self.data) * 2, 100)
         if self.n_points > recommended_n_points:
             msg = f"n_points={self.n_points} is higher than recommended {recommended_n_points} based on data size. Consider reducing for efficiency."
             self._add_warning(msg)
-        if self.n_points < 50 or self.n_points > 10000:
-            msg =  f"n_points={self.n_points} is out of recommended range [50, 10000]. Consider adjusting for efficiency and accuracy."
+        if self.n_points < 1 or self.n_points > 100:
+            msg =  f"n_points={self.n_points} is out of recommended range [5,100]. Consider adjusting for efficiency and accuracy."
             self._add_warning(msg)
 
         # Note: gdf_recompute option removed; consider enabling gnostic_filter to enhance robustness.
@@ -332,7 +331,7 @@ class DataIntervals:
             # Check ordering constraint
             if not self.ordering_valid:
                 msg = ("Interval ordering constraint violated. "
-                       "Try setting 'wedf=False', or setting 'gnostic_filter=True', or increasing/decreasing 'n_points', or adjusting thresholds for sensitivity.")
+                       "Try setting 'wedf=False', or setting s = 'auto', or increasing/decreasing 'n_points', or adjusting thresholds for sensitivity.")
                 self._add_warning(msg)
 
             # std interval

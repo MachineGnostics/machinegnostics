@@ -49,7 +49,7 @@ class IntervalAnalysis:
         Convergence tolerance for optimization.
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
-    n_points : int, default=100
+    n_points : int, default=10
         Number of points for interval search and GDF evaluation.
     n_points_gdf : int, default=1000
         Number of points for smooth GDF generation.
@@ -131,7 +131,7 @@ class IntervalAnalysis:
                 z0_optimize: bool = True,
                 tolerance: float = 1e-9,
                 data_form: str = 'a',
-                n_points: int = 100,
+                n_points: int = 10,
                 n_points_gdf: int = 1000,
                 homogeneous: bool = True,
                 catch: bool = True,
