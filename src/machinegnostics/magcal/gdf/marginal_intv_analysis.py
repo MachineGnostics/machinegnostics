@@ -379,6 +379,12 @@ class IntervalAnalysis:
                 else:
                     self.logger.warning(warning_msg)
 
+            # S value update for non-homo data
+            if is_homogeneous_2 == False:
+                if self.S == "auto":
+                    self.S = 1
+                    self.logger.warning('Switching to safe S=1 value, as data is non-homogeneous')
+                    
             # estimate ELDF
             self.logger.info("Estimating ELDF...")
             kwargs_el = {
