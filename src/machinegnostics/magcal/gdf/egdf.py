@@ -36,7 +36,7 @@ class EGDF(BaseEGDF):
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
         wedf (bool): Whether to use Weighted Empirical Distribution Function or Kolmogorov-Smirnov Distribution Function with a Gnostic S-global-KS approach (default: False).
         opt_method (str): Optimization method for parameter estimation (default: 'L-BFGS-B').
-        tolerance (float): Convergence tolerance for optimization (default: 1e-9).
+        tolerance (float): Convergence tolerance for optimization (default: 1e-6).
         verbose (bool): Whether to print detailed progress information (default: False).
         params (dict): Dictionary storing fitted parameters and results after fitting.
         homogeneous (bool): To indicate data homogeneity (default: True).
@@ -99,7 +99,7 @@ class EGDF(BaseEGDF):
                 UB: float = None,
                 S = 'auto',
                 z0_optimize: bool = True,
-                tolerance: float = 1e-9,
+                tolerance: float = 1e-6,
                 data_form: str = 'a',
                 n_points: int = 500,
                 homogeneous: bool = True,
@@ -136,7 +136,7 @@ class EGDF(BaseEGDF):
                                       scale parameter.
             tolerance (float, optional): Convergence tolerance for the optimization process.
                                        Smaller values lead to more precise fitting but may require
-                                       more iterations. Default is 1e-9.
+                                       more iterations. (Default is 1e-6.)
             data_form (str, optional): Form of data processing. Options are:
                                      - 'a': Additive form (default) - processes data linearly
                                      - 'm': Multiplicative form - applies log transformation for

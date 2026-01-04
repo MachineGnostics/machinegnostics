@@ -99,7 +99,7 @@ class QGDF(BaseQGDF):
                  UB: float = None,
                  S = 'auto',
                  z0_optimize: bool = True,
-                 tolerance: float = 1e-9,
+                 tolerance: float = 1e-6,
                  data_form: str = 'a',
                  n_points: int = 500,
                  homogeneous: bool = True,
@@ -129,7 +129,7 @@ class QGDF(BaseQGDF):
                                       fitting. If a float is provided, it will be used as a fixed
                                       scale parameter. Default is 'auto' for QGDF.
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
-            tolerance (float, optional): Convergence tolerance for the optimization process.
+            tolerance (float, optional): Convergence tolerance for the optimization process. (Default: 1e-6)
             data_form (str, optional): Form of data processing. Options are:
                                      - 'a': Additive form (default)
                                      - 'm': Multiplicative form

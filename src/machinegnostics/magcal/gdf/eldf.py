@@ -101,7 +101,7 @@ class ELDF(BaseELDF):
                  S = 'auto',
                  varS: bool = False,
                  z0_optimize: bool = True,
-                 tolerance: float = 1e-9,
+                 tolerance: float = 1e-6,
                  data_form: str = 'a',
                  n_points: int = 1000,
                  homogeneous: bool = True,
@@ -132,7 +132,7 @@ class ELDF(BaseELDF):
                                       scale parameter.
             varS (bool, optional): Whether to allow variable scale parameter during optimization to handle heteroscedasticity.
             z0_optimize (bool, optional): Whether to optimize the location parameter Z0 during fitting.
-            tolerance (float, optional): Convergence tolerance for the optimization process.
+            tolerance (float, optional): Convergence tolerance for the optimization process. (default: 1e-6)
             data_form (str, optional): Form of data processing. Options are:
                                      - 'a': Additive form (default)
                                      - 'm': Multiplicative form
