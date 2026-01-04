@@ -14,7 +14,7 @@ from machinegnostics.magcal import ELDF, QLDF
 from typing import Union
 
 def mean(data: np.ndarray, 
-         S: Union[float, str] = 1, 
+         S: Union[float, str] = 'auto', 
          case: str = 'i',
          z0_optimize: bool = True, 
          data_form: str = 'a',
@@ -32,7 +32,7 @@ def mean(data: np.ndarray,
     data : np.ndarray
         Input data array.
     S : float, optional
-        Scaling parameter for ELDF. Default is 1.
+        Scaling parameter for ELDF. Default is 'auto' to optimize. Suggested range is [0.01, 2].
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating irrelevance, 'j' for quantifying irrelevance.
@@ -93,8 +93,8 @@ def mean(data: np.ndarray,
         raise TypeError("S must be a float or 'auto'.")
     # S proper value [0,2] suggested
     if isinstance(S, (int)):
-        if S < 0 or S > 2:
-            logger.warning("S must be in the range [0, 2].")
+        if S < 0.01 or S >= 2:
+            logger.warning("S must be in the range [0.01, 2].")
     # Check for valid data_form
     if data_form not in ['a', 'm']:
         logger.error("data_form must be 'a' for additive or 'm' for multiplicative.")
