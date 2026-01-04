@@ -14,7 +14,7 @@ from machinegnostics.magcal.util.logging import get_logger
 
 def variance(data: np.ndarray,
              case: str = 'i', 
-             S: float = 1, 
+             S: float = 'auto', 
              z0_optimize: bool = True, 
              data_form: str = 'a',
              tolerance: float = 1e-6,
@@ -35,7 +35,7 @@ def variance(data: np.ndarray,
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating variance, 'j' for quantifying variance.
     S : float, optional
-        Scaling parameter for ELDF. Default is 1.
+        Scaling parameter for ELDF. Default is 'auto' to optimize. Suggested range is [0.01, 2].
     z0_optimize : bool, optional
         Whether to optimize z0 in ELDF. Default is True.
     data_form : str, optional
@@ -85,7 +85,9 @@ def variance(data: np.ndarray,
         # Compute eldf
         eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
         eldf.fit(data, plot=False)
-        hi = eldf.hi
+        gc, _, _ = eldf._calculate_gcq_at_given_zi(eldf.z0)
+        q, q1 = gc._get_q_q1(S=eldf.S_local)
+        hi = gc._hi(q, q1)
         hc = np.mean(hi**2)
     
     if case == 'j':
@@ -93,7 +95,9 @@ def variance(data: np.ndarray,
         # Compute qldf
         qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
         qldf.fit(data)
-        hj = qldf.hj
+        gc, _, _ = qldf._calculate_gcq_at_given_zi(qldf.z0)
+        q, q1 = gc._get_q_q1(S=qldf.S_local)
+        hj = gc._hj(q, q1)
         hc = np.mean(hj**2)
 
     logger.info(f"Gnostic variance calculated.")
