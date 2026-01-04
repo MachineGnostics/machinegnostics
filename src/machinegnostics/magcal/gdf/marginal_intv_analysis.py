@@ -45,7 +45,7 @@ class IntervalAnalysis:
         Scale parameter for the distribution. Use 'auto' for automatic estimation.
     z0_optimize : bool, default=True
         Whether to optimize the central parameter Z0 during fitting.
-    tolerance : float, default=1e-9
+    tolerance : float, default=1e-6
         Convergence tolerance for optimization.
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
@@ -129,7 +129,7 @@ class IntervalAnalysis:
                 UB: float = None,
                 S: str = 'auto',
                 z0_optimize: bool = True,
-                tolerance: float = 1e-9,
+                tolerance: float = 1e-6,
                 data_form: str = 'a',
                 n_points: int = 10,
                 n_points_gdf: int = 1000,
