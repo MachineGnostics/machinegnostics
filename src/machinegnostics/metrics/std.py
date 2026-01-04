@@ -12,7 +12,8 @@ from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.metrics.mean import mean
 from machinegnostics.metrics.variance import variance
-from machinegnostics.magcal import EGDF
+from machinegnostics.magcal import EGDF, ELDF
+from machinegnostics.magcal import DataConversion
 
 def std(data: np.ndarray,
         case: str = 'i',
@@ -35,8 +36,8 @@ def std(data: np.ndarray,
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating variance, 'j' for quantifying variance.
-    Scaling parameter for ELDF. Default is 1. Can be 'auto' to optimize using EGDF.
-            Suggested range is [0.01, 2].
+    S: Scaling parameter for EGDF. Default is 'auto' to optimize using EGDF.
+            Suggested range is [0.01, 10].
     z0_optimize : bool, optional
         Whether to optimize z0 in ELDF. Default is True.    
     data_form : str, optional
@@ -114,8 +115,6 @@ def std(data: np.ndarray,
             egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose)
             egdf.fit(data=data, plot=False)
             S = egdf.S_opt
-            # S value limits [0.01, 1e3]
-            S = np.clip(S, 0.01, 1e3)
     # std
     if case.lower() == 'i':
         logger.info("Calculating standard deviation the estimating geometry...")
