@@ -346,6 +346,12 @@ class BaseDistFuncCompute(BaseDistFunc):
                     'n_points_value': self.n_points
                 })
                 self.logger.warning(f"Warning: {warning_msg}")
+
+            # n_points should be always odd for better symmetry, so if arg is even convert to odd with log info message
+            if self.n_points % 2 == 0:
+                self.n_points += 1
+                info_msg = f"n_points was even, incremented to next odd number {self.n_points} for better symmetry."
+                self.logger.info(info_msg)
             
             # Weights validation
             if self.weights is not None:
