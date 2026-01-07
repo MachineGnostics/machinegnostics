@@ -473,7 +473,7 @@ class DistFuncEngine:
     
         # Reasonable initial guess
         s0 = 0.1
-        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] / 10
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MAX'] / 10
         ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
     
         x0 = [s0, lb0, ub0]
@@ -577,7 +577,7 @@ class DistFuncEngine:
                 return 1e6
 
         # Reasonable initial guess
-        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MIN'] / 10
+        lb0 = self.LB_init if self.LB_init is not None else self._OPTIMIZATION_BOUNDS['LB_MAX'] / 10
         ub0 = self.UB_init if self.UB_init is not None else self._OPTIMIZATION_BOUNDS['UB_MIN'] * 10
 
         x0 = [lb0, ub0]
