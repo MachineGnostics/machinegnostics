@@ -446,6 +446,11 @@ class DistFuncEngine:
             (self._OPTIMIZATION_BOUNDS['LB_MIN'], self._OPTIMIZATION_BOUNDS['LB_MAX']),
             (self._OPTIMIZATION_BOUNDS['UB_MIN'], self._OPTIMIZATION_BOUNDS['UB_MAX']),
         ]
+        # logging objective methods
+        if not wedf:
+            self.logger.info("Optimizing S-global with Gnostic-SK approach")
+        else:
+            self.logger.info("Optimizing S-global with Gnostic-ME approach")
     
         def objective(params):
             s, lb, ub = params
@@ -455,11 +460,9 @@ class DistFuncEngine:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
                 
                 if not wedf:
-                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
                     # S_global_KS
                     loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
                 else:
-                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
                     # S_global_ME
                     f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
                     loss = - np.sum(f_E)
@@ -499,18 +502,22 @@ class DistFuncEngine:
 
         bounds = [(self._OPTIMIZATION_BOUNDS['S_MIN'], self._OPTIMIZATION_BOUNDS['S_MAX'])]
 
+        # logging objective methods
+        if not wedf:
+            self.logger.info("Optimizing S-global with Gnostic-SK approach")
+        else:
+            self.logger.info("Optimizing S-global with Gnostic-ME approach")
+
         def objective(s_array):
             s = s_array[0]
-            if s <= 0:
+            if s <= 0.01:
                 return 1e8
             try:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
                 if not wedf:
-                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
                     # S_global_KS
                     loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
                 else:
-                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
                     # S_global_ME
                     f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
                     loss = - np.sum(f_E)
@@ -545,6 +552,12 @@ class DistFuncEngine:
             (self._OPTIMIZATION_BOUNDS['UB_MIN'], self._OPTIMIZATION_BOUNDS['UB_MAX']),
         ]
 
+        # logging objective methods
+        if not wedf:
+            self.logger.info("Optimizing S-global with Gnostic-SK approach")
+        else:
+            self.logger.info("Optimizing S-global with Gnostic-ME approach")
+
         def objective(params):
             lb, ub = params
             if lb >= ub:
@@ -552,11 +565,9 @@ class DistFuncEngine:
             try:
                 dist_values, _, _ = self.compute_func(s, lb, ub)
                 if not wedf:
-                    self.logger.info("Optimizing S-global with Gnostic-SK approach")
                     # S_global_KS
                     loss = np.max(np.abs(dist_values - self.target_values) * self.weights)
                 else:
-                    self.logger.info("Optimizing S-global with Gnostic-ME approach")
                     # S_global_ME
                     f_E = 2 / ( (dist_values/(self.target_values + 1e-6))**2 + (self.target_values/(dist_values + 1e-6))**2 )
                     loss = - np.sum(f_E)
