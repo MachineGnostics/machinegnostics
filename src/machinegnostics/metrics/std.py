@@ -108,36 +108,62 @@ def std(data: np.ndarray,
     logger.info("Calculating variance...")
     v = np.abs(variance(data, case=case, S=S, z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance))
 
-    # if is str
-    if isinstance(S, str):
-        if S == 'auto':
-            logger.info("Optimizing S using EGDF...")
-            egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose)
-            egdf.fit(data=data, plot=False)
-            S = egdf.S_opt
+    # EGDF fitting 
+    logger.info("Optimizing S using EGDF...")
+    egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose, S=S)
+    egdf.fit(data=data, plot=False)
+    S = egdf.S_opt
+
+    # data domain conversion
+    logger.info("Converting data domain...")
+    if egdf.data_form == 'm':
+        m_z = DataConversion._convert_mz(m, egdf.DLB, egdf.DUB)
+    else:
+        m_z = DataConversion._convert_az(m, egdf.DLB, egdf.DUB)
+    # to infinite domain
+    mzi = DataConversion._convert_fininf(m_z, egdf.LB, egdf.UB)
+
+
+    
     # std
     if case.lower() == 'i':
-        logger.info("Calculating standard deviation the estimating geometry...")
-        std_value_ub = m * ((1 + np.sqrt(v)) / ( 1 - np.sqrt(v)))**(S/2)
-        std_value_lb = m * ((1 - np.sqrt(v)) / ( 1 + np.sqrt(v)))**(S/2)
+        # safe check
         if 1 - np.sqrt(v) <= 0:
             logger.warning("Encountered negative sqrt value!")
             return 0, 0
+        logger.info("Calculating standard deviation the estimating geometry...")
+        std_value_ub = mzi * ((1 + np.sqrt(v)) / ( 1 - np.sqrt(v) + 1e-6))**(S/2)
+        std_value_lb = mzi * ((1 - np.sqrt(v)) / ( 1 + np.sqrt(v) + 1e-6))**(S/2)
 
     elif case.lower() == 'j':
         logger.info("Calculating standard deviation the quantifying geometry...")
 
-        std_value_ub = m * ((np.sqrt(v)) + ( 1 + np.sqrt(v)))**(S/2)
-        # safe v
-        if 1 - np.sqrt(v) < 0:
-            logger.warning("Encountered negative sqrt value, returning 0,0. Use case 'i' for estimating geometry.")
-            return 0, std_value_ub
-        
-        std_value_lb = m * ((np.sqrt(v)) + ( 1 - np.sqrt(v)))**(S/2)
+        std_value_ub = mzi * ((np.sqrt(v)) + ( 1 + np.sqrt(v)))**(S/2)
+        std_value_lb = mzi * ((np.sqrt(v)) + ( 1 - np.sqrt(v)))**(S/2)
 
     else:
         raise ValueError("case must be either 'i' or 'j'. i for estimating variance, j for quantifying variance.")
+
+
+        
+    # back to data domain
+    logger.info("Converting standard deviation back to original data domain...")
+    if egdf.data_form == 'm':
+        std_value_ub = DataConversion._convert_inffin(std_value_ub, egdf.LB, egdf.UB)
+        std_value_ub = DataConversion._convert_zm(std_value_ub, egdf.DLB, egdf.DUB)
+
+        std_value_lb = DataConversion._convert_inffin(std_value_lb, egdf.LB, egdf.UB)
+        std_value_lb = DataConversion._convert_zm(std_value_lb, egdf.DLB, egdf.DUB)
+    else:
+        std_value_ub = DataConversion._convert_inffin(std_value_ub, egdf.LB, egdf.UB)
+        std_value_ub = DataConversion._convert_za(std_value_ub, egdf.DLB, egdf.DUB)
+
+        std_value_lb = DataConversion._convert_inffin(std_value_lb, egdf.LB, egdf.UB)
+        std_value_lb = DataConversion._convert_za(std_value_lb, egdf.DLB, egdf.DUB)
     
     logger.info("Gnostic standard deviation calculation completed.")
 
-    return float(std_value_lb), float(std_value_ub)
+    # delta
+    delta = (std_value_ub - std_value_lb)
+
+    return m-delta, m+delta
