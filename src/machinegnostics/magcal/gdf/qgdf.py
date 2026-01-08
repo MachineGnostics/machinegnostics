@@ -35,7 +35,7 @@ class QGDF(BaseQGDF):
         catch (bool): Whether to store intermediate calculated values (default: True).
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
         wedf (bool): Whether to use Weighted Empirical Distribution Function (default: False).
-        opt_method (str): Optimization method for parameter estimation (default: 'L-BFGS-B').
+        opt_method (str): Optimization method for parameter estimation (default: 'Powell').
         tolerance (float): Convergence tolerance for optimization (default: 1e-9).
         verbose (bool): Whether to print detailed progress information (default: False).
         params (dict): Dictionary storing fitted parameters and results after fitting.
@@ -99,14 +99,14 @@ class QGDF(BaseQGDF):
                  UB: float = None,
                  S = 'auto',
                  z0_optimize: bool = True,
-                 tolerance: float = 1e-6,
+                 tolerance: float = 1e-9,
                  data_form: str = 'a',
                  n_points: int = 500,
                  homogeneous: bool = True,
                  catch: bool = True,
                  weights: np.ndarray = None,
                  wedf: bool = False,
-                 opt_method: str = 'L-BFGS-B',
+                 opt_method: str = 'Powell',
                  verbose: bool = False,
                  max_data_size: int = 1000,
                  flush: bool = True):
@@ -129,7 +129,7 @@ class QGDF(BaseQGDF):
                                       fitting. If a float is provided, it will be used as a fixed
                                       scale parameter. Default is 'auto' for QGDF.
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
-            tolerance (float, optional): Convergence tolerance for the optimization process. (Default: 1e-6)
+            tolerance (float, optional): Convergence tolerance for the optimization process. (Default: 1e-9)
             data_form (str, optional): Form of data processing. Options are:
                                      - 'a': Additive form (default)
                                      - 'm': Multiplicative form
@@ -138,7 +138,7 @@ class QGDF(BaseQGDF):
             catch (bool, optional): Whether to store intermediate calculated values during fitting.
             weights (np.ndarray, optional): Prior weights for data points.
             wedf (bool, optional): Whether to use Weighted Empirical Distribution Function.
-            opt_method (str, optional): Optimization method for parameter estimation.
+            opt_method (str, optional): Optimization method for parameter estimation. Default is 'Powell'.
             verbose (bool, optional): Whether to print detailed progress information during fitting.
             max_data_size (int, optional): Maximum size of data for which smooth QGDF generation is allowed.
             flush (bool, optional): Whether to flush intermediate calculations during processing.
@@ -155,7 +155,7 @@ class QGDF(BaseQGDF):
             >>> qgdf = QGDF()
             >>> qgdf = QGDF(DLB=0, DUB=5)
             >>> qgdf = QGDF(data_form='m')
-            >>> qgdf = QGDF(tolerance=1e-6, opt_method='SLSQP', max_data_size=5000)
+            >>> qgdf = QGDF(tolerance=1e-9, opt_method='Powell', max_data_size=5000)
         """
         self.DLB = DLB
         self.DUB = DUB

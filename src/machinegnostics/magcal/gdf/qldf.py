@@ -31,14 +31,14 @@ class QLDF(BaseQLDF):
         S (float or str): Scale parameter for the distribution. Set to 'auto' for automatic estimation.
         varS (bool): Whether to use variable scale parameter during optimization (default: False).
         z0_optimize (bool): Whether to optimize the location parameter z0 during fitting (default: True).
-        tolerance (float): Convergence tolerance for optimization (default: 1e-5).
+        tolerance (float): Convergence tolerance for optimization (default: 1e-9).
         data_form (str): Form of the data processing ('a' for additive, 'm' for multiplicative).
         n_points (int): Number of points to generate in the distribution function (default: 500).
         homogeneous (bool): Whether to assume data homogeneity (default: True).
         catch (bool): Whether to store intermediate calculated values (default: True).
         weights (np.ndarray): Prior weights for data points. If None, uniform weights are used.
         wedf (bool): Whether to use Weighted Empirical Distribution Function (default: False).
-        opt_method (str): Optimization method for parameter estimation (default: 'L-BFGS-B').
+        opt_method (str): Optimization method for parameter estimation (default: 'Powell').
         verbose (bool): Whether to print detailed progress information (default: False).
         max_data_size (int): Maximum data size for smooth QLDF generation (default: 1000).
         flush (bool): Whether to flush large arrays during processing (default: True).
@@ -101,14 +101,14 @@ class QLDF(BaseQLDF):
                  S = 'auto',
                  varS: bool = False,
                  z0_optimize: bool = True,
-                 tolerance: float = 1e-6,
+                 tolerance: float = 1e-9,
                  data_form: str = 'a',
                  n_points: int = 500,
                  homogeneous: bool = True,
                  catch: bool = True,
                  weights: np.ndarray = None,
                  wedf: bool = False,
-                 opt_method: str = 'L-BFGS-B',
+                 opt_method: str = 'Powell',
                  verbose: bool = False,
                  max_data_size: int = 1000,
                  flush: bool = True):
@@ -132,7 +132,7 @@ class QLDF(BaseQLDF):
                                       scale parameter. Default is 'auto' for QLDF.
             varS (bool, optional): Whether to allow variable scale parameter during optimization to handle heteroscedasticity.
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
-            tolerance (float, optional): Convergence tolerance for the optimization process. (default: 1e-6)
+            tolerance (float, optional): Convergence tolerance for the optimization process. (default: 1e-9)
             data_form (str, optional): Form of data processing. Options are:
                                      - 'a': Additive form (default)
                                      - 'm': Multiplicative form
@@ -141,7 +141,7 @@ class QLDF(BaseQLDF):
             catch (bool, optional): Whether to store intermediate calculated values during fitting.
             weights (np.ndarray, optional): Prior weights for data points.
             wedf (bool, optional): Whether to use Weighted Empirical Distribution Function.
-            opt_method (str, optional): Optimization method for parameter estimation.
+            opt_method (str, optional): Optimization method for parameter estimation. Default is 'Powell'.
             verbose (bool, optional): Whether to print detailed progress information during fitting.
             max_data_size (int, optional): Maximum size of data for which smooth QLDF generation is allowed.
             flush (bool, optional): Whether to flush intermediate calculations during processing.
