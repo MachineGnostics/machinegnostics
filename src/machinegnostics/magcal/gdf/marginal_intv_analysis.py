@@ -45,7 +45,7 @@ class IntervalAnalysis:
         Scale parameter for the distribution. Use 'auto' for automatic estimation.
     z0_optimize : bool, default=True
         Whether to optimize the central parameter Z0 during fitting.
-    tolerance : float, default=1e-6
+    tolerance : float, default=1e-9
         Convergence tolerance for optimization.
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
@@ -61,7 +61,7 @@ class IntervalAnalysis:
         Prior weights for data points.
     wedf : bool, default=False
         Use Weighted Empirical Distribution Function if True.
-    opt_method : str, default='L-BFGS-B'
+    opt_method : str, default='Powell'
         Optimization method for parameter estimation.
     verbose : bool, default=False
         Print detailed progress and diagnostics if True.
@@ -129,7 +129,7 @@ class IntervalAnalysis:
                 UB: float = None,
                 S: str = 'auto',
                 z0_optimize: bool = True,
-                tolerance: float = 1e-6,
+                tolerance: float = 1e-9,
                 data_form: str = 'a',
                 n_points: int = 10,
                 n_points_gdf: int = 1000,
@@ -137,7 +137,7 @@ class IntervalAnalysis:
                 catch: bool = True,
                 weights: np.ndarray = None,
                 wedf: bool = False,
-                opt_method: str = 'L-BFGS-B',
+                opt_method: str = 'Powell',
                 verbose: bool = False,
                 max_data_size: int = 1000,
                 flush: bool = True,
