@@ -6,6 +6,7 @@ Author: Nirmal Parmar
 Machine Gnostics
 '''
 
+from unittest import result
 import numpy as np
 import warnings
 from scipy.optimize import minimize
@@ -970,6 +971,8 @@ class BaseQLDF(BaseQGDF):
         )
     
         S0_opt, gamma_opt = result.x
+        # persist optimized parameters
+        self.S0, self.gamma = S0_opt, gamma_opt
         self.S_var = S0_opt * np.exp(gamma_opt * self.zi)
 
         # varS check
@@ -984,26 +987,15 @@ class BaseQLDF(BaseQGDF):
             # generate array with n_points, all values set to S_var[0]
             self.S_var_points = np.full(self.n_points, self.S_var[0])
         else:
-            # Remove duplicates in self.zi for interpolation
-            unique_zi, idx = np.unique(self.zi, return_inverse=True)
-            S_var_avg = np.zeros_like(unique_zi, dtype=float)
-            for i, uz in enumerate(unique_zi):
-                S_var_avg[i] = np.mean(self.S_var[idx == i])
-            # Interpolate S_var to n_points using cubic interpolation
-            from scipy.interpolate import interp1d
-            interp_func = interp1d(unique_zi, S_var_avg, kind='quadratic', fill_value="extrapolate")
-            self.S_var_points = interp_func(self.z_points_n)
+            # Compute S_var_points directly from the optimized parametric form
+            # Ensure finite-infinite transformed evaluation points are available
+            if not hasattr(self, 'zi_n') or self.zi_n is None:
+                self.zi_n = DataConversion._convert_fininf(self.z_points_n, self.LB_opt, self.UB_opt)
+            self.S_var_points = S0_opt * np.exp(gamma_opt * self.zi_n)
+            # Apply the same rounding and minimum threshold
+            self.S_var_points = np.round(self.S_var_points, 1)
+            self.S_var_points = np.maximum(self.S_var_points, 0.1)
         
-        # saving to params
-        if self.catch:
-            self.params.update({
-                'Scadesticity_test': 'Homoscedastic' if scd_test else 'Heteroscedastic',
-                'S_var': self.S_var.copy(),
-                'S_var_points': self.S_var_points.copy(),
-                'S0_varS': float(self.S0),
-                'gamma_varS': float(self.gamma)
-            })
-    
         self.logger.info("Varying S (varS) calculation completed.")
 
         return self.S_var, self.S_var_points
