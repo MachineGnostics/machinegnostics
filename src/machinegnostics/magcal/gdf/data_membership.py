@@ -9,6 +9,9 @@ DataMembership
   3. We need to find two bounds, lower sample bound LSB and upper sample bound USB. for LSB search range is [LB, DLB] and for USB search range is [DUB, UB]. where DL is the data limit (min and max of Z). LB and UB are the lower and upper bounds of the data universe. 
   4. need to find minimum and maximum values of Zξ that keeps the extended sample homogeneous.
 
+Author: Nirmal Parmar
+Machine Gnostics
+
 '''
 import logging
 from machinegnostics.magcal.util.logging import get_logger
@@ -293,9 +296,8 @@ class DataMembership:
             self.is_homogeneous = self._check_original_homogeneity()
             
             if not self.is_homogeneous:
-                error_msg = "Original sample is not homogeneous. Membership analysis requires homogeneous data."
+                error_msg = "Original sample is not homogeneous and membership bounds may not be reliable. Membership analysis requires homogeneous data."
                 self._append_error(error_msg)
-                raise RuntimeError(error_msg)
 
             self.logger.info("Original sample is homogeneous. Proceeding with bound search...")
 
@@ -435,20 +437,20 @@ class DataMembership:
             
             # Add LSB vertical line
             if self.LSB is not None:
-                ax1.axvline(x=self.LSB, color='red', linestyle='--', linewidth=1.5, 
-                           alpha=0.9, label=f'LSB = {self.LSB:.3f}', zorder=10)
+                ax1.axvline(x=self.LSB, color='red', linestyle='--', linewidth=1.5,
+                            alpha=0.9, label=f'LSB = {self.LSB:.3f}', zorder=5)
                 self.logger.info(f"Added LSB line at {self.LSB}")
 
             # Add USB vertical line
             if self.USB is not None:
                 ax1.axvline(x=self.USB, color='blue', linestyle='--', linewidth=1.5,
-                           alpha=0.9, label=f'USB = {self.USB:.3f}', zorder=10)
+                            alpha=0.9, label=f'USB = {self.USB:.3f}', zorder=5)
                 self.logger.info(f"Added USB line at {self.USB}")
 
             # Add membership range shading if both bounds exist
             if self.LSB is not None and self.USB is not None:
-                ax1.axvspan(self.LSB, self.USB, alpha=0.05, color='green', 
-                           label='Membership Range', zorder=1)
+                ax1.axvspan(self.LSB, self.USB, alpha=0.2, color='skyblue',
+                            label='Membership Range', zorder=1)
                 self.logger.info("Added membership range shading")
             
             # Add bounds if requested
@@ -462,8 +464,8 @@ class DataMembership:
                 
                 for bound, color, style, name in bound_info:
                     if bound is not None:
-                        ax1.axvline(x=bound, color=color, linestyle=style, linewidth=2, 
-                                   alpha=0.8, label=f"{name}={bound:.3f}")
+                        ax1.axvline(x=bound, color=color, linestyle=style, linewidth=2,
+                                    alpha=0.8, label=f"{name}={bound:.3f}", zorder=2)
             
             # Add Z0 if available
             if hasattr(self.egdf, 'z0') and self.egdf.z0 is not None:
@@ -493,8 +495,16 @@ class DataMembership:
             padding = data_range * 0.1
             ax1.set_xlim(self.egdf.params['DLB'] - padding, self.egdf.params['DUB'] + padding)
             
-            # Add legend
-            ax1.legend(loc='upper left', bbox_to_anchor=(0, 1))
+            # Build a single legend in the top-right, above all artists
+            handles1, labels1 = ax1.get_legend_handles_labels()
+            handles = handles1
+            labels = labels1
+            if 'ax2' in locals():
+                handles2, labels2 = ax2.get_legend_handles_labels()
+                handles += handles2
+                labels += labels2
+            legend = ax1.legend(handles, labels, loc='upper right', framealpha=0.6, fancybox=True)
+            legend.set_zorder(100)
             
             plt.tight_layout()
             plt.show()
