@@ -8,12 +8,9 @@ Machine Gnostics
 """
 
 import numpy as np
-import warnings
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import find_peaks, argrelextrema
 from typing import Union, Dict, Any, Optional, Tuple, List
 
 class DataCluster:
@@ -22,19 +19,12 @@ class DataCluster:
     
     The DataCluster class identifies main cluster boundaries (CLB and CUB) from probability 
     density functions of four types of Gnostic Distribution Functions: ELDF, EGDF, QLDF, and QGDF.
-    It uses normalized PDF analysis with derivative-based methods and shape detection algorithms
-    to precisely locate cluster boundaries.
-    
-    Clustering Performance by GDF Type:
-    - **Local Functions (ELDF, QLDF)**: Excellent clustering performance due to unlimited 
-      flexibility controlled by scale parameter
-    - **Global Functions (EGDF, QGDF)**: Limited clustering effectiveness due to constrained 
-      flexibility and uniqueness assumptions
+    It uses normalized PDF analysis with a unified derivative-based method
+    to precisely locate cluster boundaries for all GDF types.
     
     Key Features:
     - PDF normalization for consistent analysis across all GDF types
-    - QLDF W-shape vs U-shape detection for accurate valley boundary identification
-    - Derivative-based boundary detection with adaptive thresholds
+    - Unified derivative-based boundary detection with adaptive thresholds
     - Multiple fallback methods for robust cluster identification
     - Comprehensive error handling and validation
     
@@ -48,11 +38,10 @@ class DataCluster:
     catch : bool, default=True
         Enable error catching and graceful degradation (inherited from GDF conventions).
     derivative_threshold : float, default=0.01
-        Threshold for ELDF/EGDF boundary detection. Points where (PDF + 1st_derivative) 
+        Threshold for boundary detection. Points where (PDF + 1st_derivative)
         falls below this threshold are considered boundary candidates.
-    slope_percentile : int, default=70
-        Percentile threshold for QLDF/QGDF slope-based boundary detection. Higher values
-        create more conservative (narrower) cluster boundaries.
+    slope_percentile : int, default=70 (deprecated)
+        Deprecated and ignored. Kept for backward compatibility.
     
     Attributes
     ----------
@@ -80,27 +69,12 @@ class DataCluster:
     results()
         Return comprehensive analysis results dictionary
     
-    Algorithm Details
-    ----------------
-    **ELDF/EGDF (Estimating Distribution Functions):**
-    - PDF has global maximum at z0 (characteristic point)
-    - Boundaries found where (PDF + 1st_derivative) ≤ derivative_threshold
-    - Main cluster region is BETWEEN CLB and CUB (shaded green)
-    - Works best with local ELDF due to flexible scale parameter control
-    
-    **QLDF (Quantifying Local Distribution Function):**
-    - **W-shape detection**: Identifies peaks between boundary extremes
-      - 1 internal peak → W-shape → Find valley minima as boundaries
-      - 0 internal peaks → U-shape → Use slope transition method
-      - 2+ internal peaks → Heterogeneous data warning
-    - **Valley detection**: Uses scipy.signal.argrelextrema for precise minima
-    - Main cluster region is OUTSIDE CLB and CUB boundaries (shaded green)
-    
-    **QGDF (Quantifying Global Distribution Function):**
-    - Uses slope transition detection with percentile-based thresholds
-    - Limited effectiveness due to global function constraints
-    - Fallback to curvature analysis when slope detection fails
-    - Main cluster region is OUTSIDE CLB and CUB boundaries (shaded green)
+        Algorithm Details
+        ----------------
+        Unified method for all GDFs (ELDF, EGDF, QLDF, QGDF):
+        - PDF typically has a global maximum at z0 (characteristic point)
+        - Boundaries found where (PDF + 1st_derivative) ≤ derivative_threshold
+        - Main cluster region is BETWEEN CLB and CUB (shaded green)
     
     Normalization Strategy
     ---------------------
@@ -112,7 +86,6 @@ class DataCluster:
     Error Handling
     -------------
     - Validates GDF object fitness and required attributes
-    - Warns when using global functions (EGDF/QGDF) for clustering
     - Provides fallback to data bounds when boundary detection fails
     - Comprehensive error logging with method traceability
     
@@ -135,7 +108,7 @@ class DataCluster:
     >>> results = cluster.results()
     >>> print(f"CLB: {results['LCB']}, CUB: {results['UCB']}")
     >>> print(f"Cluster width: {results['cluster_width']}")
-    >>> print(f"PDF shape: {results['pdf_shape']}")  # For QLDF
+    >>> # Note: shape detection is deprecated and removed
     
     >>> # Advanced usage with custom thresholds
     >>> cluster = DataCluster(
@@ -148,11 +121,7 @@ class DataCluster:
     
     Notes
     -----
-    - Clustering works best with local distribution functions (ELDF, QLDF)
-    - Global functions (EGDF, QGDF) have limited clustering effectiveness due to 
-      their uniqueness constraints and automatic parameter optimization
-    - QLDF W-shape detection is particularly effective for data with central clusters
-      between outlying regions
+    - Clustering now uses a single unified method across all GDFs
     - For heterogeneous data with multiple clusters, consider data splitting before analysis
     
     References
@@ -176,9 +145,8 @@ class DataCluster:
         derivative_threshold : float, default=0.01
             Threshold for ELDF/EGDF boundary detection. Lower values create 
             wider cluster boundaries, higher values create narrower boundaries.
-        slope_percentile : int, default=70
-            Percentile threshold (0-100) for QLDF/QGDF slope detection. 
-            Higher values create more conservative cluster boundaries.
+        slope_percentile : int, default=70 (deprecated)
+            Deprecated and ignored. Kept for backward compatibility with older code.
         
         Raises
         ------
@@ -192,11 +160,13 @@ class DataCluster:
         self.verbose = verbose
         self.catch = catch
         self.derivative_threshold = derivative_threshold
+        # Deprecated (kept for backward compatibility; not used)
         self.slope_percentile = slope_percentile
         
         self.params = {
             'gdf_type': self.gdf_type,
             'derivative_threshold': self.derivative_threshold,
+            # Deprecated fields retained for compatibility but not used downstream
             'slope_percentile': self.slope_percentile,
             'LCB': None,
             'UCB': None,
@@ -206,7 +176,6 @@ class DataCluster:
             'clustering_successful': False,
             'method_used': None,
             'normalization_method': None,
-            'pdf_shape': None,
             'errors': [],
             'warnings': []
         }
@@ -227,7 +196,6 @@ class DataCluster:
         # validation
         try:
             self._validate_gdf()
-            self._validate_gdf_type_for_clustering()
         except Exception as e:
             self._append_error(f"GDF validation failed: {str(e)}", type(e).__name__)
 
@@ -245,20 +213,7 @@ class DataCluster:
             self.logger.error("GDF object missing data attribute.")
             raise ValueError("GDF object missing data attribute.")
 
-    def _validate_gdf_type_for_clustering(self):
-        self.logger.info("Validating GDF type for clustering suitability.")
-
-        if self.gdf_type in ['egdf', 'qgdf']:
-            gdf_full_name = 'EGDF' if self.gdf_type == 'egdf' else 'QGDF'
-            local_alternative = 'ELDF' if self.gdf_type == 'egdf' else 'QLDF'
-            
-            warning_msg = (
-                f"Using {gdf_full_name} (Global Distribution Function) for clustering analysis. "
-                f"Clustering may not be as effective with global functions. "
-                f"Consider using {local_alternative} (Local Distribution Function) for better clustering results."
-            )
-            
-            self._append_warning(warning_msg)
+    # GDF type suitability warnings removed in unified logic
 
     def _append_error(self, error_message, exception_type=None):
         error_entry = {
@@ -361,12 +316,9 @@ class DataCluster:
 
         data_points = self._get_data_points()
         
-        if self.gdf_type in ['eldf', 'egdf']:
-            max_idx = np.argmax(self.pdf_normalized)
-            return data_points[max_idx]
-        else:
-            min_idx = np.argmin(self.pdf_normalized)
-            return data_points[min_idx]
+        # Unified behavior: treat all GDFs like ELDF/EGDF with peak at z0
+        max_idx = np.argmax(self.pdf_normalized)
+        return data_points[max_idx]
 
     def _find_z0_index(self, data_points):
         self.logger.info("Finding index of Z0 in data points.")
@@ -374,259 +326,44 @@ class DataCluster:
         z0_idx = np.argmin(np.abs(data_points - self.z0))
         return z0_idx
 
-    def _detect_qldf_shape_and_boundaries(self, pdf_normalized, data_points):
-        self.logger.info("Detecting QLDF shape and determining boundaries.")
-
-        z0_idx = self._find_z0_index(data_points)
-        
-        # Find all peaks with lower sensitivity to catch all significant peaks
-        peaks, peak_properties = find_peaks(pdf_normalized, 
-                                           height=0.05,     
-                                           distance=5,      
-                                           prominence=0.05) 
-        
-        # Exclude boundary peaks (first and last 10% of data)
-        boundary_margin = len(data_points) // 10
-        internal_peaks = peaks[(peaks > boundary_margin) & (peaks < len(data_points) - boundary_margin)]
-        
-        if self.verbose:
-            self.logger.info(f"Found {len(internal_peaks)} internal peaks at indices: {internal_peaks}")
-            if len(internal_peaks) > 0:
-                peak_values = [f'{data_points[p]:.1f}' for p in internal_peaks]
-                self.logger.info(f"Internal peak values: {peak_values}")
-
-        # Determine shape based on number of internal peaks
-        if len(internal_peaks) == 1:
-            # W-shape: One peak between extremes
-            self.params['pdf_shape'] = 'W-shape'
-            return self._find_w_shape_valley_boundaries(pdf_normalized, data_points, internal_peaks[0])
-            
-        elif len(internal_peaks) == 0:
-            # U-shape: No peaks between extremes
-            self.params['pdf_shape'] = 'U-shape'
-            return self._find_u_shape_slope_boundaries(pdf_normalized, data_points)
-            
-        else:
-            # Heterogeneous: Multiple peaks (2+)
-            self.params['pdf_shape'] = 'Heterogeneous'
-            warning_msg = f"QLDF detected {len(internal_peaks)} internal peaks. Data may be heterogeneous. Consider splitting the dataset."
-            self._append_warning(warning_msg)
-            # Fallback to slope method
-            return self._find_u_shape_slope_boundaries(pdf_normalized, data_points)
-
-    def _find_w_shape_valley_boundaries(self, pdf_normalized, data_points, central_peak_idx):
-        self.logger.info("W-shape detected, using valley detection method.")
-        z0_idx = self._find_z0_index(data_points)
-        central_peak_value = data_points[central_peak_idx]
-
-        self.logger.info(f"W-shape detected with central peak at {central_peak_value:.3f}")
-        self.logger.info(f"Z0 at {data_points[z0_idx]:.3f}")
-        
-        left_candidates = []
-        right_candidates = []
-        
-        # Method 1: Find actual minima using scipy
-        self.logger.info("Finding valley minima using scipy.signal.argrelextrema")
-        minima_indices = argrelextrema(pdf_normalized, np.less, order=3)[0]  
-        
-        # Filter minima and find those on left and right of central peak
-        left_minima = [m for m in minima_indices if m < central_peak_idx and m > len(data_points)//10]
-        right_minima = [m for m in minima_indices if m > central_peak_idx and m < len(data_points)*9//10]
-
-        self.logger.info(f"Found {len(left_minima)} left minima, {len(right_minima)} right minima")
-
-        # Take the closest minima to the central peak
-        if left_minima:
-            closest_left_min = max(left_minima)  # Closest to central peak from left
-            left_candidates.append(closest_left_min)
-            self.logger.info(f"Left valley minimum at {data_points[closest_left_min]:.3f}")
-
-        if right_minima:
-            closest_right_min = min(right_minima)  # Closest to central peak from right
-            right_candidates.append(closest_right_min)
-            self.logger.info(f"Right valley minimum at {data_points[closest_right_min]:.3f}")
-
-        # Method 2: If no clear minima found, use regional minimum search
-        self.logger.info("Checking for regional minima if no clear minima found")
-        if not left_candidates or not right_candidates:
-            self.logger.info("No clear minima found, using regional minimum search")
-
-            # Define search regions around the central peak
-            search_radius = (len(data_points) // 4)
-            
-            # Left region: from start to central peak
-            left_start = max(0, central_peak_idx - search_radius)
-            left_end = central_peak_idx
-            if not left_candidates and left_end > left_start:
-                left_region = pdf_normalized[left_start:left_end]
-                local_min_idx = np.argmin(left_region) + left_start
-                left_candidates.append(local_min_idx)
-                self.logger.info(f"Left regional minimum at {data_points[local_min_idx]:.3f}")
-
-            # Right region: from central peak to end
-            right_start = central_peak_idx
-            right_end = min(len(pdf_normalized), central_peak_idx + search_radius)
-            if not right_candidates and right_end > right_start:
-                right_region = pdf_normalized[right_start:right_end]
-                local_min_idx = np.argmin(right_region) + right_start
-                right_candidates.append(local_min_idx)
-                self.logger.info(f"Right regional minimum at {data_points[local_min_idx]:.3f}")
-
-        # Method 3: Enhanced valley detection using percentile approach
-        self.logger.info("Checking for percentile-based valleys")
-        if not left_candidates or not right_candidates:
-            self.logger.info("Using percentile-based valley detection")
-            
-            # Find points in bottom 20% of PDF values
-            valley_threshold = np.percentile(pdf_normalized, 20)
-            valley_indices = np.where(pdf_normalized <= valley_threshold)[0]
-            
-            # Split valleys by central peak
-            left_valleys = [v for v in valley_indices if v < central_peak_idx]
-            right_valleys = [v for v in valley_indices if v > central_peak_idx]
-            
-            if left_valleys and not left_candidates:
-                # Take valley closest to central peak
-                left_candidates.append(max(left_valleys))
-                self.logger.info(f"Left percentile valley at {data_points[max(left_valleys)]:.3f}")
-
-            if right_valleys and not right_candidates:
-                # Take valley closest to central peak
-                right_candidates.append(min(right_valleys))
-                self.logger.info(f"Right percentile valley at {data_points[min(right_valleys)]:.3f}")
-        
-        return left_candidates, right_candidates
-
-    def _find_u_shape_slope_boundaries(self, pdf_normalized, data_points):
-        self.logger.info("U-shape detected, using slope transition method.")
-
-        z0_idx = self._find_z0_index(data_points)
-
-        self.logger.info("U-shape detected, using slope transition method")
-
-        # Use existing slope detection logic
-        first_derivative = np.gradient(pdf_normalized)
-        deriv_abs = np.abs(first_derivative)
-        slope_threshold = np.percentile(deriv_abs, self.slope_percentile)
-        
-        left_candidates = []
-        right_candidates = []
-        
-        search_radius = min(20, len(data_points) // 4)
-        
-        # Search for slope transitions
-        for i in range(z0_idx - search_radius, -1, -1):
-            if i >= 0 and deriv_abs[i] > slope_threshold:
-                left_candidates.append(i)
-                break
-        
-        for i in range(z0_idx + search_radius, len(deriv_abs)):
-            if deriv_abs[i] > slope_threshold:
-                right_candidates.append(i)
-                break
-        
-        return left_candidates, right_candidates
+    # QLDF/QGDF shape and slope detection logic removed in unified method
 
     def _find_boundaries_normalized_method(self, pdf_normalized, data_points):
         self.logger.info("Finding cluster boundaries using normalized PDF and derivative methods.")
         
         z0_idx = self._find_z0_index(data_points)
         
-        # Calculate derivatives on normalized PDF
+        # Calculate derivative on normalized PDF
         first_derivative = np.gradient(pdf_normalized)
-        second_derivative = np.gradient(first_derivative)
         
-        if self.gdf_type in ['eldf', 'egdf']:
-            self.logger.info("Using ELDF/EGDF boundary detection method.")
-            # ELDF/EGDF: Find where pdf + derivative falls below threshold
-            combined_signal = pdf_normalized + first_derivative
-            
-            left_candidates = []
-            right_candidates = []
-            
-            # Search outward from Z0
-            for i in range(z0_idx - 1, -1, -1):
-                if combined_signal[i] <= self.derivative_threshold:
-                    left_candidates.append(i)
-                    break
-            
-            for i in range(z0_idx + 1, len(combined_signal)):
-                if combined_signal[i] <= self.derivative_threshold:
-                    right_candidates.append(i)
-                    break
-            
-            if left_candidates:
-                self.LCB = data_points[left_candidates[0]]
-            if right_candidates:
-                self.UCB = data_points[right_candidates[0]]
-                
-            self.params['method_used'] = 'normalized_derivative_eldf_egdf'
-            
-        elif self.gdf_type == 'qldf':
-            self.logger.info("Using QLDF boundary detection method.")
-            # QLDF: Use shape-based detection strategy
-            left_candidates, right_candidates = self._detect_qldf_shape_and_boundaries(pdf_normalized, data_points)
-            
-            if left_candidates:
-                self.LCB = data_points[left_candidates[0]]
-            if right_candidates:
-                self.UCB = data_points[right_candidates[0]]
-                
-            shape = self.params.get('pdf_shape', 'unknown')
-            self.params['method_used'] = f'qldf_{shape.lower()}_valley_detection'
-            
-        else:
-            self.logger.info("Using QGDF boundary detection method.")
-            # QGDF: Use slope transition method
-            deriv_abs = np.abs(first_derivative)
-            slope_threshold = np.percentile(deriv_abs, self.slope_percentile)
-            
-            left_candidates = []
-            right_candidates = []
-            
-            search_radius = min(20, len(data_points) // 4)
-            
-            for i in range(z0_idx - search_radius, -1, -1):
-                if i >= 0 and deriv_abs[i] > slope_threshold:
-                    left_candidates.append(i)
-                    break
-            
-            for i in range(z0_idx + search_radius, len(deriv_abs)):
-                if deriv_abs[i] > slope_threshold:
-                    right_candidates.append(i)
-                    break
-            
-            if not left_candidates or not right_candidates:
-                self.logger.info("Using normalized curvature-based detection")
+        # Unified boundary detection method (applies to all GDF types)
+        self.logger.info("Using unified boundary detection method for all GDF types.")
+        combined_signal = pdf_normalized + first_derivative
 
-                curvature_threshold = np.std(second_derivative) * 0.7
-                
-                for i in range(z0_idx - 1, -1, -1):
-                    if abs(second_derivative[i]) > curvature_threshold:
-                        if not left_candidates:
-                            left_candidates.append(i)
-                        break
-                
-                for i in range(z0_idx + 1, len(second_derivative)):
-                    if abs(second_derivative[i]) > curvature_threshold:
-                        if not right_candidates:
-                            right_candidates.append(i)
-                        break
-                
-                self.params['method_used'] = 'normalized_curvature_qgdf'
-            else:
-                self.params['method_used'] = 'normalized_slope_transition_qgdf'
-            
-            if left_candidates:
-                self.LCB = data_points[left_candidates[0]]
-            if right_candidates:
-                self.UCB = data_points[right_candidates[0]]
+        left_candidates = []
+        right_candidates = []
+
+        # Search outward from Z0
+        for i in range(z0_idx - 1, -1, -1):
+            if combined_signal[i] <= self.derivative_threshold:
+                left_candidates.append(i)
+                break
+
+        for i in range(z0_idx + 1, len(combined_signal)):
+            if combined_signal[i] <= self.derivative_threshold:
+                right_candidates.append(i)
+                break
+
+        if left_candidates:
+            self.LCB = data_points[left_candidates[0]]
+        if right_candidates:
+            self.UCB = data_points[right_candidates[0]]
+
+        self.params['method_used'] = 'normalized_derivative_unified'
 
         if self.verbose:
             method = self.params['method_used']
             self.logger.info(f"Using method: {method}")
-            if hasattr(self, 'params') and 'pdf_shape' in self.params:
-                self.logger.info(f"PDF shape: {self.params['pdf_shape']}")
             if self.LCB is not None:
                 self.logger.info(f"Found CLB at {self.LCB:.3f}")
             if self.UCB is not None:
@@ -667,9 +404,8 @@ class DataCluster:
                     'clustering_successful': self.params['clustering_successful'],
                     'method_used': self.params['method_used'],
                     'derivative_threshold': self.params['derivative_threshold'],
-                    'slope_percentile': self.params['slope_percentile'],
                     'normalization_method': self.params['normalization_method'],
-                    'pdf_shape': self.params.get('pdf_shape', None)
+                    # Deprecated fields intentionally omitted from nested results
                 }
             }
             self.gdf.params.update(cluster_params)
@@ -685,10 +421,8 @@ class DataCluster:
         4. Implements fallback strategies if needed
         5. Updates all parameters and results
         
-        The method automatically selects the appropriate algorithm based on GDF type:
-        - **ELDF/EGDF**: Derivative threshold method
-        - **QLDF**: Shape detection (W-shape vs U-shape) with valley finding
-        - **QGDF**: Slope transition detection with curvature fallback
+        The method uses a unified algorithm for all GDF types:
+        - Derivative threshold method on normalized PDF
 
         Parameters
         ----------
@@ -722,7 +456,6 @@ class DataCluster:
             if self.verbose:
                 self.logger.info(f"Starting normalized cluster analysis for {self.gdf_type.upper()}")
                 self.logger.info(f"Derivative threshold: {self.derivative_threshold}")
-                self.logger.info(f"Slope percentile: {self.slope_percentile}")
             
             # Get basic data
             self.logger.info("Extracting PDF and data points from GDF.")
@@ -741,7 +474,7 @@ class DataCluster:
             self.logger.info(f"Z0: {self.z0:.3f}, S_opt: {self.S_opt:.3f}")
             
             # Apply normalized clustering method
-            self.logger.info("Applying boundary detection method based on GDF type.")
+            self.logger.info("Applying unified boundary detection method.")
             self._find_boundaries_normalized_method(self.pdf_normalized, data_points)
             
             # Fallback to data bounds if needed
@@ -797,11 +530,9 @@ class DataCluster:
             **Method Details:**
             - 'method_used' : str - Specific algorithm used for boundary detection
             - 'normalization_method' : str - PDF normalization approach
-            - 'pdf_shape' : str or None - Detected shape for QLDF ('W-shape', 'U-shape', 'Heterogeneous')
             
             **Parameters:**
-            - 'derivative_threshold' : float - Threshold used for ELDF/EGDF
-            - 'slope_percentile' : int - Percentile used for QLDF/QGDF
+            - 'derivative_threshold' : float - Threshold used for boundary detection
             
             **Diagnostics:**
             - 'errors' : list - Any errors encountered during analysis
@@ -823,10 +554,8 @@ class DataCluster:
         >>> print(f"Upper boundary: {results['UCB']}")
         >>> print(f"Cluster width: {results['cluster_width']}")
         >>> 
-        >>> # Check method and shape information
+        >>> # Check method information
         >>> print(f"Method used: {results['method_used']}")
-        >>> if results['pdf_shape']:
-        ...     print(f"PDF shape: {results['pdf_shape']}")
         >>> 
         >>> # Verify success and check for issues
         >>> if results['clustering_successful']:
@@ -855,10 +584,10 @@ class DataCluster:
         - Z0 characteristic point (red solid line)
         - Cluster region shading (light green):
           - ELDF/EGDF: Between CLB and CUB
-          - QLDF/QGDF: Outside CLB and CUB boundaries
-        - First and second derivatives for boundary detection analysis
-        - Threshold lines and slope indicators
-        - QLDF shape information (W-shape, U-shape, Heterogeneous) in title
+          - QLDF/QGDF: Outside CLB/CUB (DLB→CLB and CUB→DUB)
+        - First derivative for boundary detection analysis
+        - Threshold line and boundary markers
+        - Unified logic; no shape detection in title
         
         Parameters
         ----------
@@ -874,7 +603,6 @@ class DataCluster:
         -----
         - Requires successful completion of fit() method
         - Automatically adjusts visualization based on GDF type
-        - For QLDF, includes PDF shape detection results in title
         - Derivative plots help understand boundary detection mechanism
         - Green shaded regions indicate the main cluster areas
         
@@ -889,9 +617,8 @@ class DataCluster:
         try:
             data_points = self._get_data_points()
             
-            # Calculate derivatives for plotting
+            # Calculate derivative for plotting
             first_derivative = np.gradient(self.pdf_normalized)
-            second_derivative = np.gradient(first_derivative)
             combined_signal = self.pdf_normalized + first_derivative
             
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, height_ratios=[3, 2])
@@ -910,18 +637,16 @@ class DataCluster:
                 ax1.axvline(x=self.UCB, color='green', linestyle=':', linewidth=2, label=f'CUB={self.UCB:.3f}')
             
             # Shade regions based on GDF type
-            dlb, dub = self._get_data_bounds()
             if self.LCB is not None and self.UCB is not None:
+                dlb, dub = self._get_data_bounds()
                 if self.gdf_type in ['eldf', 'egdf']:
                     ax1.axvspan(self.LCB, self.UCB, alpha=0.2, color='lightgreen', label='Main Cluster')
                 else:
-                    ax1.axvspan(dlb, self.LCB, alpha=0.2, color='lightgreen', label='Main Cluster')
+                    ax1.axvspan(dlb, self.LCB, alpha=0.2, color='lightgreen', label='Inliers')
                     ax1.axvspan(self.UCB, dub, alpha=0.2, color='lightgreen')
             
-            # Add shape info to title for QLDF
+            # Title for unified detection
             title = f'{self.gdf_type.upper()} Normalized Cluster Detection'
-            if self.gdf_type == 'qldf' and 'pdf_shape' in self.params:
-                title += f' ({self.params["pdf_shape"]})'
             
             ax1.set_ylabel('PDF Values')
             ax1.set_title(title)
@@ -932,19 +657,9 @@ class DataCluster:
             ax2.plot(data_points, first_derivative, 'orange', label='1st Derivative', alpha=0.7)
             ax2.plot(data_points, combined_signal, 'purple', label='PDF + 1st Derivative', linewidth=2)
             
-            # Plot threshold lines
-            if self.gdf_type in ['eldf', 'egdf']:
-                ax2.axhline(y=self.derivative_threshold, color='red', linestyle='--', alpha=0.7, 
-                           label=f'Threshold={self.derivative_threshold}')
-            else:
-                # For QLDF/QGDF, show slope threshold
-                deriv_abs = np.abs(first_derivative)
-                slope_threshold = np.percentile(deriv_abs, self.slope_percentile)
-                ax2.plot(data_points, deriv_abs, 'brown', label='|1st Derivative|', alpha=0.7)
-                ax2.axhline(y=slope_threshold, color='red', linestyle='--', alpha=0.7, 
-                           label=f'Slope Threshold ({self.slope_percentile}%)')
-                ax2.plot(data_points, second_derivative, 'gray', label='2nd Derivative', alpha=0.5)
-                ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3, label='Zero Line')
+            # Plot threshold line (unified)
+            ax2.axhline(y=self.derivative_threshold, color='red', linestyle='--', alpha=0.7,
+                        label=f'Threshold={self.derivative_threshold}')
             
             # Plot boundaries on derivative plot
             if self.LCB is not None:
