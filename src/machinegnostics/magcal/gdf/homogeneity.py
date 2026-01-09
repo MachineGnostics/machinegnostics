@@ -1,3 +1,18 @@
+"""
+DataHomogeneity class for analyzing data homogeneity using EGDF.
+
+Gnostic Theory Reference: To perform the Homogeneity Test in Machine Gnostics, you must determine if the EGDF (Estimating Global Distribution Function) is unimodal. A sample is considered homogeneous if and only if its probability density function has exactly one maximum over the infinite data support.
+
+**Homogeneity Criteria:**
+
+- **EGDF (Estimating Global Distribution Function)**: Data is considered homogeneous if:
+    1. PDF has exactly one global maximum (single peak)
+    2. PDF contains no negative values
+
+Author: Nirmal Parmar
+Date: 2025-10-10
+"""
+
 import numpy as np
 import warnings
 import matplotlib.pyplot as plt
