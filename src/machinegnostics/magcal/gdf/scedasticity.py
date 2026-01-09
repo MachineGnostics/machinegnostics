@@ -3,195 +3,249 @@ Gnostic - Homoscedasticity and Heteroscedasticity
 
 This module to check for homoscedasticity and heteroscedasticity in data.
 
+Primary work with ELDF and QLDF classes (local gnostics distribution functions).
+Fit GDF for given data with varS=True to estimate variable Scale parameter.
+If Scale parameter is variable, data is heteroscedastic. If Scale parameter is constant, data is homoscedastic.
+
 Author: Nirmal Parmar
 Machine Gnostics
 '''
 import numpy as np
 import logging
 from machinegnostics.magcal.util.logging import get_logger
-
+from machinegnostics.magcal import ELDF, QLDF
+from typing import Union
 class DataScedasticity:
     """
-    Gnostic Scedasticity Test for Homoscedasticity and Heteroscedasticity
+    Gnostic scedasticity test for homoscedasticity vs. heteroscedasticity.
 
-    This class provides a method to check for homoscedasticity and heteroscedasticity in data,
-    inspired by fundamental principles rather than standard statistical tests. Unlike classical
-    approaches, this implementation uses gnostic variance and gnostic linear regression, which are
-    based on the Machine Gnostics framework.
+    This class determines whether a dataset is homoscedastic (constant scale)
+    or heteroscedastic (varying scale) using a fitted Gnostic Local Distribution
+    Function (GLDF), specifically `ELDF` or `QLDF`. Instead of classical residual
+    tests, it relies on the gnostic scale parameter estimated by the GLDF.
 
-    Key Differences from Standard Methods:
-    - **Variance Calculation:** The variance used here is the gnostic variance, which may differ in
-      definition and properties from classical statistical variance. It is designed to capture
-      uncertainty and spread in a way that aligns with gnostic principles.
-    - **Regression Model:** The linear regression model employed is a gnostic linear regression,
-      not the standard least squares regression. This model is tailored to the gnostic approach and
-      may use different loss functions, optimization criteria, or regularization.
-    - **Test Philosophy:** This is not a formal statistical test (such as Breusch-Pagan or White's test),
-      but rather a diagnostic inspired by the fundamentals of the gnostic framework. The method splits
-      residuals based on the median of the independent variable and compares the gnostic variances of
-      the squared residuals in each half.
+    Key differences vs. standard tests:
+    - Uses GLDF's scale parameter instead of residual-based heuristics.
+    - Works with local/global gnostic scale (`S_local`, `S_opt`) for inference.
+    - Integrates directly with Machine Gnostics models (`ELDF`, `QLDF`).
 
-    Usage:
-        1. Initialize the class with desired gnostic regression parameters.
-        2. Call `fit(x, y)` with your data.
-        3. Check the `is_homoscedastic` attribute or returned value to determine if the data is
-           homoscedastic (equal gnostic variance across splits) or heteroscedastic.
+    Usage overview:
+    - Fit a GLDF (`ELDF` or `QLDF`) with `varS=True` on your data.
+    - Pass the fitted GLDF instance to `DataScedasticity`.
+    - Call `fit()` to classify scedasticity and populate `result()`.
 
     Attributes:
-        x (np.ndarray): Independent variable data.
-        y (np.ndarray): Dependent variable data.
-        model (LinearRegressor): Gnostic linear regression model.
-        residuals (np.ndarray): Residuals from the fitted model.
-        params (dict): Stores calculated variances and variance ratio.
-        variance_ratio (float): Ratio of gnostic variances between data splits.
-        is_homoscedastic (bool): True if data is homoscedastic under gnostic test, else False.
+    - `gldf`: GLDF instance (`ELDF` or `QLDF`) already fitted with `varS=True`.
+    - `catch`: Whether to catch/handle warnings or errors (reserved for future).
+    - `verbose`: Enables debug-level logging when `True`.
+    - `params`: Results container populated after `fit()`.
+    - `fitted`: Boolean indicating whether scedasticity classification ran.
+    - `logger`: Module logger configured by `get_logger()`.
 
     Example:
-        >>> import numpy as np
-        >>> from machinegnostics.magcal import DataScedasticity
-        >>> x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        >>> y = np.array([2.1, 4.2, 6.1, 8.3, 10.2, 12.1, 14.2, 16.1, 18.2, 20.1])
-        >>> sced = DataScedasticity()
-        >>> is_homo = sced.fit(x, y)
-        >>> print(f"Is data homoscedastic? {is_homo}")
-        >>> print(f"Variance ratio: {sced.variance_ratio}")
+    ```python
+    from machinegnostics.magcal import ELDF, DataScedasticity
+
+    # Prepare and fit GLDF with variable scale enabled
+    eldf = ELDF(varS=True)
+    eldf.fit(data)  # ensure the GLDF is fitted and exposes S_var, S_local, S_opt
+
+    # Run scedasticity test
+    sc = DataScedasticity(gldf=eldf, verbose=True)
+    is_homo = sc.fit()
+    info = sc.result()
+
+    print(is_homo)           # True if homoscedastic, False otherwise
+    print(info['scedasticity'])  # 'homoscedastic' or 'heteroscedastic'
+    print(info['S_global'])  # global/optimal gnostic scale (S_opt)
+    ```
 
     Note:
-        This class is intended for users interested in gnostic data analysis. Results and interpretations
-        may not align with classical statistical methods. For more details on gnostic variance and regression,
-        refer to the Machine Gnostics documentation.
+    - The supplied `gldf` must be an instance of `ELDF` or `QLDF`, fitted with
+        `varS=True`. Validation is performed during initialization.
+    - `fit()` sets `params` and `fitted`; call `result()` afterwards to obtain a
+        structured dictionary of outputs.
     """
 
     def __init__(self,
-                 scale: str | int | float = 'auto',
-                 max_iter: int = 100,
-                 tol: float = 0.001,
-                 mg_loss: str = 'hi',
-                 early_stopping: bool = True,
-                 verbose: bool = False,
-                 data_form: str = 'a',
-                 gnostic_characteristics: bool = True,
-                 history: bool = True):
+                 gldf: Union[ELDF, QLDF] = ELDF,
+                 catch: bool = True,
+                 verbose: bool = False):
+        """Initialize a scedasticity checker with a fitted GLDF.
+
+        Args:
+        - `gldf`: A fitted GLDF instance (`ELDF` or `QLDF`) configured with
+            `varS=True` and exposing `S_var`, `S_local`, and `S_opt`.
+        - `catch`: Reserved flag for future error/exception handling.
+        - `verbose`: If `True`, enables debug-level logging for this checker.
+
+        Raises:
+        - `TypeError`: If `gldf` is not an `ELDF` or `QLDF` type.
+        - `ValueError`: If `gldf` is not fitted or `varS` is `False`.
+
+        Example:
+        ```python
+        from machinegnostics.magcal import ELDF, DataScedasticity
+
+        eldf = ELDF(varS=True)
+        eldf.fit(data)
+        sc = DataScedasticity(gldf=eldf, verbose=True)
+        ```
+                """
+        self.gldf = gldf
+        self.catch = catch
+        self.verbose = verbose
         
-        from machinegnostics.models.regression import LinearRegressor
-        self.x = None
-        self.y = None
-        self.model = LinearRegressor(scale=scale,
-                                     max_iter=max_iter,
-                                     tol=tol,
-                                     mg_loss=mg_loss,
-                                     early_stopping=early_stopping,
-                                     verbose=verbose,
-                                     data_form=data_form,
-                                     gnostic_characteristics=gnostic_characteristics,
-                                     history=history)
-        self.residuals = None
         self.params = {}
+        self.fitted = False
+
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
         self.logger.debug(f"{self.__class__.__name__} initialized:")
 
-
-    def _split_residuals(self):
-        """
-        Split residuals into two halves based on the median of x. zip x and residuals.
-        sorted(zip(x, residuals))
-        """
-        self.logger.info("Splitting residuals based on median of x.")
-        median_x = np.median(self.x)
-        left_half = [(xi, ri) for xi, ri in zip(self.x, self.residuals) if xi <= median_x]
-        right_half = [(xi, ri) for xi, ri in zip(self.x, self.residuals) if xi > median_x]
-        return left_half, right_half
+        self._input_qldf_check()
+        self._gdf_obj_validation()
     
-    def _variance_ratio(self):
+    def _input_qldf_check(self):
+        """Validate the input GLDF type is either `ELDF` or `QLDF`.
+
+        This check ensures the provided `gldf` conforms to supported gnostic
+        local distribution function types.
+
+        Raises:
+        - `TypeError`: If `gldf` is not an `ELDF` or `QLDF` type.
+
+        Example:
+        ```python
+        sc = DataScedasticity(gldf=eldf)
+        # Internal validation runs during initialization; you can call manually:
+        sc._input_qldf_check()
+        ```
         """
-        Calculate the variance ratio of the squared residuals in the two halves.
+        self.logger.info("Validating input GLDF (Gnostic Local Distribution Function) class...")
+        class_name = self.gldf.__class__.__name__
+        if class_name not in ['ELDF', 'QLDF']:
+            self.logger.error(f"Input GLDF class must be ELDF or QLDF, got {class_name} instead.")
+            raise TypeError(f"Input GLDF class must be ELDF or QLDF, got {class_name} instead.")
+        self.logger.info("Input GLDF class is valid.")
+    
+    def _gdf_obj_validation(self):
+        """Validate `gldf` object is fitted and configured with `varS=True`.
+
+        Ensures downstream scedasticity analysis can access `S_var`, `S_local`,
+        and `S_opt` from the GLDF instance.
+
+        Raises:
+        - `ValueError`: If the GLDF is not fitted or `varS` is `False`.
+
+        Example:
+        ```python
+        sc = DataScedasticity(gldf=eldf)
+        sc._gdf_obj_validation()  # no-op if configuration is valid
+        ```
+        """
+        self.logger.info("Validating GLDF object...")
+        if not self.gldf._fitted:
+            self.logger.error("The GLDF object must be fitted before checking scedasticity.")
+            raise ValueError("The GLDF object must be fitted before checking scedasticity.")
+        if not self.gldf.varS:
+            self.logger.error("The GLDF object must have varS=True to check for scedasticity.")
+            raise ValueError("The GLDF object must have varS=True to check for scedasticity.")
+        self.logger.info("GLDF object is valid for scedasticity check.")
+
+
+    def fit(self) -> bool:
+        """Classify scedasticity using GLDF scale variability.
+
+        Checks whether the GLDF's scale parameter array (`S_var`) is constant
+        across data points. If constant, the data is classified as
+        homoscedastic; otherwise, heteroscedastic.
 
         Returns:
-            float: Variance ratio of the squared residuals.
-        """
-        from machinegnostics import variance
-        self.logger.info("Calculating variance ratio.")
-        left_half, right_half = self._split_residuals()
-        left_residuals = np.array([ri for xi, ri in left_half])
-        right_residuals = np.array([ri for xi, ri in right_half])
-        var_left = variance(left_residuals ** 2)
-        var_right = variance(right_residuals ** 2)
+        - `True`: Data is homoscedastic (constant scale parameter).
+        - `False`: Data is heteroscedastic (variable scale parameter).
 
-        self.logger.debug(f"Left variance: {var_left}, Right variance: {var_right}")
-        # cap values between [1, 1e-9]
-        var_left = float(var_left)
-        var_right = float(np.maximum(var_right, 1e-9)) # to avoid division by zero
-        if var_right == 0 and var_left == 0:
-            variance_ratio = 1.0
-        elif var_right == 0:
-            variance_ratio = np.inf
+        Side effects:
+        - Populates `self.params` with keys: `scedasticity`, `scale_parameter`,
+          `S_local`, and `S_global`.
+        - Sets `self.fitted = True` when complete.
+
+        Example:
+        ```python
+        sc = DataScedasticity(gldf=eldf)
+        is_homo = sc.fit()
+        if is_homo:
+            print("Homoscedastic")
         else:
-            variance_ratio = var_left / var_right
+            print("Heteroscedastic")
+        ```
+        """
+        # get scale parameter S from gldf
+        s_var = self.gldf.S_var
 
-        # params
-        self.logger.info(f"Variance ratio calculated: {variance_ratio}")
-        self.params['var_left'] = var_left
-        self.params['var_right'] = var_right
-        self.params['variance_ratio'] = variance_ratio
-        return variance_ratio
+        # check if scale parameter is constant or variable
+        if np.allclose(s_var, s_var[0]):
+            self.logger.info("Data is homoscedastic (constant scale parameter).")
+            if self.catch:
+                self.params['scedasticity'] = 'homoscedastic'
+                self.params['scale_parameter'] = s_var
+                self.params['S_local'] = self.gldf.S_local
+                self.params['S_global'] = self.gldf.S_opt
+            self.fitted = True
+            return True
+        else:
+            self.logger.info("Data is heteroscedastic (variable scale parameter).")
+            if self.catch:
+                self.params['scedasticity'] = 'heteroscedastic'
+                self.params['scale_parameter'] = s_var
+                self.params['S_local'] = self.gldf.S_local
+                self.params['S_global'] = self.gldf.S_opt
+            self.fitted = True
+            return False
+
+    def results(self) -> dict:
+        """Return scedasticity results after `fit()`.
+
+        Returns:
+        - `dict`: A dictionary containing:
+          - `scedasticity`: `'homoscedastic'` or `'heteroscedastic'`.
+          - `scale_parameter`: The `S_var` array from the GLDF.
+          - `S_local`: Local gnostic scale values.
+          - `S_global`: Global/optimal gnostic scale (`S_opt`).
+
+        Raises:
+        - `ValueError`: If `fit()` has not been called.
+
+        Example:
+        ```python
+        sc = DataScedasticity(gldf=eldf)
+        sc.fit()
+        info = sc.result()
+        print(info['scedasticity'])  # 'homoscedastic' or 'heteroscedastic'
+        ```
+        """
+        if not self.fitted:
+            self.logger.error("The model must be fitted before retrieving results.")
+            raise ValueError("The model must be fitted before retrieving results.")
         
-    
-    def _is_homoscedastic(self, threshold: float = 0.001):
+        return self.params
+
+    def __repr__(self):
+        """Return a concise representation of the scedasticity checker.
+
+        Intended to help with debugging/logging. Representation may include
+        the GLDF type and `fitted` state in a future implementation.
+
+        Example:
+        ```python
+        sc = DataScedasticity(gldf=eldf)
+        repr(sc)  # e.g., '<DataScedasticity(gldf=ELDF, fitted=False)>'
+        ```
         """
-        Check if the data is homoscedastic based on the variance ratio.
+        try:
+            gldf_type = self.gldf.__name__
+        except AttributeError:
+            gldf_type = self.gldf.__class__.__name__
 
-        Args:
-            threshold (float): Threshold to determine homoscedasticity.
-
-        Returns:
-            bool: True if homoscedastic, False if heteroscedastic.
-        """
-        if self.variance_ratio is None:
-            self.logger.error("Variance ratio not calculated. Please run fit() first.")
-            raise ValueError("Variance ratio not calculated. Please run fit() first.")
-        return abs(self.variance_ratio - 1) < threshold
-
-    def fit(self, x: np.ndarray, y: np.ndarray) -> bool:
-        """
-        Fit the gnostic linear regression model to the data and assess scedasticity.
-
-        This method fits the gnostic linear regression model to the provided data, computes the residuals,
-        and evaluates homoscedasticity or heteroscedasticity using the gnostic variance approach. Unlike
-        standard statistical tests, this method uses gnostic variance and gnostic regression, which are
-        based on the Machine Gnostics framework and may yield different results from classical methods.
-
-        The method splits the data based on the median of the independent variable, calculates the gnostic
-        variance of squared residuals in each half, and determines if the data is homoscedastic (equal
-        gnostic variance) or heteroscedastic.
-
-        Args:
-            x (np.ndarray): Independent variable data.
-            y (np.ndarray): Dependent variable data.
-
-        Returns:
-            bool: True if data is homoscedastic under the gnostic test, False if heteroscedastic.
-
-        Note:
-            This is not a standard statistical test. For details on the gnostic approach, see the
-            Machine Gnostics documentation.
-        """
-        self.logger.info("Fitting DataScedasticity model...")
-        self.x = x
-        self.y = y
-
-        self.logger.info("Fitting gnostic regression model.")
-        self.model.fit(x, y)
-        self.logger.debug(f"Model calculations complete.")
-
-        self.logger.info("Calculating residuals.")  
-        self.residuals = y - self.model.predict(x)
-
-        # calculate variance ratio
-        self.logger.info("Calculating variance ratio.")
-        self.variance_ratio = self._variance_ratio()
-
-        # check
-        self.logger.info("Checking homoscedasticity.")
-        self.is_homoscedastic = self._is_homoscedastic()
-        self.logger.info(f"Homoscedasticity check result - is_homoscedastic: {self.is_homoscedastic}")
-        return self.is_homoscedastic
+        status = 'fitted' if self.fitted else 'unfitted'
+        sced = self.params.get('scedasticity', 'unknown') if self.fitted else 'unknown'
+        return f"<DataScedasticity(gldf={gldf_type}, {status}, scedasticity={sced})>"
