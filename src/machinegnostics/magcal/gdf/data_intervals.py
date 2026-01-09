@@ -766,9 +766,9 @@ class DataIntervals:
             max_pdf = 1.0
         
         # Typical Data Interval (ZL to ZU)
-        ax1.axvspan(self.ZL, self.ZU, alpha=0.2, color='lightblue', label=f'Typical Data Interval \n[ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
+        ax1.axvspan(self.ZL, self.ZU, alpha=0.3, color='lightblue', label=f'Typical Data Interval \n[ZL: {self.ZL:.3f}, ZU: {self.ZU:.3f}]')
         # Tolerance Interval (Z0L to Z0U)
-        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.20, color='lightgreen', label=f'Tolerance Interval \n[Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
+        ax1.axvspan(self.Z0L, self.Z0U, alpha=0.50, color='lightgreen', label=f'Tolerance Interval \n[Z0L: {self.Z0L:.3f}, Z0U: {self.Z0U:.3f}]')
 
         # Critical vertical lines
         ax1.axvline(x=self.ZL, color='orange', linestyle='-.', linewidth=2, alpha=0.8, label=f'ZL={self.ZL:.3f}')
