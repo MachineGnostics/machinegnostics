@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use Machine Gnostics, please cite it using the metadata below."
+type: software
+title: "Machine Gnostics"
+version: "0.0.2"
+date-released: 2026-10-28
+license: GPL-3.0-only
+repository-code: "https://github.com/MachineGnostics/machinegnostics"
+url: "https://machinegnostics.info/"
+authors:
+  - family-names: "Parmar"
+    given-names: "Nirmal"
+    orcid: "https://orcid.org/0000-0003-4603-1550"
+    email: "info.machinegnostics@gmail.com"
+abstract: |
+  Machine Gnostics is an open-source initiative that seeks to redefine
+  the mathematical underpinnings of machine learning. While most conventional
+  ML libraries are grounded in probabilistic and statistical frameworks,
+  Machine Gnostics explores alternative paradigms—drawing from Mathematical
+  Gnostics, a non-statistical and deterministic approach.
+keywords:
+  - machine learning
+  - AI
+  - data science
+  - data analysis
+  - deep learning
+  - neural networks
+  - ML
+  - Machine Gnostics
+  - Mathematical Gnostics
+
+# Preferred citation for this software
+preferred-citation:
+  type: software
+  title: "Machine Gnostics"
+  authors:
+    - family-names: "Parmar"
+      given-names: "Nirmal"
+      orcid: "https://orcid.org/0000-0003-4603-1550"
+  version: "0.0.2"
+  date-released: 2026-10-28
+  url: "https://github.com/MachineGnostics/machinegnostics"
