@@ -10,7 +10,7 @@ import logging
 import numpy as np
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 
-def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', verbose: bool = False) -> float:
+def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: float = 1, verbose: bool = False) -> float:
     """
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
 
@@ -32,6 +32,8 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', verbose: bool = 
         Predicted values.
     case : str, optional
         Case to be used for calculation. Options are 'i' or 'j'. Default is 'i'.
+    S : float, optional
+        Gnostic scale parameter. Default is 1.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.
 
@@ -120,7 +122,7 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', verbose: bool = 
 
     # Calculate q and q1
     logger.info("Calculating q and q1.")
-    q, q1 = gnostics._get_q_q1()
+    q, q1 = gnostics._get_q_q1(S=S)
 
     # Calculate fi, fj, hi, hj based on the case
     if case == 'i':
