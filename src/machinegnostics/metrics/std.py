@@ -123,8 +123,6 @@ def std(data: np.ndarray,
     # to infinite domain
     mzi = DataConversion._convert_fininf(m_z, egdf.LB, egdf.UB)
 
-
-    
     # std
     if case.lower() == 'i':
         # safe check
@@ -163,7 +161,7 @@ def std(data: np.ndarray,
     
     logger.info("Gnostic standard deviation calculation completed.")
 
-    # delta
-    delta = (std_value_ub - std_value_lb)
+    # # delta
+    # delta = (std_value_ub - std_value_lb)
 
-    return m-delta, m+delta
+    return std_value_lb, std_value_ub
