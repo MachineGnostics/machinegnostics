@@ -3,7 +3,7 @@ message: "If you use Machine Gnostics, please cite it using the metadata below."
 type: software
 title: "Machine Gnostics"
 version: "0.0.2"
-date-released: 2026-10-28
+date-released: 2026-9-28
 license: GPL-3.0-only
 repository-code: "https://github.com/MachineGnostics/machinegnostics"
 url: "https://machinegnostics.info/"
@@ -38,5 +38,5 @@ preferred-citation:
       given-names: "Nirmal"
       orcid: "https://orcid.org/0000-0003-4603-1550"
   version: "0.0.2"
-  date-released: 2026-10-28
+  date-released: 2026-9-28
   url: "https://github.com/MachineGnostics/machinegnostics"
