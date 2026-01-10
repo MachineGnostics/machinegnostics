@@ -161,7 +161,7 @@ def std(data: np.ndarray,
     
     logger.info("Gnostic standard deviation calculation completed.")
 
-    # # delta
-    # delta = (std_value_ub - std_value_lb)
+    # delta
+    delta = (std_value_ub - std_value_lb)
 
-    return std_value_lb, std_value_ub
+    return m - delta/2, m + delta/2
