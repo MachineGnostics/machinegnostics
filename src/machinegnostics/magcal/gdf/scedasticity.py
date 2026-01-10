@@ -20,22 +20,22 @@ class DataScedasticity:
     Gnostic scedasticity test for homoscedasticity vs. heteroscedasticity.
 
     This class determines whether a dataset is homoscedastic (constant scale)
-    or heteroscedastic (varying scale) using a fitted Gnostic Local Distribution
-    Function (GLDF), specifically `ELDF` or `QLDF`. Instead of classical residual
-    tests, it relies on the gnostic scale parameter estimated by the GLDF.
+    or heteroscedastic (varying scale) using a fitted Gnostic (Local) Distribution
+    Function (GDF), specifically `ELDF` or `QLDF`. Instead of classical residual
+    tests, it relies on the gnostic scale parameter estimated by the GDF.
 
     Key differences vs. standard tests:
-    - Uses GLDF's scale parameter instead of residual-based heuristics.
+    - Uses GDF's scale parameter instead of residual-based heuristics.
     - Works with local/global gnostic scale (`S_local`, `S_opt`) for inference.
     - Integrates directly with Machine Gnostics models (`ELDF`, `QLDF`).
 
     Usage overview:
-    - Fit a GLDF (`ELDF` or `QLDF`) with `varS=True` on your data.
-    - Pass the fitted GLDF instance to `DataScedasticity`.
+    - Fit a GDF (`ELDF` or `QLDF`) with `varS=True` on your data.
+    - Pass the fitted GDF instance to `DataScedasticity`.
     - Call `fit()` to classify scedasticity and populate `result()`.
 
     Attributes:
-    - `gldf`: GLDF instance (`ELDF` or `QLDF`) already fitted with `varS=True`.
+    - `gdf`: GDF instance (`ELDF` or `QLDF`) already fitted with `varS=True`.
     - `catch`: Whether to catch/handle warnings or errors (reserved for future).
     - `verbose`: Enables debug-level logging when `True`.
     - `params`: Results container populated after `fit()`.
@@ -46,12 +46,12 @@ class DataScedasticity:
     ```python
     from machinegnostics.magcal import ELDF, DataScedasticity
 
-    # Prepare and fit GLDF with variable scale enabled
+    # Prepare and fit GDF with variable scale enabled
     eldf = ELDF(varS=True)
-    eldf.fit(data)  # ensure the GLDF is fitted and exposes S_var, S_local, S_opt
+    eldf.fit(data)  # ensure the GDF is fitted and exposes S_var, S_local, S_opt
 
     # Run scedasticity test
-    sc = DataScedasticity(gldf=eldf, verbose=True)
+    sc = DataScedasticity(gdf=eldf, verbose=True)
     is_homo = sc.fit()
     info = sc.result()
 
@@ -60,28 +60,32 @@ class DataScedasticity:
     print(info['S_global'])  # global/optimal gnostic scale (S_opt)
     ```
 
+    Methods:
+    - `fit()`: Performs the scedasticity classification based on the fitted GDF.
+    - `result()`: Returns a dictionary summarizing the scedasticity analysis.
+
     Note:
-    - The supplied `gldf` must be an instance of `ELDF` or `QLDF`, fitted with
+    - The supplied `gdf` must be an instance of `ELDF` or `QLDF`, fitted with
         `varS=True`. Validation is performed during initialization.
     - `fit()` sets `params` and `fitted`; call `result()` afterwards to obtain a
         structured dictionary of outputs.
     """
 
     def __init__(self,
-                 gldf: Union[ELDF, QLDF] = ELDF,
+                 gdf: Union[ELDF, QLDF] = ELDF,
                  catch: bool = True,
                  verbose: bool = False):
-        """Initialize a scedasticity checker with a fitted GLDF.
+        """Initialize a scedasticity checker with a fitted GDF.
 
         Args:
-        - `gldf`: A fitted GLDF instance (`ELDF` or `QLDF`) configured with
+        - `gdf`: A fitted GDF instance (`ELDF` or `QLDF`) configured with
             `varS=True` and exposing `S_var`, `S_local`, and `S_opt`.
         - `catch`: Reserved flag for future error/exception handling.
         - `verbose`: If `True`, enables debug-level logging for this checker.
 
         Raises:
-        - `TypeError`: If `gldf` is not an `ELDF` or `QLDF` type.
-        - `ValueError`: If `gldf` is not fitted or `varS` is `False`.
+        - `TypeError`: If `gdf` is not an `ELDF` or `QLDF` type.
+        - `ValueError`: If `gdf` is not fitted or `varS` is `False`.
 
         Example:
         ```python
@@ -89,10 +93,10 @@ class DataScedasticity:
 
         eldf = ELDF(varS=True)
         eldf.fit(data)
-        sc = DataScedasticity(gldf=eldf, verbose=True)
+        sc = DataScedasticity(gdf=eldf, verbose=True)
         ```
                 """
-        self.gldf = gldf
+        self.gdf = gdf
         self.catch = catch
         self.verbose = verbose
         
@@ -106,57 +110,57 @@ class DataScedasticity:
         self._gdf_obj_validation()
     
     def _input_qldf_check(self):
-        """Validate the input GLDF type is either `ELDF` or `QLDF`.
+        """Validate the input GDF type is either `ELDF` or `QLDF`.
 
-        This check ensures the provided `gldf` conforms to supported gnostic
+        This check ensures the provided `gdf` conforms to supported gnostic
         local distribution function types.
 
         Raises:
-        - `TypeError`: If `gldf` is not an `ELDF` or `QLDF` type.
+        - `TypeError`: If `gdf` is not an `ELDF` or `QLDF` type.
 
         Example:
         ```python
-        sc = DataScedasticity(gldf=eldf)
+        sc = DataScedasticity(gdf=eldf)
         # Internal validation runs during initialization; you can call manually:
         sc._input_qldf_check()
         ```
         """
-        self.logger.info("Validating input GLDF (Gnostic Local Distribution Function) class...")
-        class_name = self.gldf.__class__.__name__
+        self.logger.info("Validating input GDF (Gnostic Local Distribution Function) class...")
+        class_name = self.gdf.__class__.__name__
         if class_name not in ['ELDF', 'QLDF']:
-            self.logger.error(f"Input GLDF class must be ELDF or QLDF, got {class_name} instead.")
-            raise TypeError(f"Input GLDF class must be ELDF or QLDF, got {class_name} instead.")
-        self.logger.info("Input GLDF class is valid.")
+            self.logger.error(f"Input GDF class must be ELDF or QLDF, got {class_name} instead.")
+            raise TypeError(f"Input GDF class must be ELDF or QLDF, got {class_name} instead.")
+        self.logger.info("Input GDF class is valid.")
     
     def _gdf_obj_validation(self):
-        """Validate `gldf` object is fitted and configured with `varS=True`.
+        """Validate `gdf` object is fitted and configured with `varS=True`.
 
         Ensures downstream scedasticity analysis can access `S_var`, `S_local`,
-        and `S_opt` from the GLDF instance.
+        and `S_opt` from the GDF instance.
 
         Raises:
-        - `ValueError`: If the GLDF is not fitted or `varS` is `False`.
+        - `ValueError`: If the GDF is not fitted or `varS` is `False`.
 
         Example:
         ```python
-        sc = DataScedasticity(gldf=eldf)
+        sc = DataScedasticity(gdf=eldf)
         sc._gdf_obj_validation()  # no-op if configuration is valid
         ```
         """
-        self.logger.info("Validating GLDF object...")
-        if not self.gldf._fitted:
-            self.logger.error("The GLDF object must be fitted before checking scedasticity.")
-            raise ValueError("The GLDF object must be fitted before checking scedasticity.")
-        if not self.gldf.varS:
-            self.logger.error("The GLDF object must have varS=True to check for scedasticity.")
-            raise ValueError("The GLDF object must have varS=True to check for scedasticity.")
-        self.logger.info("GLDF object is valid for scedasticity check.")
+        self.logger.info("Validating GDF object...")
+        if not self.gdf._fitted:
+            self.logger.error("The GDF object must be fitted before checking scedasticity.")
+            raise ValueError("The GDF object must be fitted before checking scedasticity.")
+        if not self.gdf.varS:
+            self.logger.error("The GDF object must have varS=True to check for scedasticity.")
+            raise ValueError("The GDF object must have varS=True to check for scedasticity.")
+        self.logger.info("GDF object is valid for scedasticity check.")
 
 
     def fit(self) -> bool:
-        """Classify scedasticity using GLDF scale variability.
+        """Classify scedasticity using GDF scale variability.
 
-        Checks whether the GLDF's scale parameter array (`S_var`) is constant
+        Checks whether the GDF's scale parameter array (`S_var`) is constant
         across data points. If constant, the data is classified as
         homoscedastic; otherwise, heteroscedastic.
 
@@ -171,7 +175,7 @@ class DataScedasticity:
 
         Example:
         ```python
-        sc = DataScedasticity(gldf=eldf)
+        sc = DataScedasticity(gdf=eldf)
         is_homo = sc.fit()
         if is_homo:
             print("Homoscedastic")
@@ -180,7 +184,7 @@ class DataScedasticity:
         ```
         """
         # get scale parameter S from gldf
-        s_var = self.gldf.S_var
+        s_var = self.gdf.S_var
 
         # check if scale parameter is constant or variable
         if np.allclose(s_var, s_var[0]):
@@ -188,8 +192,8 @@ class DataScedasticity:
             if self.catch:
                 self.params['scedasticity'] = 'homoscedastic'
                 self.params['scale_parameter'] = s_var
-                self.params['S_local'] = self.gldf.S_local
-                self.params['S_global'] = self.gldf.S_opt
+                self.params['S_local'] = self.gdf.S_local
+                self.params['S_global'] = self.gdf.S_opt
             self.fitted = True
             return True
         else:
@@ -197,8 +201,8 @@ class DataScedasticity:
             if self.catch:
                 self.params['scedasticity'] = 'heteroscedastic'
                 self.params['scale_parameter'] = s_var
-                self.params['S_local'] = self.gldf.S_local
-                self.params['S_global'] = self.gldf.S_opt
+                self.params['S_local'] = self.gdf.S_local
+                self.params['S_global'] = self.gdf.S_opt
             self.fitted = True
             return False
 
@@ -206,9 +210,9 @@ class DataScedasticity:
         """Return scedasticity results after `fit()`.
 
         Returns:
-        - `dict`: A dictionary containing:
+                - `dict`: A dictionary containing:
           - `scedasticity`: `'homoscedastic'` or `'heteroscedastic'`.
-          - `scale_parameter`: The `S_var` array from the GLDF.
+                    - `scale_parameter`: The `S_var` array from the GDF.
           - `S_local`: Local gnostic scale values.
           - `S_global`: Global/optimal gnostic scale (`S_opt`).
 
@@ -217,7 +221,7 @@ class DataScedasticity:
 
         Example:
         ```python
-        sc = DataScedasticity(gldf=eldf)
+        sc = DataScedasticity(gdf=eldf)
         sc.fit()
         info = sc.result()
         print(info['scedasticity'])  # 'homoscedastic' or 'heteroscedastic'
@@ -237,15 +241,15 @@ class DataScedasticity:
 
         Example:
         ```python
-        sc = DataScedasticity(gldf=eldf)
-        repr(sc)  # e.g., '<DataScedasticity(gldf=ELDF, fitted=False)>'
+        sc = DataScedasticity(gdf=eldf)
+        repr(sc)  # e.g., '<DataScedasticity(gdf=ELDF, fitted=False)>'
         ```
         """
         try:
-            gldf_type = self.gldf.__name__
+            gdf_type = self.gdf.__name__
         except AttributeError:
-            gldf_type = self.gldf.__class__.__name__
+            gdf_type = self.gdf.__class__.__name__
 
         status = 'fitted' if self.fitted else 'unfitted'
         sced = self.params.get('scedasticity', 'unknown') if self.fitted else 'unknown'
-        return f"<DataScedasticity(gldf={gldf_type}, {status}, scedasticity={sced})>"
+        return f"<DataScedasticity(gdf={gdf_type}, {status}, scedasticity={sced})>"
