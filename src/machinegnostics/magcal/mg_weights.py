@@ -29,8 +29,8 @@ class GnosticsWeights:
         q, q1 = gc._get_q_q1(S=1)
         fi = gc._fi(q, q1)
         scale = ScaleParam()
-        s = scale._gscale_loc(np.mean(fi))
-        q, q1 = gc._get_q_q1(S=s)
+        self.s = scale._gscale_loc(np.mean(fi))
+        q, q1 = gc._get_q_q1(S=self.s)
         wt = (2 / (q + q1))**2
         self.logger.info("Gnostic weights computation complete.")
         return wt
