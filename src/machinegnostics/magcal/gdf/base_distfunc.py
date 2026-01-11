@@ -825,12 +825,12 @@ class BaseDistFuncCompute(BaseDistFunc):
         }
         
         # Remove large temporary arrays if they exist
-        temp_attrs = ['fi', 'hi', 'df_values']
+        temp_attrs = ['z_points', 'di_points',  'zi_n', 'zi_points', 'S_var_points', 'smooth_hi', 'smooth_fi', 'fi', 'hi', 'df_values']
         for attr in temp_attrs:
             if hasattr(self, attr):
                 delattr(self, attr)
 
-        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points', 'qldf_points', 'qgdf_points', 'S_var_points']
+        long_array_params = ['z_points', 'di_points', 'egdf_points', 'pdf_points', 'zi_n', 'zi_points', 'eldf_points', 'qldf_points', 'qgdf_points', 'S_var_points', 'smooth_hi', 'smooth_fi']
 
         for param in long_array_params:
             if param in self.params:
