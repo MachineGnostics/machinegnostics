@@ -127,7 +127,6 @@ class RegressorCalBase(RegressorMethodsBase):
                 # mg data conversion                
                 z_y = self._data_conversion(y)
                 z_y0 = self._data_conversion(y0)
-                # zz = z_y0 / z_y
                 z = self._data_conversion(residuals)
 
                 # gnostic weights
@@ -137,11 +136,6 @@ class RegressorCalBase(RegressorMethodsBase):
 
                 # Compute scale and loss
                 if self.scale == 'auto':
-                    # scale = ScaleParam()
-                    # # avoid division by zero
-                    # zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
-                    # # local scale 
-                    # s = scale._gscale_loc((2 / (zz + 1/zz)))
                     s = gwc.s
                 else:
                     s = self.scale
