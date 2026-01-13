@@ -78,7 +78,7 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
 
     Example
     -------
-    >>> from machinegnostics.models.regression import LinearRegressor
+    >>> from machinegnostics.models import LinearRegressor
     >>> model = LinearRegressor(max_iter=100, verbose=True)
     >>> model.fit(X_train, y_train)
     >>> y_pred = model.predict(X_test)
@@ -95,7 +95,6 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         self, 
         scale: str | int | float = 'auto',
         max_iter: int = 100,
-        learning_rate: float = 0.1,
         tolerance: float = 1e-6,
         mg_loss: str = 'hi',
         early_stopping: bool = True,
@@ -135,7 +134,6 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         super().__init__(
             max_iter=max_iter,
             tolerance=tolerance,
-            learning_rate=learning_rate,
             mg_loss=mg_loss,
             early_stopping=early_stopping,
             verbose=verbose,
@@ -148,7 +146,6 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         self.degree = 1  # Default to linear regression
         self.max_iter = max_iter
         self.tolerance = tolerance
-        self.learning_rate = learning_rate
         self.mg_loss = mg_loss
         self.early_stopping = early_stopping
         self.verbose = verbose
@@ -262,3 +259,10 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         # Call the score method from DataProcessRobustRegressor
         r2 = robr2(y_checked, y_pred, w=self.weights)
         return r2
+    
+    def __repr__(self):
+        """String representation of the LinearRegressor instance."""
+        return (f"LinearRegressor(max_iter={self.max_iter}, tol={self.tolerance}, "
+                f"mg_loss='{self.mg_loss}', early_stopping={self.early_stopping}, "
+                f"verbose={self.verbose}, scale={self.scale}, data_form='{self.data_form}', "
+                f"gnostic_characteristics={self.gnostic_characteristics}, history={self._record_history})")
