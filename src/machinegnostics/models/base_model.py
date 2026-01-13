@@ -23,10 +23,12 @@ class ModelBase(metaclass=ABCMeta):
 
     - predict(X)
     """
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
+
+        self.verbose = verbose
         # logger
-        self.logger = get_logger(self.__class__.__name__, logging.INFO)  # Create a logger for this class
-        self.logger.info(f"ModelBase initialized.")
+        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if self.verbose else logging.WARNING)  # Create a logger for this class
+        self.logger.info(f"{self.__class__.__name__} initialized.")
 
     @abstractmethod
     def fit(self, X, y):
