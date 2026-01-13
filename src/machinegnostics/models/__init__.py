@@ -1,6 +1,7 @@
 # models
 from machinegnostics.models.regression.linear_regressor import LinearRegressor
 from machinegnostics.models.regression.polynomial_regressor import PolynomialRegressor
+from machinegnostics.models.regression.logistic_regressor import LogisticRegressor
 
 # support
 from machinegnostics.models.cross_validation import CrossValidator
