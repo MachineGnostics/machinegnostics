@@ -118,11 +118,6 @@ class RegressorCalBase(RegressorMethodsBase):
                 # Update weights using gnostic approach
                 y0 = X_poly @ self.coefficients
                 residuals = y0 - y
-
-                # gradient calculation
-                gradient = (2 / len(y)) * (X_poly.T.dot(residuals)).ravel()
-                # update coefficients
-                self.coefficients = self.coefficients - self.learning_rate * gradient
                 
                 # mg data conversion                
                 z_y = self._data_conversion(y)
