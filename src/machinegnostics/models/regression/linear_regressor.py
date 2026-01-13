@@ -40,7 +40,7 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         Scaling method or value for input features.
     max_iter : int, default=100
         Maximum number of optimization iterations.
-    tolerance : float, default=1e-8
+    tolerance : float, default=1e-6
         toleranceerance for convergence.
     mg_loss : str, default='hi'
         Loss function to use ('hi', 'fi', etc.).
