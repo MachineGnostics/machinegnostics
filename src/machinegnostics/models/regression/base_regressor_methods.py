@@ -44,7 +44,7 @@ class RegressorMethodsBase(ModelBase):
                  history: bool = True,
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True):
-        super().__init__()
+        super().__init__(verbose=verbose)
         """
         
         """
