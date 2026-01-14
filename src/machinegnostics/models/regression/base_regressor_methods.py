@@ -20,8 +20,8 @@ import numpy as np
 from itertools import combinations_with_replacement
 from machinegnostics.magcal import (GnosticsCharacteristics, 
                                     DataConversion,
-                                    ELDF,
-                                    QLDF)
+                                    ScaleParam,
+                                    EGDF, QGDF, ELDF, QLDF)
 from machinegnostics.models.base_model import ModelBase
 from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float, np_eps_float
 from typing import Union
@@ -385,19 +385,28 @@ class RegressorMethodsBase(ModelBase):
         # Placeholder for scoring logic
         pass
 
+    # def _sigmoid(self, z):
+    #     """
+    #     Compute the sigmoid function for logistic regression.
+    #     Parameters
+    #     ----------
+    #     z : np.ndarray
+    #         Input array for which to compute the sigmoid function.
+    #     Returns
+    #     -------
+    #     np.ndarray
+    #         Sigmoid of the input array.
+    #     """
+    #     # avoid overflow
+    #     p = 1 / (1 + np.exp(-z))
+    #     return p
+
     def _sigmoid(self, z):
         """
-        Compute the sigmoid function for logistic regression.
-        Parameters
-        ----------
-        z : np.ndarray
-            Input array for which to compute the sigmoid function.
-        Returns
-        -------
-        np.ndarray
-            Sigmoid of the input array.
+        Numerically stable sigmoid.
         """
-        return 1 / (1 + np.exp(-z))
+        z = np.asarray(z, dtype=np.float64)
+        return np.exp(-np.logaddexp(0.0, -z))
     
     def _gnostic_prob(self, z) -> tuple:
         """
@@ -411,33 +420,22 @@ class RegressorMethodsBase(ModelBase):
         tuple
             Tuple containing the gnostic probabilities, information, and normalized rentropy.
         """
-        # zz = self._data_conversion(z)
-        # gc = GnosticsCharacteristics(zz, verbose=self.verbose)
+        zz = self._data_conversion(z)
+        gc = GnosticsCharacteristics(zz, verbose=self.verbose)
 
-        # # q, q1
-        # q, q1 = gc._get_q_q1()
-        # h = gc._hi(q, q1)
-        # fi = gc._fi(q, q1)
+        # q, q1
+        q, q1 = gc._get_q_q1()
+        h = gc._hi(q, q1)
+        fi = gc._fi(q, q1)
 
         # Scale handling
         if self.scale == 'auto':
-            if self.mg_loss == 'hi':
-                self.logger.info("Auto scale selected using ELDF.")
-                gdf = ELDF(data_form=self.data_form, verbose=self.verbose, tolerance=self.tolerance)
-                gdf.fit(z)
-                s = gdf.S_local
-            else:
-                self.logger.info("Auto scale selected using QLDF.")
-                gdf = QLDF(data_form=self.data_form, verbose=self.verbose, tolerance=self.tolerance)
-                gdf.fit(z)
-                s = gdf.S_local
-            # scale = ScaleParam(verbose=self.verbose)
-            # s = scale._gscale_loc(np.mean(fi)) # NOTE this refer to ELDF probability. Can be improved by connecting with GDF and its PDF
+            scale = ScaleParam(verbose=self.verbose)
+            s = scale._gscale_loc(np.mean(fi)) # local scale
         else:
             s = self.scale
 
         self.logger.info("Computing gnostic probabilities and characteristics.")
-        zz = gdf.zi
         gc = GnosticsCharacteristics(zz, verbose=self.verbose)
         q, q1 = gc._get_q_q1(S=s)
         h = gc._hi(q, q1)
@@ -446,6 +444,55 @@ class RegressorMethodsBase(ModelBase):
         p = gc._idistfun(h)
         info = gc._info_i(p)
         re = gc._rentropy(fi, fj)
-        # nomalized re
+        # normalized re
+        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
+        return p, info, re_norm
+    
+    def _gnostic_prob_loss(self, z) -> tuple:
+        """
+        Compute the gnostic probabilities and characteristics.
+        Parameters
+        ----------
+        z : np.ndarray
+            Input data for which to compute gnostic probabilities.
+        Returns
+        -------
+        tuple
+            Tuple containing the gnostic probabilities, information, and normalized rentropy.
+        """
+        zz = self._data_conversion(z)
+        gc = GnosticsCharacteristics(zz, verbose=self.verbose)
+
+        # q, q1
+        q, q1 = gc._get_q_q1()
+        h = gc._hi(q, q1)
+        fi = gc._fi(q, q1)
+
+        # Scale handling
+        if self.scale == 'auto':
+            scale = ScaleParam(verbose=self.verbose)
+            s = scale._gscale_loc(np.mean(fi)) # local scale
+        else:
+            s = self.scale
+
+        self.logger.info("Computing gnostic probabilities and characteristics.")
+        gc = GnosticsCharacteristics(zz, verbose=self.verbose)
+        q, q1 = gc._get_q_q1(S=s)
+        if self.mg_loss == 'hi':
+            self.logger.info("Computing gnostic probabilities for 'hi' loss.")
+            h = gc._hi(q, q1)
+            fi = gc._fi(q, q1)
+            fj = gc._fj(q, q1)
+            p = gc._idistfun(h)
+            info = gc._info_i(p)
+        elif self.mg_loss == 'hj':
+            self.logger.info("Computing gnostic probabilities for 'hj' loss.")
+            h = gc._hj(q, q1)
+            fi = gc._fi(q, q1)
+            fj = gc._fj(q, q1)
+            p = gc._jdistfun(h)
+            info = gc._info_j(p)
+        re = gc._rentropy(fi, fj)
+        # normalized re
         re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
         return p, info, re_norm

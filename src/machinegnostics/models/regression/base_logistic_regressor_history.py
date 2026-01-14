@@ -32,14 +32,12 @@ class HistoryLogisticRegressorBase(LogisticRegressorCalBase):
                  degree: int = 1,
                  max_iter: int = 100,
                  tolerance: float = 1e-6,
-                 mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
                  scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True,
-                 history: bool = True,
-                 proba:str = 'gnostic'):
+                 history: bool = True):
         super().__init__(
             degree=degree,
             max_iter=max_iter,
@@ -49,21 +47,18 @@ class HistoryLogisticRegressorBase(LogisticRegressorCalBase):
             scale=scale,
             data_form=data_form,
             gnostic_characteristics=gnostic_characteristics,
-            proba=proba,
             history=history
         )
         
         self.degree = degree
         self.max_iter = max_iter
         self.tolerance = tolerance
-        self.mg_loss = mg_loss
         self.early_stopping = early_stopping
         self.verbose = verbose
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self.history = history
-        self.proba = proba
         self.params = [
             {
                 'iteration': 0,
@@ -99,7 +94,7 @@ class HistoryLogisticRegressorBase(LogisticRegressorCalBase):
         y : np.ndarray
             Target values.
         """
-        self.logger.info("Starting fit process for HistoryRobustRegressor.")
+        self.logger.info(f"Starting fit process for {self.__class__.__name__}.")
         # Call the parent fit method to perform fitting
         super()._fit(X, y)
 

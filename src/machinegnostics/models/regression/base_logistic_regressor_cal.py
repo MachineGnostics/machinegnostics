@@ -39,8 +39,7 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
                  scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True,
-                 history: bool = True,
-                 proba: str = 'gnostic'):
+                 history: bool = True,):
         super().__init__(
             degree=degree,
             max_iter=max_iter,
@@ -60,7 +59,6 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
-        self.proba = proba
         self.mg_loss = 'hi'
         self.history = history
         # history option
@@ -121,39 +119,21 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
                 z_y0 = self._data_conversion(y0)
 
                 # gnostic weights
-                gw = GnosticsWeights()
-                gw = gw._get_gnostic_weights(z)
+                gwc = GnosticsWeights()
+                gw = gwc._get_gnostic_weights(z)
                 new_weights = self.weights * gw
                 W = np.diag(new_weights)
 
                 # Compute scale and loss
                 if self.scale == 'auto':
-                    scale = ScaleParam()
-                    zz = z_y0 - z_y
-                    # avoid division by zero
-                    zz = np.where(zz == 0, np_min_float(), zz)  # Replace zero with a very small value
-                    # local scale 
-                    s = scale._gscale_loc((2 / (zz + 1/zz)))
+                    s = gwc.s
                 else:
                     s = self.scale
                 
-                # gnostic probabilities
-                if self.proba == 'gnostic':
-                    # Gnostic probability calculation
-                    p, info, re = self._gnostic_prob(z=z) # NOTE currently using p from local S, means ELDF. this can be improved in the future
-                elif self.proba == 'sigmoid':
-                    # Sigmoid probability calculation
-                    p = self._sigmoid(y0)
-                    _, info, re = self._gnostic_prob(z=z)
+                p = self._sigmoid(y0)
+                _, info, re = self._gnostic_prob(z=z)
 
-                # self.coefficients = self._wighted_least_squares_log_reg(p, 
-                #                                                         y0, 
-                #                                                         X_poly,
-                #                                                         y, 
-                #                                                         W=W, 
-                #                                                         n_features=n_features, 
-                #                                                         )
-                # IRLS update
+                # OLS solution with updated weights
                 try:
                     XtW = X_poly.T @ W
                     XtWX = XtW @ X_poly + 1e-8 * np.eye(n_features)
@@ -263,13 +243,10 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
         linear_pred = X_poly @ self.coefficients
         
         # gnostic vs sigmoid probability calculation
-        if self.proba == 'gnostic':
-            # Gnostic probability calculation
-            proba, info, re = self._gnostic_prob(-linear_pred)
-        elif self.proba == 'sigmoid':
+        try:
             # Sigmoid probability calculation
             proba = self._sigmoid(linear_pred)
-        else:
+        except:
             self.logger.error("Invalid probability method. Must be 'gnostic' or 'sigmoid'.")
             raise ValueError("Invalid probability method. Must be 'gnostic' or 'sigmoid'.")
         
