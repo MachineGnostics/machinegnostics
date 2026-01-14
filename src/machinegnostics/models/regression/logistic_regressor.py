@@ -43,8 +43,6 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         Maximum number of iterations for the optimization algorithm.
     tolerance : float, default=1e-6
         Tolerance for convergence. Training stops if the change in loss or entropy is below this value.
-    mg_loss : str, default='hi'
-        Type of gnostic loss to use (e.g., 'hi', 'hj', etc.).
     early_stopping : bool, default=True
         Whether to stop training early if convergence is detected.
     verbose : bool, default=False
@@ -57,8 +55,6 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         If True, calculates and stores gnostic characteristics during training.
     history : bool, default=True
         If True, maintains a history of model parameters and losses.
-    proba : str, default='gnostic'
-        Probability estimation method: 'gnostic' for gnostic-based, 'sigmoid' for standard logistic regression.
 
     Attributes
     ----------
@@ -102,14 +98,12 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
                  degree: int = 1,
                  max_iter: int = 100,
                  tolerance: float = 1e-6,
-                 mg_loss: str = 'hi',
                  early_stopping: bool = True,
                  verbose: bool = False,
                  scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
                  gnostic_characteristics:bool=True,
-                 history: bool = True,
-                 proba:str = 'gnostic'):
+                 history: bool = True):
         """
         Initialize the LogisticRegressor with specified parameters.
 
@@ -130,26 +124,22 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
             degree=degree,
             max_iter=max_iter,
             tolerance=tolerance,
-            mg_loss=mg_loss,
             early_stopping=early_stopping,
             verbose=verbose,
             scale=scale,
             data_form=data_form,
             gnostic_characteristics=gnostic_characteristics,
-            proba=proba
         )
         
         self.degree = degree
         self.max_iter = max_iter
         self.tolerance = tolerance
-        self.mg_loss = mg_loss
         self.early_stopping = early_stopping
         self.verbose = verbose
         self.scale = scale
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self.history = history
-        self.proba = proba
         self.params = []
         self._history = []
 
