@@ -186,3 +186,6 @@ tests/*
 .DS_Store
 src/machinegnostics/magcal/x_distfunc/*
 src/machinegnostics/magcal/x_gdf/
+
+# mlfruns
+mlruns/
