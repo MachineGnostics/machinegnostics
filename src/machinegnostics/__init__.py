@@ -22,3 +22,8 @@ from .metrics.evalmet import evalMet
 from .metrics.conf_matrix import confusion_matrix
 from .metrics.accuracy import accuracy_score
 from .metrics.cls_report import classification_report
+
+
+# models integrations
+# mlflow
+from machinegnostics.models.integration import mlflow
