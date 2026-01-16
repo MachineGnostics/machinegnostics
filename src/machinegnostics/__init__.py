@@ -26,4 +26,4 @@ from .metrics.cls_report import classification_report
 
 # models integrations
 # mlflow
-from machinegnostics.models.integration import mlflow
+from machinegnostics.integration import mlflow
