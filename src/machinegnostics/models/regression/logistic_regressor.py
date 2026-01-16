@@ -51,7 +51,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         Scaling method for input features. Can be a string identifier or a numeric value.
     data_form : str, default='a'
         Data processing form: 'a' for additive, 'm' for multiplicative.
-    gnostic_characteristics : bool, default=True
+    gnostic_characteristics : bool, default=False
         If True, calculates and stores gnostic characteristics during training.
     history : bool, default=True
         If True, maintains a history of model parameters and losses.
@@ -102,7 +102,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
                  verbose: bool = False,
                  scale: 'str | int | float' = 'auto',
                  data_form: str = 'a',
-                 gnostic_characteristics:bool=True,
+                 gnostic_characteristics:bool=False,
                  history: bool = True):
         """
         Initialize the LogisticRegressor with specified parameters.

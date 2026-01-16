@@ -50,8 +50,8 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         If True, prints progress and diagnostics during fitting.
     data_form : str, default='a'
         Internal data representation format.
-    gnostic_characteristics : bool, default=True
-        If True, computes and records gnostic properties (fi, hi, etc.).
+    gnostic_characteristics : bool, default=False
+        If True, computes and records gnostic characteristics.
     history : bool, default=True
         If True, records the optimization history for analysis.
 
@@ -100,7 +100,7 @@ class LinearRegressor(HistoryRegressorBase, DataProcessLayerBase):
         early_stopping: bool = True,
         verbose: bool = False,
         data_form: str = 'a',
-        gnostic_characteristics: bool = True,
+        gnostic_characteristics: bool = False,
         history: bool = True
     ):
         """
