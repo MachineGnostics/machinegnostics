@@ -1,5 +1,5 @@
 import mlflow
-from machinegnostics.models.integration import mlflow_flavor
+from machinegnostics.integration import mlflow_flavor
 
 def log_model(model, artifact_path, **kwargs):
     import mlflow.models
