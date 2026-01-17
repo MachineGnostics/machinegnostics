@@ -12,7 +12,7 @@ from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 
-def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = False) -> float:
+def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', verbose: bool = False) -> float:
     """
     Calculate the Gnostic correlation coefficient between a feature array X and a target array y.
 
@@ -27,6 +27,8 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = F
         Specifies the type of geometry to use:
         - 'i': Estimation geometry (EGDF).
         - 'j': Quantifying geometry (QGDF).
+    S : str, optional, default='auto'
+        Gnostic scale parameter. If 'auto', the function will determine the best scale based on data homogeneity.
     verbose : bool, optional, default=False
         If True, enables detailed logging for debugging purposes.
 
@@ -119,13 +121,13 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = F
         if not is_homo_X:
             logger.warning("X is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, S=S)
             egdf_X.fit(X)
 
         if not is_homo_y:
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=S)
             egdf_y.fit(y)
 
         hc_X = egdf_X.hi
@@ -152,10 +154,10 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = F
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
 
         logger.info("Using Quantification Global Distribution Function (QGDF) for correlation computation.")
-        qgdf_X = QGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+        qgdf_X = QGDF(flush=FLUSH, verbose=VERBOSE, S=S)
         qgdf_X.fit(X)
 
-        qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE)
+        qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE, S=S)
         qgdf_y.fit(y)
 
         hc_X = qgdf_X.hj
