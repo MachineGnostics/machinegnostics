@@ -128,8 +128,8 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = F
             egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
             egdf_y.fit(y)
 
-        hc_X = np.mean(egdf_X.hi, axis=0)
-        hc_y = np.mean(egdf_y.hi, axis=0)
+        hc_X = egdf_X.hi
+        hc_y = egdf_y.hi
 
     if case == 'j':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
@@ -158,16 +158,16 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = F
         qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE)
         qgdf_y.fit(y)
 
-        hc_X = np.mean(qgdf_X.hj, axis=0)
-        hc_y = np.mean(qgdf_y.hj, axis=0)
+        hc_X = qgdf_X.hj
+        hc_y = qgdf_y.hj
 
         hc_X = np.clip(hc_X, 1, 1e12)
         hc_y = np.clip(hc_y, 1, 1e12)
 
     def compute_correlation(hc_X: np.ndarray, hc_y: np.ndarray) -> float:
         logger.info("Computing correlation.")
-        numerator = np.sum(hc_X * hc_y)
-        denominator = (np.sqrt(np.sum(hc_X**2)) * np.sqrt(np.sum(hc_y**2))) 
+        numerator = np.mean(hc_X * hc_y)
+        denominator = np.sqrt((np.mean(hc_X**2) * np.mean(hc_y**2)))
         corr = numerator / denominator
         if denominator == 0:
             return np.nan
