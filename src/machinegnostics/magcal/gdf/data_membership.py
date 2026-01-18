@@ -26,10 +26,10 @@ class DataMembership:
     """
     DataMembership
 
-    This class provides functionality to test whether a given value can be considered a member of a homogeneous data sample. It uses the EGDF (Empirical Generalized Distribution Function) framework to determine the homogeneity of the data sample and to calculate the bounds within which new data points can be added without disrupting the homogeneity.
+    This class provides functionality to test whether a given value can be considered a member of a homogeneous data sample. It uses the EGDF (Empirical Global Distribution Function) framework to determine the homogeneity of the data sample and to calculate the bounds within which new data points can be added without disrupting the homogeneity.
 
     Attributes:
-        egdf (EGDF): An instance of the EGDF class containing the data sample and its parameters.
+        gdf (EGDF): An instance of the EGDF class containing the data sample and its parameters.
         verbose (bool): If True, detailed logs are printed during execution.
         catch (bool): If True, errors and warnings are stored in the `params` attribute.
         tolerance (float): The tolerance level for numerical calculations.
@@ -75,14 +75,14 @@ class DataMembership:
     """
     
     def __init__(self, 
-                 egdf: EGDF,
+                 gdf: EGDF,
                  verbose: bool = True,
                  catch: bool = True,
                  tolerance: float = 1e-3,
                  max_iterations: int = 100,
                  initial_step_factor: float = 0.001):
         
-        self.egdf = egdf
+        self.gdf = gdf
         self.verbose = verbose
         self.catch = catch
         self.tolerance = tolerance
@@ -108,20 +108,20 @@ class DataMembership:
     
     def _validate_egdf(self):
         self.logger.debug("Validating EGDF object for DataMembership analysis")
-        if not hasattr(self.egdf, '__class__'):
+        if not hasattr(self.gdf, '__class__'):
             self.logger.error("Input must be an EGDF object")
             raise ValueError("Input must be an EGDF object")
         
-        class_name = self.egdf.__class__.__name__
+        class_name = self.gdf.__class__.__name__
         if 'EGDF' not in class_name:
             self.logger.error(f"Only EGDF objects are supported. Got {class_name}")
             raise ValueError(f"Only EGDF objects are supported. Got {class_name}")
         
-        if not hasattr(self.egdf, '_fitted') or not self.egdf._fitted:
+        if not hasattr(self.gdf, '_fitted') or not self.gdf._fitted:
             self.logger.error("EGDF object must be fitted before membership analysis")
             raise ValueError("EGDF object must be fitted before membership analysis")
         
-        if not hasattr(self.egdf, 'data') or self.egdf.data is None:
+        if not hasattr(self.gdf, 'data') or self.gdf.data is None:
             self.logger.error("EGDF object must contain data")
             raise ValueError("EGDF object must contain data")
     
@@ -148,18 +148,18 @@ class DataMembership:
     def _check_original_homogeneity(self) -> bool:
         self.logger.info("Checking original sample homogeneity")
         
-        if (hasattr(self.egdf, 'params') and 
-            self.egdf.params and 
-            'is_homogeneous' in self.egdf.params):
+        if (hasattr(self.gdf, 'params') and 
+            self.gdf.params and 
+            'is_homogeneous' in self.gdf.params):
             
-            is_homogeneous = self.egdf.params['is_homogeneous']
+            is_homogeneous = self.gdf.params['is_homogeneous']
             self.logger.info(f"Found existing homogeneity result: {is_homogeneous}")
             return is_homogeneous
         
         try:
             self.logger.info("Running DataHomogeneity analysis...")
             homogeneity = DataHomogeneity(
-                gdf=self.egdf,
+                gdf=self.gdf,
                 verbose=self.verbose,
                 catch=self.catch
             )
@@ -177,20 +177,20 @@ class DataMembership:
     def _test_membership_at_point(self, test_point: float) -> bool:
         self.logger.debug(f"Testing membership at point: {test_point:.6f}")
         try:
-            extended_data = np.append(self.egdf.data, test_point)
+            extended_data = np.append(self.gdf.data, test_point)
             
-            extended_egdf = EGDF(S=self.egdf.S,
+            extended_egdf = EGDF(S=self.gdf.S,
                                  verbose=False,
                                  catch=True,
                                  flush=True,
-                                 z0_optimize=self.egdf.z0_optimize,
-                                 tolerance=self.egdf.tolerance,
-                                 data_form=self.egdf.data_form,
-                                 n_points=self.egdf.n_points,
-                                 homogeneous=self.egdf.homogeneous,
-                                 opt_method=self.egdf.opt_method,
-                                 max_data_size=self.egdf.max_data_size,
-                                 wedf=self.egdf.wedf,
+                                 z0_optimize=self.gdf.z0_optimize,
+                                 tolerance=self.gdf.tolerance,
+                                 data_form=self.gdf.data_form,
+                                 n_points=self.gdf.n_points,
+                                 homogeneous=self.gdf.homogeneous,
+                                 opt_method=self.gdf.opt_method,
+                                 max_data_size=self.gdf.max_data_size,
+                                 wedf=self.gdf.wedf,
                                  weights=None)
             extended_egdf.fit(data=extended_data, plot=False)
 
@@ -219,16 +219,16 @@ class DataMembership:
             self.logger.error("Invalid bound_type")
             raise ValueError("bound_type must be either 'lower' or 'upper'")
         
-        data_range = self.egdf.DUB - self.egdf.DLB
+        data_range = self.gdf.DUB - self.gdf.DLB
         
         if bound_type == 'lower':
-            search_start = self.egdf.DLB
-            search_end = self.egdf.LB if self.egdf.LB is not None else self.egdf.DLB - data_range
+            search_start = self.gdf.DLB
+            search_end = self.gdf.LB if self.gdf.LB is not None else self.gdf.DLB - data_range
             direction = "LSB"
             move_direction = -1
         else:
-            search_start = self.egdf.DUB
-            search_end = self.egdf.UB if self.egdf.UB is not None else self.egdf.DUB + data_range
+            search_start = self.gdf.DUB
+            search_end = self.gdf.UB if self.gdf.UB is not None else self.gdf.DUB + data_range
             direction = "USB"
             move_direction = 1
 
@@ -320,8 +320,8 @@ class DataMembership:
                     }
                 })
             
-            if hasattr(self.egdf, 'params') and self.egdf.params:
-                self.egdf.params.update({
+            if hasattr(self.gdf, 'params') and self.gdf.params:
+                self.gdf.params.update({
                     'LSB': float(self.LSB) if self.LSB is not None else None,
                     'USB': float(self.USB) if self.USB is not None else None,
                     'membership_checked': True
@@ -368,7 +368,7 @@ class DataMembership:
             self.logger.error("Must call fit() before plotting")
             raise RuntimeError("Must call fit() before plotting")
         
-        if not self.egdf.catch:
+        if not self.gdf.catch:
             self.logger.warning("Plot is not available with EGDF catch=False")
             return
         
@@ -379,9 +379,9 @@ class DataMembership:
             fig, ax1 = plt.subplots(figsize=figsize)
             
             # Get EGDF data
-            x_points = self.egdf.data
-            egdf_data = self.egdf.params.get('egdf')
-            pdf_data = self.egdf.params.get('pdf')
+            x_points = self.gdf.data
+            egdf_data = self.gdf.params.get('egdf')
+            pdf_data = self.gdf.params.get('pdf')
             
             # Debug info
             self.logger.info(f"LSB = {self.LSB}, USB = {self.USB}")
@@ -393,11 +393,11 @@ class DataMembership:
                 ax1.plot(x_points, egdf_data, 'o', color='blue', label='EGDF', markersize=4)
                 
                 # Plot smooth EGDF if available
-                if (plot_smooth and hasattr(self.egdf, 'di_points_n') and 
-                    hasattr(self.egdf, 'egdf_points') and 
-                    self.egdf.di_points_n is not None and 
-                    self.egdf.egdf_points is not None):
-                    ax1.plot(self.egdf.di_points_n, self.egdf.egdf_points, 
+                if (plot_smooth and hasattr(self.gdf, 'di_points_n') and 
+                    hasattr(self.gdf, 'egdf_points') and 
+                    self.gdf.di_points_n is not None and 
+                    self.gdf.egdf_points is not None):
+                    ax1.plot(self.gdf.di_points_n, self.gdf.egdf_points, 
                             color='blue', linestyle='-', linewidth=2, alpha=0.8)
                 
                 ax1.set_ylabel('EGDF', color='blue')
@@ -409,11 +409,11 @@ class DataMembership:
                 if plot == 'pdf':
                     # PDF only plot
                     ax1.plot(x_points, pdf_data, 'o', color='red', label='PDF', markersize=4)
-                    if (plot_smooth and hasattr(self.egdf, 'di_points_n') and 
-                        hasattr(self.egdf, 'pdf_points') and
-                        self.egdf.di_points_n is not None and 
-                        self.egdf.pdf_points is not None):
-                        ax1.plot(self.egdf.di_points_n, self.egdf.pdf_points, 
+                    if (plot_smooth and hasattr(self.gdf, 'di_points_n') and 
+                        hasattr(self.gdf, 'pdf_points') and
+                        self.gdf.di_points_n is not None and 
+                        self.gdf.pdf_points is not None):
+                        ax1.plot(self.gdf.di_points_n, self.gdf.pdf_points, 
                                 color='red', linestyle='-', linewidth=2, alpha=0.8)
                     ax1.set_ylabel('PDF', color='red')
                     ax1.tick_params(axis='y', labelcolor='red')
@@ -423,11 +423,11 @@ class DataMembership:
                     # Both EGDF and PDF - create second y-axis
                     ax2 = ax1.twinx()
                     ax2.plot(x_points, pdf_data, 'o', color='red', label='PDF', markersize=4)
-                    if (plot_smooth and hasattr(self.egdf, 'di_points_n') and 
-                        hasattr(self.egdf, 'pdf_points') and
-                        self.egdf.di_points_n is not None and 
-                        self.egdf.pdf_points is not None):
-                        ax2.plot(self.egdf.di_points_n, self.egdf.pdf_points, 
+                    if (plot_smooth and hasattr(self.gdf, 'di_points_n') and 
+                        hasattr(self.gdf, 'pdf_points') and
+                        self.gdf.di_points_n is not None and 
+                        self.gdf.pdf_points is not None):
+                        ax2.plot(self.gdf.di_points_n, self.gdf.pdf_points, 
                                 color='red', linestyle='-', linewidth=2, alpha=0.8)
                     ax2.set_ylabel('PDF', color='red')
                     ax2.tick_params(axis='y', labelcolor='red')
@@ -456,10 +456,10 @@ class DataMembership:
             # Add bounds if requested
             if bounds:
                 bound_info = [
-                    (self.egdf.params.get('DLB'), 'green', '-', 'DLB'),
-                    (self.egdf.params.get('DUB'), 'orange', '-', 'DUB'),
-                    (self.egdf.params.get('LB'), 'purple', '--', 'LB'),
-                    (self.egdf.params.get('UB'), 'brown', '--', 'UB')
+                    (self.gdf.params.get('DLB'), 'green', '-', 'DLB'),
+                    (self.gdf.params.get('DUB'), 'orange', '-', 'DUB'),
+                    (self.gdf.params.get('LB'), 'purple', '--', 'LB'),
+                    (self.gdf.params.get('UB'), 'brown', '--', 'UB')
                 ]
                 
                 for bound, color, style, name in bound_info:
@@ -468,9 +468,9 @@ class DataMembership:
                                     alpha=0.8, label=f"{name}={bound:.3f}", zorder=2)
             
             # Add Z0 if available
-            if hasattr(self.egdf, 'z0') and self.egdf.z0 is not None:
-                ax1.axvline(x=self.egdf.z0, color='magenta', linestyle='-.', linewidth=1, 
-                           alpha=0.8, label=f'Z0={self.egdf.z0:.3f}')
+            if hasattr(self.gdf, 'z0') and self.gdf.z0 is not None:
+                ax1.axvline(x=self.gdf.z0, color='magenta', linestyle='-.', linewidth=1, 
+                           alpha=0.8, label=f'Z0={self.gdf.z0:.3f}')
             
             # Set formatting
             ax1.set_xlabel('Data Points')
@@ -491,9 +491,9 @@ class DataMembership:
             ax1.set_title(title, fontsize=12)
             
             # Set x-limits with some padding
-            data_range = self.egdf.params['DUB'] - self.egdf.params['DLB']
+            data_range = self.gdf.params['DUB'] - self.gdf.params['DLB']
             padding = data_range * 0.1
-            ax1.set_xlim(self.egdf.params['DLB'] - padding, self.egdf.params['DUB'] + padding)
+            ax1.set_xlim(self.gdf.params['DLB'] - padding, self.gdf.params['DUB'] + padding)
             
             # Build a single legend in the top-right, above all artists
             handles1, labels1 = ax1.get_legend_handles_labels()
