@@ -9,8 +9,9 @@ from machinegnostics.magcal.util.logging import get_logger
 import logging
 import numpy as np
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
+from machinegnostics.magcal.scale_param import ScaleParam
 
-def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: float = 1, verbose: bool = False) -> float:
+def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: str = 'auto', verbose: bool = False) -> float:
     """
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
 
@@ -32,8 +33,8 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: float = 1, ve
         Predicted values.
     case : str, optional
         Case to be used for calculation. Options are 'i' or 'j'. Default is 'i'.
-    S : float, optional
-        Gnostic scale parameter. Default is 1.
+    S : float or str, optional
+        Gnostic scale parameter. Default is 'auto'.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.
 
@@ -121,23 +122,40 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: float = 1, ve
     gnostics = GnosticsCharacteristics(R=R)
 
     # Calculate q and q1
-    logger.info("Calculating q and q1.")
-    q, q1 = gnostics._get_q_q1(S=S)
+    q, q1 = gnostics._get_q_q1(S=1)  # Use S=1 for standard comparison
 
     # Calculate fi, fj, hi, hj based on the case
     if case == 'i':
-        hc = gnostics._hi(q, q1)
-    
+        logger.info("Calculating Hc for case 'i'.")
+        if S == 'auto':
+            logger.info("Auto-scaling enabled for case 'i'.")
+            fi = gnostics._fi(q, q1)
+            scale = ScaleParam()
+            S_opt = scale._gscale_loc(np.mean(fi))
+            q, q1 = gnostics._get_q_q1(S=S_opt)
+            hc = gnostics._hi(q, q1)
+        else:
+            logger.info(f"Using provided scale S={S} for case 'i'.")
+            hc = gnostics._hi(q, q1)
+        
     elif case == 'j':
-        hc = gnostics._hj(q, q1)
+        logger.info("Calculating Hc for case 'j'.")
+        if S == 'auto':
+            logger.info("Auto-scaling enabled for case 'j'.")
+            fj = gnostics._fj(q, q1)
+            scale = ScaleParam()
+            S_opt = scale._gscale_loc(np.mean(fj))
+            q, q1 = gnostics._get_q_q1(S=S_opt)
+            hc = gnostics._hj(q, q1)
+        else:
+            logger.info(f"Using provided scale S={S} for case 'j'.")
+            hc = gnostics._hj(q, q1)
     
     else:
         logger.error("Invalid case. Use 'i' or 'j'.")
         raise ValueError("Invalid case. Use 'i' or 'j'.")
 
-    hcsr = np.sum(hc**2)
+    hcsr = np.mean(hc**2)
 
-    # normalize the result
-    hcsr = hcsr / len(y_true)
     logger.info(f"Gnostic irrelevance Hc calculation completed")
     return hcsr
