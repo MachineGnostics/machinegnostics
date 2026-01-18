@@ -76,7 +76,7 @@ class DataMembership:
     
     def __init__(self, 
                  gdf: EGDF,
-                 verbose: bool = True,
+                 verbose: bool = False,
                  catch: bool = True,
                  tolerance: float = 1e-3,
                  max_iterations: int = 100,
