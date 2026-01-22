@@ -28,6 +28,7 @@ class BaseELDF(BaseEGDF):
                  UB: float = None,
                  S = 'auto',
                  varS: bool = False,
+                 minimum_varS: float = 0.1,
                  z0_optimize: bool = True,
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
@@ -66,6 +67,7 @@ class BaseELDF(BaseEGDF):
         self.UB = UB
         self.S = S
         self.varS = varS # ELDF specific
+        self.minimum_varS = minimum_varS
         self.z0_optimize = z0_optimize # ELDF specific
         self.tolerance = tolerance
         self.data_form = data_form
@@ -823,7 +825,7 @@ class BaseELDF(BaseEGDF):
         # varS check
         self.S_var = np.round(self.S_var, 1)
         # minimum value 0.01
-        self.S_var = np.maximum(self.S_var, 0.01)
+        self.S_var = np.maximum(self.S_var, self.minimum_varS)
 
         # If all values are same means homoscedastic data
         scd_test = np.all(self.S_var == self.S_var[0])
@@ -839,7 +841,7 @@ class BaseELDF(BaseEGDF):
             self.S_var_points = S0_opt * np.exp(gamma_opt * self.zi_n)
             # Apply the same rounding and minimum threshold
             self.S_var_points = np.round(self.S_var_points, 1)
-            self.S_var_points = np.maximum(self.S_var_points, 0.1) # only for S_var_points minimum 0.1
+            self.S_var_points = np.maximum(self.S_var_points, self.minimum_varS) # only for S_var_points minimum 0.1
         
         # saving to params
         if self.catch:

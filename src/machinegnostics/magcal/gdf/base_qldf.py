@@ -29,6 +29,7 @@ class BaseQLDF(BaseQGDF):
                  UB: float = None,
                  S = 'auto',
                  varS: bool = False,
+                 minimum_varS: float = 0.1,
                  z0_optimize: bool = True,
                  tolerance: float = 1e-3,
                  data_form: str = 'a',
@@ -79,6 +80,7 @@ class BaseQLDF(BaseQGDF):
         self.verbose = verbose
         self.max_data_size = max_data_size
         self.flush = flush
+        self.minimum_varS = minimum_varS
         self._fitted = False  # To track if fit has been called
 
         # Store initial parameters if catching
@@ -978,7 +980,7 @@ class BaseQLDF(BaseQGDF):
         # varS check
         self.S_var = np.round(self.S_var, 1)
         # minimum value 0.01
-        self.S_var = np.maximum(self.S_var, 0.01)
+        self.S_var = np.maximum(self.S_var, self.minimum_varS)
 
         # If all values are same means homoscedastic data
         scd_test = np.all(self.S_var == self.S_var[0])
@@ -994,7 +996,7 @@ class BaseQLDF(BaseQGDF):
             self.S_var_points = S0_opt * np.exp(gamma_opt * self.zi_n)
             # Apply the same rounding and minimum threshold
             self.S_var_points = np.round(self.S_var_points, 1)
-            self.S_var_points = np.maximum(self.S_var_points, 0.1)
+            self.S_var_points = np.maximum(self.S_var_points, self.minimum_varS)
         
         self.logger.info("Varying S (varS) calculation completed.")
 
