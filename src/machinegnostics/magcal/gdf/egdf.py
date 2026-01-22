@@ -260,7 +260,7 @@ class EGDF(BaseEGDF):
         )
         self._fit_egdf(plot=plot)
 
-    def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = False, extra_df: bool = True, figsize: tuple = (12, 8)):
+    def plot(self, plot_smooth: bool = True, plot: str = 'both', bounds: bool = True, extra_df: bool = True, figsize: tuple = (12, 8)):
         """
         Short Description: Visualize the fitted Estimating Global Distribution Function and related plots.
 
@@ -272,7 +272,7 @@ class EGDF(BaseEGDF):
                 - 'gdf': Global Distribution Function (main curve).
                 - 'pdf': Probability Density Function.
                 - 'both': Both EGDF and PDF in the same plot.
-            bounds (bool, optional): Whether to display bound lines on the plot. Default is False.
+            bounds (bool, optional): Whether to display bound lines on the plot. Default is True.
             extra_df (bool, optional): Whether to include additional distribution functions in the plot for comparison. Default is True.
             figsize (tuple, optional): Figure size as (width, height) in inches. Default is (12, 8).
 
