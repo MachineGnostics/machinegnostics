@@ -100,6 +100,7 @@ class QLDF(BaseQLDF):
                  UB: float = None,
                  S = 'auto',
                  varS: bool = False,
+                 minimum_varS: float = 0.1,
                  z0_optimize: bool = True,
                  tolerance: float = 1e-9,
                  data_form: str = 'a',
@@ -131,6 +132,7 @@ class QLDF(BaseQLDF):
                                       fitting. If a float is provided, it will be used as a fixed
                                       scale parameter. Default is 'auto' for QLDF.
             varS (bool, optional): Whether to allow variable scale parameter during optimization to handle heteroscedasticity.
+            minimum_varS (float, optional): Minimum scale parameter value for variable Scale Parameter calculation. default is 0.1
             z0_optimize (bool, optional): Whether to optimize the location parameter z0 during fitting.
             tolerance (float, optional): Convergence tolerance for the optimization process. (default: 1e-9)
             data_form (str, optional): Form of data processing. Options are:
@@ -168,6 +170,7 @@ class QLDF(BaseQLDF):
         self.UB = UB
         self.S = S
         self.varS = varS
+        self.minimum_varS = minimum_varS
         self.z0_optimize = z0_optimize
         self.tolerance = tolerance
         self.data_form = data_form
