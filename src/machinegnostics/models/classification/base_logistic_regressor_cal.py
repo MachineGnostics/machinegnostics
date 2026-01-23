@@ -148,6 +148,7 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
 
                 # history update for gnostic vs sigmoid
                 re = np.mean(re)
+                self.re = re
                 info = np.mean(info)
 
                 if self.gnostic_characteristics:
@@ -164,7 +165,7 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
                         'iteration': self._iter,
                         'log_loss': self.log_loss,
                         'coefficients': self.coefficients.copy(),
-                        'rentropy': re,
+                        'rentropy': self.re,
                         'weights': self.weights.copy(),
                     })
 
@@ -174,7 +175,7 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
                 # --- Unified convergence check: stop if mean rentropy or log_loss change is within tolerance ---
                 if self._iter > 0 and self.early_stopping:
                     prev_hist = self._history[-2] if len(self._history) > 1 else None
-                    curr_re = np.mean(re)
+                    curr_re = self.re
                     curr_log_loss = self.log_loss
                     prev_re_val = np.mean(prev_hist['rentropy']) if prev_hist and prev_hist['rentropy'] is not None else None
                     prev_log_loss_val = prev_hist['log_loss'] if prev_hist and prev_hist['log_loss'] is not None else None
