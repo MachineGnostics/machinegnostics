@@ -23,13 +23,13 @@ def save_model(model, path, mlflow_model=None, **kwargs):
     mlflow_model.add_flavor(
         "machinegnostics",
         model_data=model_data_subpath,
-        loader_module="machinegnostics.models.integration.mlflow_flavor"
+        loader_module="machinegnostics.integration.mlflow_flavor"
     )
     
     # 4. Add the universal python_function flavor
     mlflow_model.add_flavor(
         "python_function",
-        loader_module="machinegnostics.models.integration.mlflow_flavor",
+        loader_module="machinegnostics.integration.mlflow_flavor",
         model_data=model_data_subpath
     )
 
