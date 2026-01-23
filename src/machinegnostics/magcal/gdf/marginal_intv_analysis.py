@@ -258,7 +258,7 @@ class IntervalAnalysis:
         # membership bounds if required
         if self.membership_bounds:
             self.logger.info("Estimating data membership bounds...")
-            self._data_membership = DataMembership(egdf=self._egdf, verbose=self.verbose, catch=self.catch)
+            self._data_membership = DataMembership(gdf=self._egdf, verbose=self.verbose, catch=self.catch)
             self.LSB, self.USB = self._data_membership.fit()
             if self.catch:
                 self.params['DataMembership'] = self._data_membership.params.copy()
