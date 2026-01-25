@@ -40,7 +40,7 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         Scaling method or value for input features.
     max_iter : int, default=100
         Maximum number of optimization iterations.
-    tolerance : float, default=1e-6
+    tolerance : float, default=1e-2
         Tolerance for convergence.
     mg_loss : str, default='hi'
         Loss function to use ('hi', 'fi', etc.).
@@ -97,7 +97,7 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         degree: int = 2, 
         scale: str | int | float = 'auto',
         max_iter: int = 100,
-        tolerance: float = 1e-6,
+        tolerance: float = 1e-2,
         mg_loss: str = 'hi',
         early_stopping: bool = True,
         verbose: bool = False,

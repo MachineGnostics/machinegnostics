@@ -41,7 +41,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         Degree of polynomial features to use for input expansion.
     max_iter : int, default=100
         Maximum number of iterations for the optimization algorithm.
-    tolerance : float, default=1e-6
+    tolerance : float, default=1e-2
         Tolerance for convergence. Training stops if the change in loss or entropy is below this value.
     early_stopping : bool, default=True
         Whether to stop training early if convergence is detected.
@@ -97,7 +97,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
     def __init__(self,
                  degree: int = 1,
                  max_iter: int = 100,
-                 tolerance: float = 1e-6,
+                 tolerance: float = 1e-2,
                  early_stopping: bool = True,
                  verbose: bool = False,
                  scale: 'str | int | float' = 'auto',
