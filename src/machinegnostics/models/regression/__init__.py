@@ -1,2 +1,0 @@
-from machinegnostics.models.regression.mg_poly_reg import PolynomialRegressor
-from machinegnostics.models.regression.mg_lin_reg import LinearRegressor
