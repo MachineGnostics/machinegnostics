@@ -69,6 +69,16 @@ class RegressorCalBase(RegressorMethodsBase):
         self.gnostic_characteristics = gnostic_characteristics
         self.history = history
 
+
+        # Auto-enable history when early_stopping is True
+        if self.early_stopping and not self.history:
+            self.logger.warning(
+                "early_stopping=True requires history=True. Automatically enabling history."
+            )
+            
+            self.history = True
+            self.logger.info("History has been enabled.")
+
         # history option
         if history:
             self._history = []

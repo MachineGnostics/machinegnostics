@@ -80,6 +80,15 @@ class MulticlassClassifierCalBase(RegressorMethodsBase):
         self.weights = None
         self.num_classes = None
         self.cross_entropy_loss = None
+
+        # Auto-enable history when early_stopping is True
+        if self.early_stopping and not self.history:
+            self.logger.warning(
+                "early_stopping=True requires history=True. Automatically enabling history."
+            )
+            
+            self.history = True
+            self.logger.info("History has been enabled.")
         
         # History tracking
         if self.history:
@@ -93,7 +102,7 @@ class MulticlassClassifierCalBase(RegressorMethodsBase):
             })
         else:
             self._history = None
-        
+    
         # logger
         self.logger.info("MulticlassClassifierCalBase initialized.")
     
