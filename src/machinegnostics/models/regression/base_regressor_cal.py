@@ -166,7 +166,7 @@ class RegressorCalBase(RegressorMethodsBase):
                         if (prev_loss is not None) and (prev_re is not None):
                             if (np.abs(self.loss - prev_loss) < self.tolerance) or (np.abs(self.re - prev_re) < self.tolerance):
                                 if self.verbose:
-                                    self.logger.info(f"Convergence reached at iteration {self._iter} with loss/rentropy change below toleranceerance.")
+                                    self.logger.info(f"Convergence reached at iteration {self._iter} with loss/rentropy change below tolerance.")
                                 break
             
             except (ZeroDivisionError, np.linalg.LinAlgError) as e:
