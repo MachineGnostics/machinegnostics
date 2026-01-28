@@ -155,6 +155,7 @@ try:
     from .metrics.gmmfe import gmmfe  # Gnostic model metric
     from .metrics.divi import divI  # Diversity index
     from .metrics.evalmet import evalMet  # Evaluation metric
+    from .metrics.entropy import entropy # Gnostic Entropy
     _GNOSTIC_METRICS_AVAILABLE = True
 except ImportError as e:
     _GNOSTIC_METRICS_AVAILABLE = False
@@ -243,6 +244,7 @@ __all__ = [
     'gmmfe',
     'divI',
     'evalMet',
+    'entropy'
     
 
 ]

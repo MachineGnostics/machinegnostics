@@ -22,6 +22,7 @@ from machinegnostics.metrics.auto_correlation import auto_correlation
 from machinegnostics.metrics.mean import mean
 from machinegnostics.metrics.median import median
 from machinegnostics.metrics.std import std
+from machinegnostics.metrics.entropy import entropy
 
 
 # class
