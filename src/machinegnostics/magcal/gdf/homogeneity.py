@@ -88,7 +88,7 @@ class DataHomogeneity:
         - Contain valid data and PDF information
         - Have optimized scale parameter S_opt from EGDF fitting process
         
-    verbose : bool, default=True
+    verbose : bool, default=False
         Controls output verbosity during analysis.
         - True: Prints detailed progress, warnings, and results
         - False: Silent operation (errors still raise exceptions)
@@ -315,8 +315,14 @@ class DataHomogeneity:
     EGDF : Estimating Global Distribution Function
     """
     
-    def __init__(self, gdf: EGDF, verbose=True, catch=True, flush=False,
-                 smoothing_sigma=1.0, min_height_ratio=0.01, min_distance=None):
+    def __init__(self, 
+                 gdf: EGDF, 
+                 verbose=False, 
+                 catch=True, 
+                 flush=False,
+                 smoothing_sigma=1.0, 
+                 min_height_ratio=0.01, 
+                 min_distance=None):
         self.gdf = gdf
         self.verbose = verbose
         self.catch = catch
