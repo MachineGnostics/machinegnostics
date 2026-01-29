@@ -17,45 +17,98 @@ from machinegnostics.magcal.util.logging import get_logger
 
 class GnosticRandomForestClassifier(HistoryCartClassifierBase, DataProcessLayerBase):
     """
-    Gnostic Random Forest Classifier.
-    
-    Implements a Random Forest Classifier with iterative gnostic reweighting to handle outliers and data quality.
-    
+    Random Forest Classifier with Robust Gnostic Learning.
+
+    The Gnostic Forest Classifier extends the standard random forest approach by integrating
+    Mathematical Gnostics principles. It employs an iterative reweighting scheme (`gnostic_weights`)
+    that assesses the quality of each data sample based on the consistency of the previous iteration's
+    model predictions. This allows the forest to autonomously down-weight outliers and noise (mislabeled samples), resulting in a more robust predictive model.
+
     Key Features
     ------------
-    - **Robust Ensemble Classification**: Combines Random Forest with Gnostic reweighting.
-    - **Iterative Refinement**: Updates sample weights based on ensemble vote probabilities over iterations.
-    
+    - **Robustness to Label Noise**: Automatically identifies and down-weights samples with low classification confidence or high residual norms.
+    - **Iterative Refinement**: Optimizes sample weights over multiple iterations until convergence or maximum iterations are reached.
+    - **Gnostic History**: (Optional) Tracks the evolution of loss, entropy, and weights across iterations for diagnostic analysis.
+    - **Standard Forest Capabilities**: Supports standard hyperparameters like `n_estimators`, `max_depth`, and `min_samples_split`.
+
     Parameters
     ----------
     n_estimators : int, default=100
-        Number of trees in the forest.
+        The number of trees in the forest.
     max_depth : int, default=None
-        Maximum depth of the trees.
+        The maximum depth of the tree. If None, nodes are expanded until all leaves are pure
+        or until all leaves contain less than min_samples_split samples.
     min_samples_split : int, default=2
-        Minimum samples to split a node.
+        The minimum number of samples required to split an internal node.
     gnostic_weights : bool, default=True
-        Whether to use iterative gnostic weights.
+        If True, enables the iterative gnostic reweighting process. If False, the model behaves
+        like a standard Random Forest Classifier with uniform weights (single iteration).
     max_iter : int, default=10
-        Maximum gnostic iterations.
+        The maximum number of iterations for the gnostic weight update loop.
+        Only effective if `gnostic_weights=True`.
     tolerance : float, default=1e-4
-        Convergence tolerance.
+        The convergence tolerance. If the change in Gnostic Loss or Rentropy between iterations
+        drops below this threshold, the training stops early.
     data_form : str, default='a'
-        Data form: 'a' (additive) or 'm' (multiplicative).
+        The form of the data for Gnostic calculations:
+        - 'a': Additive (standard real-valued data).
+        - 'm': Multiplicative.
     verbose : bool, default=False
-        Verbosity.
+        If True, prints progress logs and convergence information during training.
     random_state : int, default=None
-        Random seed.
+        Controls the randomness of the bootstrapping of the samples used when building trees,
+        ensuring reproducible results.
     history : bool, default=True
-        Whether to record training history.
-        
+        If True, records the training history (loss, entropy, weights) which is accessible
+        via the `_history` attribute.
+    scale : str or float, default='auto'
+        The scale parameter 'S' for Gnostic calculations.
+        - 'auto': Automatically estimated from the data.
+        - float: A fixed scale value.
+    early_stopping : bool, default=True
+        If True, allows the iterative process to stop before `max_iter` if the convergence criteria are met.
+
+    Attributes
+    ----------
+    weights : np.ndarray
+        The final calibrated sample weights assigned to the training data. Lower weights indicate
+        potential outliers or low-fidelity data points.
+    trees : list
+        The list of underlying decision trees (estimators) that make up the forest.
+    classes_ : np.ndarray
+        The classes labels (single output problem).
+    _history : list of dict
+        A record of training metrics (iteration, h_loss, rentropy, weights) for each step, available if `history=True`.
+
+    Methods
+    -------
+    fit(X, y)
+        Fit the Gnostic Forest model to the training data.
+    predict(X)
+        Predict class labels for input samples X.
+    score(X, y)
+        Return the mean accuracy on the given test data and labels.
+
     Example
     -------
     >>> from machinegnostics.models import GnosticRandomForestClassifier
+    >>> from sklearn.datasets import make_classification
     >>>
-    >>> model = GnosticRandomForestClassifier(n_estimators=50, max_depth=3, gnostic_weights=True)
+    >>> # Generate synthetic data
+    >>> X, y = make_classification(n_samples=100, n_features=4, n_classes=2, random_state=42)
+    >>>
+    >>> # Initialize and fit the robust model
+    >>> model = GnosticRandomForestClassifier(
+    ...     n_estimators=50,
+    ...     gnostic_weights=True,
+    ...     max_iter=5,
+    ...     verbose=True
+    ... )
     >>> model.fit(X, y)
-    >>> preds = model.predict(X)
+    >>>
+    >>> # Make predictions
+    >>> preds = model.predict(X[:5])
+    >>> print("Predictions:", preds)
     """
     @disable_parent_docstring
     def __init__(self,
