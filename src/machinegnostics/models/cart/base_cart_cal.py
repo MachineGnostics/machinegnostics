@@ -40,15 +40,22 @@ class CartCalBase(CartMethodsBase):
         self.weights = self._weight_init(len(y))
         
         # Iteration 0 fit
-        self.trees = self._fit_forest_impl(X, y, self.weights)
+        if self.estimator_type == 'forest':
+            self.trees = self._fit_forest_impl(X, y, self.weights)
+        else:
+            self.tree = self._fit_single_tree_impl(X, y, self.weights)
         
         if self.max_iter == 0:
             return
 
         for self._iter in range(1, self.max_iter + 1):
             
-            # Predict with current forest
-            y_pred = self._predict_forest_impl(X, self.trees)
+            # Predict with current model
+            if self.estimator_type == 'forest':
+                y_pred = self._predict_forest_impl(X, self.trees)
+            else:
+                y_pred = self._predict_single_tree_impl(X, self.tree)
+
             residuals = y_pred - y
             
             # Gnostic data conversion
@@ -95,9 +102,15 @@ class CartCalBase(CartMethodsBase):
                          self.logger.info("Convergence reached.")
                      break
             
-            # Re-fit forest with new weights
-            self.trees = self._fit_forest_impl(X, y, self.weights)
+            # Re-fit with new weights
+            if self.estimator_type == 'forest':
+                self.trees = self._fit_forest_impl(X, y, self.weights)
+            else:
+                self.tree = self._fit_single_tree_impl(X, y, self.weights)
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """Internal predict."""
-        return self._predict_forest_impl(X, self.trees)
+        if self.estimator_type == 'forest':
+            return self._predict_forest_impl(X, self.trees)
+        else:
+            return self._predict_single_tree_impl(X, self.tree)

@@ -34,7 +34,8 @@ class CartMethodsBase(ModelBase):
                  history: bool = True,
                  data_form: str = 'a',
                  gnostic_characteristics: bool = False,
-                 random_state: Optional[int] = None):
+                 random_state: Optional[int] = None,
+                 estimator_type: str = 'forest'):
         super().__init__(verbose=verbose)
         
         self.n_estimators = n_estimators
@@ -50,8 +51,10 @@ class CartMethodsBase(ModelBase):
         self.data_form = data_form
         self.gnostic_characteristics = gnostic_characteristics
         self.random_state = random_state
+        self.estimator_type = estimator_type
         
         self.trees = []
+        self.tree = None
         self.weights = None
         
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
@@ -115,6 +118,19 @@ class CartMethodsBase(ModelBase):
             
         return trees
 
+    def _fit_single_tree_impl(self, X: np.ndarray, y: np.ndarray, sample_weight: np.ndarray) -> DecisionTreeRegressor:
+        """
+        Implementation of Single Tree training using sample weights.
+        """
+        rng = np.random.RandomState(self.random_state)
+        tree = DecisionTreeRegressor(
+            max_depth=self.max_depth,
+            min_samples_split=self.min_samples_split,
+            random_state=rng.randint(0, 2**32 - 1)
+        )
+        tree.fit(X, y, sample_weight=sample_weight)
+        return tree
+
     def _predict_forest_impl(self, X: np.ndarray, trees: list) -> np.ndarray:
         """
         Predict using the forest.
@@ -128,6 +144,14 @@ class CartMethodsBase(ModelBase):
             
         # Standard averaging
         return np.mean(predictions, axis=1)
+
+    def _predict_single_tree_impl(self, X: np.ndarray, tree: DecisionTreeRegressor) -> np.ndarray:
+        """
+        Predict using a single tree.
+        """
+        if tree is None:
+             raise ValueError("Tree is not fitted.")
+        return tree.predict(X)
 
     def _data_conversion(self, z: np.ndarray) -> np.ndarray:
         """Convert data using form."""
