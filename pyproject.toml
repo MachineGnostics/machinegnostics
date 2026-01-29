@@ -49,7 +49,9 @@ dependencies = [
   "pandas",
   "pydantic",
   "scipy",
-  "SQLAlchemy"
+  "SQLAlchemy",
+  "xgboost",
+  "scikit-learn"
 ]
 
 
