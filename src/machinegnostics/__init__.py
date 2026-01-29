@@ -145,6 +145,19 @@ except ImportError as e:
     _CLASSIFICATION_METRICS_AVAILABLE = False
     _CLASSIFICATION_METRICS_IMPORT_ERROR = str(e)
 
+
+# =============================================================================
+# Clustering Metrics
+# =============================================================================
+# Standard metrics for clustering evaluation
+
+try:
+    from .metrics.silhouette_score import silhouette_score
+    _CLUSTERING_METRICS_AVAILABLE = True
+except ImportError as e:
+    _CLUSTERING_METRICS_AVAILABLE = False
+    _CLUSTERING_METRICS_IMPORT_ERROR = str(e)
+
 # =============================================================================
 # Gnostic-Specific Metrics
 # =============================================================================
@@ -285,6 +298,9 @@ def _check_imports():
     
     if not _CLASSIFICATION_METRICS_AVAILABLE:
         errors.append(f"Classification metrics unavailable: {_CLASSIFICATION_METRICS_IMPORT_ERROR}")
+
+    if not _CLUSTERING_METRICS_AVAILABLE:
+        errors.append(f"Clustering metrics unavailable: {_CLUSTERING_METRICS_IMPORT_ERROR}")
     
     if not _GNOSTIC_METRICS_AVAILABLE:
         errors.append(f"Gnostic-specific metrics unavailable: {_GNOSTIC_METRICS_IMPORT_ERROR}")
@@ -333,6 +349,7 @@ def get_available_components():
         'covariance_correlation': _COVAR_AVAILABLE,
         'regression_metrics': _REGRESSION_METRICS_AVAILABLE,
         'classification_metrics': _CLASSIFICATION_METRICS_AVAILABLE,
+        'clustering_metrics': _CLUSTERING_METRICS_AVAILABLE,
         'gnostic_metrics': _GNOSTIC_METRICS_AVAILABLE,
         'models_submodule': _MODELS_AVAILABLE,
         'metrics_submodule': _METRICS_MODULE_AVAILABLE,
