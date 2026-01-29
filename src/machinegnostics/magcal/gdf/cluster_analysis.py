@@ -43,8 +43,6 @@ class ClusterAnalysis:
         If True, stores intermediate results and diagnostic information for further analysis.
     derivative_threshold : float, optional (default=0.01)
         Threshold for derivative-based cluster boundary detection (used by DataCluster).
-    slope_percentile : int, optional (default=70)
-        Percentile threshold for slope-based boundary detection (used by DataCluster).
     DLB : float, optional
         Data Lower Bound. If None, inferred from data.
     DUB : float, optional
@@ -141,7 +139,6 @@ class ClusterAnalysis:
                 verbose: bool = False,
                 catch: bool = True,
                 derivative_threshold: float = 0.01,
-                slope_percentile: int = 70,
                 DLB: float = None,
                 DUB: float = None,
                 LB: float = None,
@@ -157,13 +154,12 @@ class ClusterAnalysis:
                 wedf: bool = False,
                 opt_method: str = 'L-BFGS-B',
                 max_data_size: int = 1000,
-                flush: bool = False
+                flush: bool = False,
                 ):
         ELDF.__init__(self)
         self.verbose = verbose
         self.catch = catch
         self.derivative_threshold = derivative_threshold
-        self.slope_percentile = slope_percentile
         self.DLB = DLB
         self.DUB = DUB
         self.LB = LB
@@ -196,7 +192,6 @@ class ClusterAnalysis:
                 'verbose': self.verbose,
                 'catch': self.catch,
                 'derivative_threshold': self.derivative_threshold,
-                'slope_percentile': self.slope_percentile,
                 'DLB': self.DLB,
                 'DUB': self.DUB,
                 'LB': self.LB,
@@ -348,7 +343,7 @@ class ClusterAnalysis:
             self._data_cluster = DataCluster(gdf=self._eldf, 
                                             verbose=self.verbose, 
                                             catch=self.catch, 
-                                            derivative_threshold=self.derivative_threshold, slope_percentile=self.slope_percentile)
+                                            derivative_threshold=self.derivative_threshold)
             self.LCB, self.UCB = self._data_cluster.fit(plot=plot)
             if self.catch:
                 self.params['DataCluster'] = self._data_cluster.params

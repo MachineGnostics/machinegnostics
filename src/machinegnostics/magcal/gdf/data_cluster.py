@@ -40,8 +40,6 @@ class DataCluster:
     derivative_threshold : float, default=0.01
         Threshold for boundary detection. Points where (PDF + 1st_derivative)
         falls below this threshold are considered boundary candidates.
-    slope_percentile : int, default=70 (deprecated)
-        Deprecated and ignored. Kept for backward compatibility.
     
     Attributes
     ----------
@@ -114,7 +112,6 @@ class DataCluster:
     >>> cluster = DataCluster(
     ...     gdf=eldf, 
     ...     derivative_threshold=0.005,  # More sensitive
-    ...     slope_percentile=80,         # More conservative
     ...     verbose=True
     ... )
     >>> cluster.fit()
@@ -129,7 +126,7 @@ class DataCluster:
     Based on Gnostic Distribution Function theory and cluster analysis methods
     as described in mathematical gnostics literature.
     """
-    def __init__(self, gdf, verbose=False, catch=True, derivative_threshold=0.01, slope_percentile=70):
+    def __init__(self, gdf, verbose=False, catch=True, derivative_threshold=0.01):
         """
         Initialize DataCluster for boundary detection analysis.
         
@@ -145,8 +142,6 @@ class DataCluster:
         derivative_threshold : float, default=0.01
             Threshold for ELDF/EGDF boundary detection. Lower values create 
             wider cluster boundaries, higher values create narrower boundaries.
-        slope_percentile : int, default=70 (deprecated)
-            Deprecated and ignored. Kept for backward compatibility with older code.
         
         Raises
         ------
@@ -160,14 +155,10 @@ class DataCluster:
         self.verbose = verbose
         self.catch = catch
         self.derivative_threshold = derivative_threshold
-        # Deprecated (kept for backward compatibility; not used)
-        self.slope_percentile = slope_percentile
-        
+
         self.params = {
             'gdf_type': self.gdf_type,
             'derivative_threshold': self.derivative_threshold,
-            # Deprecated fields retained for compatibility but not used downstream
-            'slope_percentile': self.slope_percentile,
             'LCB': None,
             'UCB': None,
             'Z0': None,
