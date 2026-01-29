@@ -41,6 +41,15 @@ def silhouette_score(X: Union[np.ndarray, List],
         If inputs are not array-like.
     ValueError
         If input dimensions are incorrect or contain invalid values.
+        
+    Example:
+    --------
+    >>> from machinegnostics.metrics import silhouette_score
+    >>> import numpy as np
+    >>> X = np.array([[1, 2], [1, 4], [1, 0],
+    ...               [10, 2], [10, 4], [10, 0]])
+    >>> labels = np.array([0, 0, 0, 1, 1, 1])
+    >>> silhouette_score(X, labels)
     """
     logger = get_logger('silhouette_score', level=logging.WARNING if not verbose else logging.INFO)
     logger.info("Calculating silhouette score...")
