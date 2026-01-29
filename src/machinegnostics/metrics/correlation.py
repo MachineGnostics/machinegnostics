@@ -105,10 +105,10 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', ve
     # ...existing code logic, replacing data_1 with X and data_2 with y...
     if case == 'i':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_X.fit(X)
 
-        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_y.fit(y)
 
         logger.info("Performing data homogeneity check.")
@@ -121,13 +121,13 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', ve
         if not is_homo_X:
             logger.warning("X is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, S=S)
+            egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, S=S, n_points=100)
             egdf_X.fit(X)
 
         if not is_homo_y:
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=S)
+            egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, S=S, n_points=100)
             egdf_y.fit(y)
 
         hc_X = egdf_X.hi
@@ -135,10 +135,10 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', ve
 
     if case == 'j':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_X = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_X.fit(X)
 
-        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_y = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_y.fit(y)
 
         logger.info("Checking data homogeneity.")
@@ -154,10 +154,10 @@ def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', ve
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
 
         logger.info("Using Quantification Global Distribution Function (QGDF) for correlation computation.")
-        qgdf_X = QGDF(flush=FLUSH, verbose=VERBOSE, S=S)
+        qgdf_X = QGDF(flush=FLUSH, verbose=VERBOSE, S=S, n_points=100)
         qgdf_X.fit(X)
 
-        qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE, S=S)
+        qgdf_y = QGDF(flush=FLUSH, verbose=VERBOSE, S=S, n_points=100)
         qgdf_y.fit(y)
 
         hc_X = qgdf_X.hj

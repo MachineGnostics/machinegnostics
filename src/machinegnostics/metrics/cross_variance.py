@@ -101,10 +101,10 @@ def cross_covariance(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: boo
     
     if case == 'i':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_data_1.fit(X)
 
-        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_data_2.fit(y)
 
         logger.info("Performing data homogeneity check.")
@@ -117,13 +117,13 @@ def cross_covariance(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: boo
         if not is_homo_data_1:
             logger.warning("X is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1, n_points=100)
             egdf_data_1.fit(X)
 
         if not is_homo_data_2:
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
             logger.info("Fitting EGDF with S=1.")
-            egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+            egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE, S=1, n_points=100)
             egdf_data_2.fit(y)
 
         hc_data_1 = np.mean(egdf_data_1.hi, axis=0)
@@ -131,10 +131,10 @@ def cross_covariance(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: boo
 
     if case == 'j':
         logger.info("Using Estimation Global Distribution Function (EGDF) for correlation computation.")
-        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_data_1 = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_data_1.fit(X)
 
-        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE)
+        egdf_data_2 = EGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         egdf_data_2.fit(y)
 
         logger.info("Checking data homogeneity.")
@@ -150,10 +150,10 @@ def cross_covariance(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: boo
             logger.warning("y is not homogeneous. Switching to S=1 for better results.")
 
         logger.info("Using Quantification Global Distribution Function (QGDF) for correlation computation.")
-        qgdf_data_1 = QGDF(flush=FLUSH, verbose=VERBOSE, S=1)
+        qgdf_data_1 = QGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         qgdf_data_1.fit(X)
 
-        qgdf_data_2 = QGDF(flush=FLUSH, verbose=VERBOSE)
+        qgdf_data_2 = QGDF(flush=FLUSH, verbose=VERBOSE, n_points=100)
         qgdf_data_2.fit(y)
 
         hc_data_1 = np.mean(qgdf_data_1.hj, axis=0)

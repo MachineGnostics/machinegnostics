@@ -103,13 +103,13 @@ def mean(data: np.ndarray,
     if case == 'i':
         logger.info("Using estimating geometry for mean calculation.")
         # Compute eldf
-        eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)
+        eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, n_points=100)
         eldf.fit(data, plot=False)
         mean_value = eldf.z0
     else:
         logger.info("Using quantifying geometry for mean calculation.")
         # Compute qldf
-        qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False)
+        qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, n_points=100)
         qldf.fit(data, plot=False)
         mean_value = qldf.z0
     logger.info(f"Gnostic mean calculated.")

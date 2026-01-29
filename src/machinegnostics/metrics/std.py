@@ -110,7 +110,7 @@ def std(data: np.ndarray,
 
     # EGDF fitting 
     logger.info("Optimizing S using EGDF...")
-    egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose, S=S)
+    egdf = EGDF(z0_optimize=z0_optimize, data_form=data_form, tolerance=tolerance, verbose=verbose, S=S, n_points=100)
     egdf.fit(data=data, plot=False)
     S = egdf.S_opt
 

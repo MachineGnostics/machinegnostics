@@ -83,7 +83,7 @@ def variance(data: np.ndarray,
     if case == 'i':
         logger.info("Using ELDF for variance calculation...")
         # Compute eldf
-        eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
+        eldf = ELDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False, n_points=100)
         eldf.fit(data, plot=False)
         gc, _, _ = eldf._calculate_gcq_at_given_zi(eldf.z0)
         q, q1 = gc._get_q_q1(S=eldf.S_local)
@@ -93,7 +93,7 @@ def variance(data: np.ndarray,
     if case == 'j':
         logger.info("Using QLDF for variance calculation...")
         # Compute qldf
-        qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False)
+        qldf = QLDF(homogeneous=True, S=S, z0_optimize=z0_optimize, tolerance=tolerance, data_form=data_form, wedf=False, flush=False, n_points=100)
         qldf.fit(data)
         gc, _, _ = qldf._calculate_gcq_at_given_zi(qldf.z0)
         q, q1 = gc._get_q_q1(S=qldf.S_local)
