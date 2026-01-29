@@ -15,7 +15,7 @@ from machinegnostics.magcal import disable_parent_docstring
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 
-class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
+class GnosticRandomForestRegressor(HistoryCartBase, DataProcessLayerBase):
     """
     Random Forest Regressor with Robust Gnostic Learning.
 
@@ -91,7 +91,7 @@ class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
     Example
     -------
     >>> import numpy as np
-    >>> from machinegnostics.models import GnosticForestRegressor
+    >>> from machinegnostics.models import GnosticRandomForestRegressor
     >>>
     >>> # Generate synthetic data with outliers
     >>> X = np.random.rand(100, 1) * 10
@@ -99,7 +99,7 @@ class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
     >>> y[::10] += 20  # Add strong outliers
     >>>
     >>> # Initialize and fit the robust model
-    >>> model = GnosticForestRegressor(
+    >>> model = GnosticRandomForestRegressor(
     ...     n_estimators=50,
     ...     gnostic_weights=True,
     ...     max_iter=5,
@@ -151,7 +151,7 @@ class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         """Fit the model."""
-        self.logger.info("Starting fit process for GnosticForestRegressor.")
+        self.logger.info("Starting fit process for GnosticRandomForestRegressor.")
         # Data process layer IO
         Xc, yc = super()._fit_io(X, y)
         # Call base fit (which does logic)
@@ -160,7 +160,7 @@ class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
 
     def predict(self, model_input: np.ndarray) -> np.ndarray:
         """Predict outcomes."""
-        self.logger.info("Making predictions with GnosticForestRegressor.")
+        self.logger.info("Making predictions with GnosticRandomForestRegressor.")
         model_input_c = super()._predict_io(model_input)
         return super()._predict(model_input_c)
 
@@ -172,6 +172,6 @@ class GnosticForestRegressor(HistoryCartBase, DataProcessLayerBase):
         return robr2(y_checked, y_pred, w=self.weights)
 
     def __repr__(self):
-        return (f"GnosticForestRegressor(n_estimators={self.n_estimators}, "
+        return (f"GnosticRandomForestRegressor(n_estimators={self.n_estimators}, "
                 f"gnostic_weights={self.gnostic_weights}, "
                 f"max_iter={self.max_iter})")
