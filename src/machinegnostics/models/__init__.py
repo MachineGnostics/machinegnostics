@@ -51,6 +51,13 @@ Notes:
 try:
     from machinegnostics.models.regression.linear_regressor import LinearRegressor
     from machinegnostics.models.regression.polynomial_regressor import PolynomialRegressor
+    from machinegnostics.models.cart.tree_regressor import GnosticDecisionTreeRegressor
+    from machinegnostics.models.cart.random_forest_regressor import GnosticRandomForestRegressor
+    from machinegnostics.models.cart.boosting_regressor import GnosticBoostingRegressor
+    # forecasting models
+    from machinegnostics.models.regression.auto_regressor import AutoRegressor
+    from machinegnostics.models.regression.arima import ARIMA
+    from machinegnostics.models.regression.sarima import SARIMA
     _REGRESSION_AVAILABLE = True
 except ImportError as e:
     _REGRESSION_AVAILABLE = False
@@ -64,6 +71,9 @@ except ImportError as e:
 try:
     from machinegnostics.models.classification.logistic_regressor import LogisticRegressor
     from machinegnostics.models.classification.gnostic_multiclass_classifier import MulticlassClassifier
+    from machinegnostics.models.cart.tree_classifier import GnosticDecisionTreeClassifier
+    from machinegnostics.models.cart.random_forest_classifier import GnosticRandomForestClassifier
+    from machinegnostics.models.cart.boosting_classifier import GnosticBoostingClassifier
     _CLASSIFICATION_AVAILABLE = True
 except ImportError as e:
     _CLASSIFICATION_AVAILABLE = False
@@ -103,9 +113,18 @@ __all__ = [
     # Regression
     'LinearRegressor',
     'PolynomialRegressor',
+    'GnosticDecisionTreeRegressor',
+    'GnosticRandomForestRegressor',
+    'GnosticBoostingRegressor',
+    'AutoRegressor',
+    'ARIMA',
+    'SARIMA',
     # Classification
     'LogisticRegressor',
     'MulticlassClassifier',
+    'GnosticDecisionTreeClassifier',
+    'GnosticRandomForestClassifier',
+    'GnosticBoostingClassifier',
     # Clustering
     'KMeansClustering',
     # Support
