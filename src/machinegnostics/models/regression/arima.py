@@ -334,7 +334,7 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
                 # Pure noise model with no constant? Likely useless.
                 continue
 
-            self.logger.info(f"Testing order {(p,d,q)}")
+            # self.logger.info(f"Testing order {(p,d,q)}")
             try:
                 # Create a temporary model instance
                 # We intentionally disable optimization and history for speed/recursion avoidance
