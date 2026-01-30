@@ -28,3 +28,4 @@ from machinegnostics.metrics.silhouette_score import silhouette_score
 
 # class
 from machinegnostics.metrics.mg_r2 import EvaluationMetrics
+from machinegnostics.metrics.stationarity_test import stationarity_test
