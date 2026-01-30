@@ -26,9 +26,14 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
     empowered by Mathematical Gnostics weights.
 
     Model:
-        y'_t = c + \sum_{i=1}^p \phi_i y'_{t-i} + \sum_{j=1}^q \theta_j \epsilon_{t-j} + \epsilon_t
-        
-        where y'_t is the d-th differenced series.
+        y'_t = c + Σ(φ_i * y'_{t-i}) + Σ(θ_j * ε_{t-j}) + ε_t
+
+    Where:
+
+    y'_t : d-th differenced series
+    φ    : Autoregressive parameters
+    θ    : Moving Average parameters
+    ε_t  : Residual error term
 
     Key Features
     ------------
