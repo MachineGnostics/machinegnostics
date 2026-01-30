@@ -9,6 +9,7 @@ Author: Nirmal Parmar
 
 import numpy as np
 import pandas as pd
+import itertools
 from typing import Tuple, Union, Optional
 from machinegnostics.models.base_io_models import DataProcessLayerBase
 from machinegnostics.models.regression.base_regressor_history import HistoryRegressorBase
@@ -47,6 +48,11 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
         - 'ct': Constant and linear time trend.
         - 'n': No trend.
     scale : {'auto', int, float}, default='auto'
+    optimize : bool, default=False
+        If True, the model automatically selects the best (p, d, q) order 
+        from the range (1..max_p, 0..max_d, 0..max_q) minimizing RMSE on a validation set.
+    max_order_search : tuple, default=(5, 1, 5)
+        The maximum (p, d, q) values to search when optimize=True.
         Scaling method or value for gnostic calculations.
     max_iter : int, default=100
         Maximum number of gnostic reweighting iterations.
@@ -67,11 +73,15 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
     >>> # Initialize ARIMA(1, 1, 1)
     >>> model = ARIMA(order=(1, 1, 1), trend='c')
     >>> model.fit(y_train)
-    >>> forecast = model.predict(steps=10)
+    >>> forecast optimize: bool = False,
+                 max_order_search: Tuple[int, int, int] = (5, 1, 5),
+                 = model.predict(steps=10)
     """
     @disable_parent_docstring
     def __init__(self,
                  order: Tuple[int, int, int] = (1, 0, 0),
+                 optimize: bool = False,
+                 max_order_search: Tuple[int, int, int] = (5, 1, 5),
                  trend: str = 'c',
                  scale: Union[str, int, float] = 'auto',
                  max_iter: int = 100,
@@ -84,7 +94,10 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
                  gnostic_characteristics: bool = True,
                  history: bool = True):
         
+        self.order = order
         self.p, self.d, self.q = order
+        self.optimize = optimize
+        self.max_order_search = max_order_search
         self.trend = trend
         
         # Initialize base
@@ -283,6 +296,90 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
             self.logger.warning("Failed to estimate initial residuals. Assuming zeros.")
             return np.zeros(n)
 
+    def _optimize_order(self, y: np.ndarray) -> Tuple[int, int, int]:
+        """
+        Find optimal (p, d, q) order by minimizing RMSE on validation split.
+        """
+        import itertools # Local import to ensure availability during autoreload
+        self.logger.info(f"Optimizing (p, d, q) with max_order_search={self.max_order_search}")
+        
+        # Split data (80/20 split)
+        n = len(y)
+        if n < 20: 
+             # Too small to split effectively, return current order or minimal defaults
+             self.logger.warning("Data too small for optimization. Using default order.")
+             return self.order
+
+        split_point = int(n * 0.8)
+        y_train = y[:split_point]
+        y_valid = y[split_point:]
+        
+        max_p, max_d, max_q = self.max_order_search
+        
+        best_rmse = float('inf')
+        best_order = self.order
+        
+        p_values = range(0, max_p + 1)
+        d_values = range(0, max_d + 1)
+        q_values = range(0, max_q + 1)
+        
+        combinations = list(itertools.product(p_values, d_values, q_values))
+        
+        self.logger.info(f"Grid search space size: {len(combinations)}")
+        
+        # print(f"DEBUG: Starting optimization. Space size: {len(combinations)}")
+
+        for i, (p, d, q) in enumerate(combinations):
+            if p == 0 and q == 0 and self.trend == 'n':
+                # Pure noise model with no constant? Likely useless.
+                continue
+
+            self.logger.info(f"Testing order {(p,d,q)}")
+            try:
+                # Create a temporary model instance
+                # We intentionally disable optimization and history for speed/recursion avoidance
+                model = self.__class__(
+                    order=(p, d, q),
+                    optimize=False,
+                    max_order_search=self.max_order_search,
+                    trend=self.trend,
+                    max_iter=10, # Reduced iterations for speed during search
+                    learning_rate=self.learning_rate,
+                    tolerance=self.tolerance * 10, # Looser tolerance for search
+                    mg_loss=self.mg_loss,
+                    early_stopping=self.early_stopping,
+                    verbose=False,
+                    scale=self.scale,
+                    data_form=self.data_form,
+                    gnostic_characteristics=self.gnostic_characteristics,
+                    history=False
+                )
+                
+                model.fit(y_train)
+                
+                # Setup validation data in model for prediction
+                # In standard ARIMA, we predict steps ahead from end of training.
+                pred = model.predict(steps=len(y_valid), future=True)
+                
+                rmse = np.sqrt(np.mean((y_valid - pred)**2))
+                
+                # Valid RMSE check
+                if np.isnan(rmse) or np.isinf(rmse):
+                    continue
+
+                if rmse < best_rmse:
+                    best_rmse = rmse
+                    best_order = (p, d, q)
+                    self.logger.info(f"New best: {best_order} with RMSE {best_rmse:.4f}")
+                    
+            except Exception as e:
+                # Helpful for debugging why specific orders fail
+                self.logger.warning(f"Order {(p,d,q)} failed: {e}") 
+                continue
+        
+        self.logger.info(f"Optimization finished. Best order: {best_order}, RMSE: {best_rmse:.4f}")
+        return best_order
+
     def fit(self, y: np.ndarray, X=None):
         """
         Fit the ARIMA model.
@@ -293,11 +390,21 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
             Target time series.
         X : Ignored
         """
+        # print(f"DEBUG: Entering fit. Optimize={self.optimize}")
         self.logger.info("Starting fit process for Gnostic ARIMA.")
         
         if isinstance(y, pd.DataFrame) or isinstance(y, pd.Series):
             y = y.values
         y = np.array(y).flatten()
+        
+        # Optimization logic
+        if self.optimize:
+            self.logger.info("Running hyperparameter optimization...")
+            best_order = self._optimize_order(y)
+            self.order = best_order
+            self.p, self.d, self.q = best_order
+            self.logger.info(f"Updated model order to {self.order}")
+            
         self.training_data_raw_ = y
         
         # 1. Difference
