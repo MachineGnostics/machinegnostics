@@ -433,8 +433,13 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         optimal_s_val = self.optimal_S
         if hasattr(optimal_s_val, 'item'): 
              optimal_s_val = optimal_s_val.item()
+        
+        try:
+            s_display = f"{float(optimal_s_val):.2f}"
+        except (ValueError, TypeError):
+            s_display = str(optimal_s_val)
              
-        ax.set_title(f"Optimal Clustering (S={float(optimal_s_val):.2f}, Clusters={len(px)})")
+        ax.set_title(f"Optimal Clustering (S={s_display}, Clusters={len(px)})")
         ax.set_xlabel("Data Value")
         ax.set_ylabel("Density")
         ax.legend()
