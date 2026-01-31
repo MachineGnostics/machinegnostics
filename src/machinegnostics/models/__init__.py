@@ -86,6 +86,7 @@ except ImportError as e:
 
 try:
     from machinegnostics.models.clustering.kmeans_clustering import KMeansClustering
+    from machinegnostics.models.clustering.local_clustering import GnosticLocalClustering
     _CLUSTERING_AVAILABLE = True
 except ImportError as e:
     _CLUSTERING_AVAILABLE = False
@@ -127,6 +128,7 @@ __all__ = [
     'GnosticBoostingClassifier',
     # Clustering
     'KMeansClustering',
+    'GnosticLocalClustering',
     # Support
     'CrossValidator',
     'train_test_split',
