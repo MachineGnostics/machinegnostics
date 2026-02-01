@@ -1,8 +1,12 @@
-# Machine Gnostics
+# [Machine Gnostics](https://machinegnostics.info) 🥭
+
+
+[![PyPI version](https://badge.fury.io/py/machinegnostics.svg)](https://badge.fury.io/py/machinegnostics) [![Python Versions](https://img.shields.io/pypi/pyversions/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Downloads](https://static.pepy.tech/badge/machinegnostics)](https://pepy.tech/project/machinegnostics) [![Downloads](https://static.pepy.tech/badge/machinegnostics/month)](https://pepy.tech/project/machinegnostics) [![GitHub stars](https://img.shields.io/github/stars/MachineGnostics/machinegnostics?style=social)](https://github.com/MachineGnostics/machinegnostics)
+
 
 > Machine Gnostics: Laws of Nature, Encoded—For Everyone!
 
-Welcome to **Machine Gnostics**, an innovative Python library designed to implement the principles of **Machine Gnostics** for robust data analysis, modeling, and inference. Unlike traditional statistical approaches that depend heavily on probabilistic assumptions, Machine Gnostics harnesses deterministic algebraic and geometric structures. This unique foundation enables the library to deliver exceptional resilience against outliers, noise, and corrupted data, making it a powerful tool for challenging real-world scenarios.
+Welcome to **Machine Gnostics**, an innovative Python library designed to implement the principles of **Mathematical Gnostics** for robust data analysis, modeling, and inference. Unlike traditional statistical approaches that depend heavily on probabilistic assumptions, Machine Gnostics harnesses deterministic algebraic and geometric structures. This unique foundation enables the library to deliver exceptional resilience against outliers, noise, and corrupted data, making it a powerful tool for challenging real-world scenarios.
 
 Machine Gnostics is an open-source initiative that seeks to redefine the mathematical underpinnings of machine learning. While most conventional ML libraries are grounded in probabilistic and statistical frameworks, Machine Gnostics explores alternative paradigms—drawing from deterministic algebra, information theory, and geometric methods. This approach opens new avenues for building robust, interpretable, and reliable analysis tools that can withstand the limitations of traditional models.
 
@@ -25,19 +29,19 @@ It is best practice to use a virtual environment to manage your project dependen
 ### macOS & Linux
 
 ```bash
-# Create a new virtual environment named 'mg-env'
-python3 -m venv mg-env
+# Create a new virtual environment named '.mg-env'
+python3 -m venv .mg-env
 # Activate the environment
-source mg-env/bin/activate
+source .mg-env/bin/activate
 ```
 
 ### Windows
 
 ```cmd
-# Create a new virtual environment named 'mg-env'
-python -m venv mg-env
+# Create a new virtual environment named '.mg-env'
+python -m venv .mg-env
 # Activate the environment
-mg-env\Scripts\activate
+.mg-env\Scripts\activate
 ```
 
 ---
@@ -109,7 +113,7 @@ print(egdf.params)
 
 ```python
 import numpy as np
-from machinegnostics.models.regression import PolynomialRegressor
+from machinegnostics.models import PolynomialRegressor
 
 # Example data
 X = np.array([0., 0.4, 0.8, 1.2, 1.6, 2. ])
@@ -162,7 +166,7 @@ plt.show()
   **macOS & Linux:**
 
   ```bash
-  source mg-env/bin/activate
+  source .mg-env/bin/activate
   # or for conda
   conda activate myenv
   ```
@@ -170,7 +174,7 @@ plt.show()
   **Windows:**
 
   ```cmd
-  mg-env\Scripts\activate
+  .mg-env\Scripts\activate
   # or for conda
   conda activate myenv
   ```
@@ -194,13 +198,13 @@ plt.show()
   **macOS & Linux:**
 
   ```bash
-  pip install --upgrade pip
+  python3 -m pip install --upgrade pip
   ```
 
   **Windows:**
 
   ```cmd
-  pip install --upgrade pip
+  python -m pip install --upgrade pip
   ```
 
 **Install from a Clean Environment:** If you encounter conflicts, try creating a fresh virtual environment and reinstalling.
