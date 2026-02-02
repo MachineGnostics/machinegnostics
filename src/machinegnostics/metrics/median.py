@@ -12,7 +12,7 @@ import logging
 
 def median(data: np.ndarray,
             case: str = 'i',
-            S: float = 1, 
+            S: float = 'auto', 
             z0_optimize: bool = True, 
             data_form: str = 'a',
             tolerance: float = 1e-6,
@@ -32,7 +32,7 @@ def median(data: np.ndarray,
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating irrelevance, 'j' for quantifying irrelevance.
     S : float, optional
-        Scaling parameter for ELDF. Default is 1.
+        Scaling parameter for ELDF. Default is 'auto'.
     z0_optimize : bool, optional
         Whether to optimize z0 in ELDF. Default is True.
     data_form : str, optional
@@ -99,7 +99,7 @@ def median(data: np.ndarray,
         raise TypeError("S must be a float or 'auto'.")
     # S proper value [0,2] suggested
     if isinstance(S, (int)):
-        if S < 0 or S > 2:
+        if S < 0.01 or S > 2:
             logger.warning("S must be in the range [0, 2].")
     # Check for valid data_form
     if data_form not in ['a', 'm']:
