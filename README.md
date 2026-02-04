@@ -101,12 +101,15 @@ Machine Gnostics is designed to be as simple to use as other machine learning li
 ```python
 import numpy as np
 from machinegnostics.magcal import EGDF
-
+# data
 data = np.array([ -13.5, 0, 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.])
+# Create and fit GDF
 egdf = EGDF()
 egdf.fit(data)
+# Quick plot
 egdf.plot()
-print(egdf.params)
+# EGDF params
+egdf.params
 ```
 
 ### Example "Polynomial Regression"
@@ -123,12 +126,8 @@ y = np.array([17.89408548, 69.61586934, -7.19890572, 9.37670866, -10.55673099, 1
 model = PolynomialRegressor(degree=2)
 model.fit(X, y)
 
-model_lr = LinearRegressor()
-model_lr.fit(X, y)
-
 # Make predictions
 y_pred = model.predict(X)
-y_pred_lr = model_lr.predict(X)
 
 print("Predictions:", y_pred)
 
@@ -139,7 +138,6 @@ print("Coefficients:", model.coefficients)
 import matplotlib.pyplot as plt
 plt.scatter(X, y, color='blue', label='Data')
 plt.plot(X, y_pred, color='red', label='Polynomial Prediction')
-plt.plot(X, y_pred_lr, color='green', label='Linear Prediction')
 plt.xlabel('X')
 plt.ylabel('y')
 plt.title('Polynomial Regression')
