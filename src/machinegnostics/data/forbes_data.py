@@ -27,7 +27,7 @@ def make_forbes_check_data():
 
     Example
     -------
-    >>> from machinegnostics.data.forbes_data import make_forbes_check_data
+    >>> from machinegnostics.data import make_forbes_check_data
     >>> X, y = make_forbes_check_data()
     >>> print(f"X shape: {X.shape}, y shape: {y.shape}")
     X shape: (17, 1), y shape: (17,)

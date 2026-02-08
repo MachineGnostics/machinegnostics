@@ -27,7 +27,7 @@ def make_stackloss_check_data():
 
     Example
     -------
-    >>> from machinegnostics.data.stackloss_data import make_stackloss_check_data
+    >>> from machinegnostics.data import make_stackloss_check_data
     >>> data, names = make_stackloss_check_data()
     >>> print(f"Data shape: {data.shape}")
     Data shape: (21, 4)

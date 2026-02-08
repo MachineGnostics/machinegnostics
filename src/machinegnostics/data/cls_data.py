@@ -31,7 +31,7 @@ def make_classification_check_data(n_samples=30, n_features=2, n_classes=2, sepa
 
     Example
     -------
-    >>> from machinegnostics.data.cls_data import make_classification_check_data
+    >>> from machinegnostics.data import make_classification_check_data
     >>> X, y = make_classification_check_data(n_samples=50, n_classes=3)
     >>> print(f"X shape: {X.shape}, Unique classes: {np.unique(y)}")
     X shape: (50, 2), Unique classes: [0 1 2]

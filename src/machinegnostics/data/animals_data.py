@@ -29,7 +29,7 @@ def make_animals_check_data():
 
     Example
     -------
-    >>> from machinegnostics.data.animals_data import make_animals_check_data
+    >>> from machinegnostics.data import make_animals_check_data
     >>> X, y, names = make_animals_check_data()
     >>> print(f"Heaviest: {names[np.argmax(X)]} ({np.max(X)} kg)")
     Heaviest: Brachiosaurus (87000.0 kg)

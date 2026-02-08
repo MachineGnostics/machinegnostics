@@ -46,7 +46,7 @@ def make_regression_check_data(n_samples=20, slope=3.5, intercept=10.0, noise_le
 
     Example
     -------
-    >>> from machinegnostics.data.reg_data import make_regression_check_data
+    >>> from machinegnostics.data import make_regression_check_data
     >>> X, y = make_regression_check_data(n_samples=50, function_type='sin', outlier_ratio=0.1)
     >>> print(f"X shape: {X.shape}, y shape: {y.shape}")
     X shape: (50,), y shape: (50,)

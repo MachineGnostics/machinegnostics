@@ -28,7 +28,7 @@ def make_moons_check_data(n_samples=30, noise=None, seed=42):
 
     Example
     -------
-    >>> from machinegnostics.data.moon_data import make_moons_check_data
+    >>> from machinegnostics.data import make_moons_check_data
     >>> X, y = make_moons_check_data(n_samples=100, noise=0.1)
     >>> print(f"X shape: {X.shape}, Unique classes: {np.unique(y)}")
     X shape: (100, 2), Unique classes: [0 1]

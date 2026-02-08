@@ -33,7 +33,7 @@ def make_anscombe_check_data(dataset_id=1):
 
     Example
     -------
-    >>> from machinegnostics.data.anscombe_data import make_anscombe_check_data
+    >>> from machinegnostics.data import make_anscombe_check_data
     >>> X, y = make_anscombe_check_data(dataset_id=3)
     >>> print(f"X mean: {np.mean(X):.2f}, y mean: {np.mean(y):.2f}")
     X mean: 9.00, y mean: 7.50
