@@ -43,7 +43,7 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
     tolerance : float, default=1e-2
         Tolerance for convergence.
     mg_loss : str, default='hi'
-        Loss function to use ('hi', 'fi', etc.).
+        Loss function to use ('hi', 'hj').
     early_stopping : bool, default=True
         Whether to stop early if convergence is detected.
     verbose : bool, default=False
