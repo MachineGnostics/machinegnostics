@@ -51,7 +51,8 @@ dependencies = [
   "scipy",
   "SQLAlchemy",
   "xgboost",
-  "scikit-learn"
+  "scikit-learn",
+  "narwhals"
 ]
 
 
