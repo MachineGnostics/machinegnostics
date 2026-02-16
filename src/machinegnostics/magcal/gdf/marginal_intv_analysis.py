@@ -12,6 +12,7 @@ Machine Gnostics
 import numpy as np
 import warnings
 import logging
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import ELDF, EGDF, DataHomogeneity, DataIntervals, DataCluster, DataMembership
 
@@ -267,6 +268,7 @@ class IntervalAnalysis:
             self.LSB, self.USB = None, None
             self.logger.info("Skipping membership bound estimation.")
 
+    @narwhalify
     def fit(self, data: np.ndarray, plot: bool = False) -> dict:
         """
         Run the complete marginal interval analysis workflow on the input data. This method takes a 1D numpy array of data and automatically performs all necessary steps to estimate robust data intervals using gnostic distribution functions. It handles data validation, fits the required models, checks for homogeneity, and computes both tolerance and typical intervals with diagnostics. Optionally, it can generate diagnostic plots to help visualize the results. The method returns a dictionary containing the estimated interval bounds and relevant diagnostic information.
@@ -274,11 +276,11 @@ class IntervalAnalysis:
 
         Parameters
         ----------
-        data : np.ndarray
-            1D numpy array of input data for interval analysis. Must contain at least 4 elements and no NaN/Inf values.
+        data : array-like or dataframe/series
+            Input data for interval analysis. Accepts NumPy arrays, Pandas Series/DataFrame,
+            or other Narwhals-supported dataframe types. Internally converted to NumPy via Narwhals.
         plot : bool, default=False
             If True, automatically generates diagnostic plots after fitting.
-
         Returns
         -------
         results : dict

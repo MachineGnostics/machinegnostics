@@ -12,6 +12,7 @@ import numpy as np
 import warnings
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 from machinegnostics.magcal import ELDF, EGDF, DataCluster, DataHomogeneity
 
 class ClusterAnalysis:
@@ -222,6 +223,7 @@ class ClusterAnalysis:
         self.params['error'].append(error)
         self.logger.error(error)
 
+    @narwhalify
     def fit(self, data: np.ndarray, plot: bool = False) -> tuple:
         """
         Fit the ClusterAnalysis model to the input data and estimate main cluster bounds.
@@ -236,8 +238,9 @@ class ClusterAnalysis:
 
         Parameters
         ----------
-        data : np.ndarray
-            Input data array for interval analysis. Should be 1D and numeric.
+        data : array-like or dataframe/series
+            Input data for interval analysis. Accepts NumPy arrays, Pandas Series/DataFrame,
+            or other Narwhals-supported dataframe types. Internally converted to NumPy via Narwhals.
         plot : bool, optional (default=False)
             If True, generates plots for the fitted GDF and cluster analysis.
 
