@@ -17,6 +17,7 @@ and bound instance methods.
 import narwhals as nw
 import functools
 import numpy as np
+import inspect
 
 def narwhalify(func):
     """
@@ -79,8 +80,18 @@ def narwhalify(func):
         if len(args) == 0:
             return func(*args, **kwargs)
 
-        # Bound method?
-        is_method_call = hasattr(args[0], "__class__")
+        # Bound method detection: check qualname for class and instance type
+        is_method_call = False
+        try:
+            qn = getattr(func, "__qualname__", "")
+            parts = qn.split(".")
+            if len(parts) > 1:
+                cls_name = parts[0]
+                cls_obj = func.__globals__.get(cls_name)
+                if cls_obj is not None and isinstance(args[0], cls_obj):
+                    is_method_call = True
+        except Exception:
+            is_method_call = False
         if is_method_call:
             self_obj = args[0]
             # Convert positional args (excluding self)
