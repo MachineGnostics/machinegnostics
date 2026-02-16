@@ -83,55 +83,64 @@ def narwhalify(func):
         is_method_call = hasattr(args[0], "__class__")
         if is_method_call:
             self_obj = args[0]
+            # Convert positional args (excluding self)
+            converted_positional = []
+            for idx, arg in enumerate(args[1:]):
+                if isinstance(arg, np.ndarray):
+                    converted_positional.append(arg)
+                else:
+                    try:
+                        df = nw.from_native(arg, eager_only=True, allow_series=True)
+                        if native_namespace is None:
+                            native_namespace = nw.get_native_namespace(df)
+                        converted_positional.append(df.to_numpy())
+                    except Exception:
+                        converted_positional.append(arg)
 
-            # Try positional data first
-            data = args[1] if len(args) >= 2 else None
-            trailing_args = args[2:] if len(args) >= 2 else ()
+            # Convert keyword args for common data keys
+            new_kwargs = dict(kwargs)
+            for key in list(new_kwargs.keys()):
+                val = new_kwargs[key]
+                if isinstance(val, np.ndarray):
+                    continue
+                try:
+                    df = nw.from_native(val, eager_only=True, allow_series=True)
+                    if native_namespace is None:
+                        native_namespace = nw.get_native_namespace(df)
+                    new_kwargs[key] = df.to_numpy()
+                except Exception:
+                    pass
 
-            # If no positional data, try keyword data keys
-            data_key = None
-            if data is None:
-                for key in ("data", "X", "z", "y"):
-                    if key in kwargs:
-                        data_key = key
-                        data = kwargs[key]
-                        break
-
-            # If we still don't have data, just call original
-            if data is None:
-                return func(*args, **kwargs)
-
-            # Convert inbound data to numpy
-            if isinstance(data, np.ndarray):
-                numpy_input = data
-                native_namespace = None
-            else:
-                df = nw.from_native(data, eager_only=True, allow_series=True)
-                native_namespace = nw.get_native_namespace(df)
-                numpy_input = df.to_numpy()
-
-            # Call underlying function with converted data
-            if data_key is None:
-                result = func(self_obj, numpy_input, *trailing_args, **kwargs)
-            else:
-                # Replace keyword data
-                new_kwargs = dict(kwargs)
-                new_kwargs[data_key] = numpy_input
-                result = func(self_obj, *args[1:], **new_kwargs)
+            result = func(self_obj, *converted_positional, **new_kwargs)
         else:
             # Free function: treat first positional arg as data
-            data = args[0]
-            trailing_args = args[1:]
+            converted_args = []
+            for arg in args:
+                if isinstance(arg, np.ndarray):
+                    converted_args.append(arg)
+                else:
+                    try:
+                        df = nw.from_native(arg, eager_only=True, allow_series=True)
+                        if native_namespace is None:
+                            native_namespace = nw.get_native_namespace(df)
+                        converted_args.append(df.to_numpy())
+                    except Exception:
+                        converted_args.append(arg)
+            # Convert keyword args similarly
+            new_kwargs = dict(kwargs)
+            for key in list(new_kwargs.keys()):
+                val = new_kwargs[key]
+                if isinstance(val, np.ndarray):
+                    continue
+                try:
+                    df = nw.from_native(val, eager_only=True, allow_series=True)
+                    if native_namespace is None:
+                        native_namespace = nw.get_native_namespace(df)
+                    new_kwargs[key] = df.to_numpy()
+                except Exception:
+                    pass
 
-            if isinstance(data, np.ndarray):
-                numpy_input = data
-                native_namespace = None
-            else:
-                df = nw.from_native(data, eager_only=True, allow_series=True)
-                native_namespace = nw.get_native_namespace(df)
-                numpy_input = df.to_numpy()
-
-            result = func(numpy_input, *trailing_args, **kwargs)
+            result = func(*converted_args, **new_kwargs)
 
         # Pass-through for None or non-array-like results
         if result is None:
@@ -143,18 +152,29 @@ def narwhalify(func):
             return result
 
         # Convert result back to original native type
-        # If input was NumPy or we couldn't detect a native namespace, return NumPy result
+        # If input was NumPy or we couldn't detect a native namespace, return NumPy/scalar result
         if native_namespace is None:
             return result_array
-        else:
-            if result_array.ndim == 1:
-                output_nw = nw.from_dict({"result": result_array}, native_namespace=native_namespace).get_column("result")
-            else:
-                colnames = [f"feature_{i}" for i in range(result_array.shape[1])]
-                output_nw = nw.from_dict(
-                    {col: result_array[:, i] for i, col in enumerate(colnames)},
-                    native_namespace=native_namespace,
-                )
+
+        # Handle scalar/0-D outputs by passing through unchanged
+        if np.isscalar(result) or result_array.ndim == 0:
+            return result
+
+        # 1D -> native Series
+        if result_array.ndim == 1:
+            output_nw = nw.from_dict({"result": result_array}, native_namespace=native_namespace).get_column("result")
             return nw.to_native(output_nw)
+
+        # 2D -> native DataFrame
+        if result_array.ndim == 2:
+            colnames = [f"feature_{i}" for i in range(result_array.shape[1])]
+            output_nw = nw.from_dict(
+                {col: result_array[:, i] for i, col in enumerate(colnames)},
+                native_namespace=native_namespace,
+            )
+            return nw.to_native(output_nw)
+
+        # Higher-dimensional outputs: return NumPy array unchanged
+        return result_array
 
     return wrapper
