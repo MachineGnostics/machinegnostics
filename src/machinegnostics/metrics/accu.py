@@ -1,5 +1,7 @@
 import numpy as np
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
     """
     Computes the classification accuracy.
@@ -12,10 +14,10 @@ def accuracy_score(y_true:np.ndarray, y_pred:np.ndarray) -> float:
 
     Parameters
     ----------
-    y_true : array-like
-        True class labels. Must be a 1D array-like object (e.g., list, tuple, or numpy array) containing the ground truth labels.
-    y_pred : array-like
-        Predicted class labels. Must be a 1D array-like object (e.g., list, tuple, or numpy array) containing the predicted labels.
+    y_true : array-like or dataframe/series
+        True class labels. Accepts NumPy arrays, Pandas Series/DataFrame column, or other Narwhals-supported types. Must be 1D.
+    y_pred : array-like or dataframe/series
+        Predicted class labels. Accepts NumPy arrays, Pandas Series/DataFrame column, or other Narwhals-supported types. Must be 1D.
 
     Returns
     -------

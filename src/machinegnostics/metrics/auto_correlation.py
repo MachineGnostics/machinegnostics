@@ -11,7 +11,9 @@ import logging
 from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def auto_correlation(data: np.ndarray, lag: int = 0, case: str = 'i', verbose: bool = False) -> float:
     """
     Calculate the Gnostic auto-correlation of a data sample.
@@ -21,8 +23,8 @@ def auto_correlation(data: np.ndarray, lag: int = 0, case: str = 'i', verbose: b
 
     Parameters:
     ----------
-    data : np.ndarray
-        The data sample. Must be a 1D numpy array without NaN or Inf values.
+    data : array-like or dataframe/series
+        The data sample. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported types. Must be 1D without NaN or Inf values.
     lag : int, optional, default=0
         The lag value for which the auto-correlation is computed. Must be non-negative and less than the length of the data.
     case : str, optional, default='i'

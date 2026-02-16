@@ -2,16 +2,18 @@ import numpy as np
 from machinegnostics.magcal.util.logging import get_logger
 import logging
 from machinegnostics.metrics.mean import mean
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def mean_absolute_error(y_true: np.ndarray, y_pred:np.ndarray, verbose: bool = False) -> float:
     """
     Computes the mean absolute error (MAE).
 
     Parameters
     ----------
-    y_true : array-like
+    y_true : array-like or dataframe/series
         True values (targets).
-    y_pred : array-like
+    y_pred : array-like or dataframe/series
         Predicted values.
     verbose : bool, optional
         If True, enables detailed logging. Default is False.

@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 from machinegnostics.magcal.util.logging import get_logger
 import logging
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def precision_score(y_true:np.ndarray, 
                     y_pred:np.ndarray, 
                     average='binary', 
@@ -16,10 +18,10 @@ def precision_score(y_true:np.ndarray,
 
     Parameters
     ----------
-    y_true : array-like or pandas Series/DataFrame column of shape (n_samples,)
+    y_true : array-like or dataframe/series of shape (n_samples,)
         Ground truth (correct) target values.
 
-    y_pred : array-like or pandas Series/DataFrame column of shape (n_samples,)
+    y_pred : array-like or dataframe/series of shape (n_samples,)
         Estimated targets as returned by a classifier.
 
     average : {'binary', 'micro', 'macro', 'weighted', None}, default='binary'

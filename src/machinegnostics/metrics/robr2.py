@@ -8,7 +8,9 @@ import logging
 from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool = False) -> float:
     """
     Compute the Robust R-squared (RobR2) value for evaluating the goodness of fit between observed data and model predictions.
@@ -19,13 +21,12 @@ def robr2(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool 
 
     Parameters
     ----------
-    y : np.ndarray
-        The observed data (ground truth). Must be a 1D array of numerical values.
-    y_fit : np.ndarray
+    y : array-like or dataframe/series
+        The observed data (ground truth). Must be 1D.
+    y_fit : array-like or dataframe/series
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
-    w : np.ndarray, optional
-        Weights for the data points. Must be a 1D array of the same shape as `y` if provided. Defaults to `None`, in which 
-        case equal weights are assumed.
+    w : array-like or series, optional
+        Weights for the data points. Must match shape of `y` if provided. Defaults to `None` (equal weights).
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.
 

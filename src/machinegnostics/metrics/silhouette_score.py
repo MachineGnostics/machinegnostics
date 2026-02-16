@@ -10,7 +10,9 @@ import logging
 from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from typing import Union, List
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def silhouette_score(X: Union[np.ndarray, List], 
                      labels: Union[np.ndarray, List],
                      verbose: bool = False) -> float:
@@ -23,10 +25,10 @@ def silhouette_score(X: Union[np.ndarray, List],
     
     Parameters:
     -----------
-    X : array-like of shape (n_samples, n_features)
-        Feature array.
-    labels : array-like of shape (n_samples,)
-        Cluster labels for each sample.
+    X : array-like or dataframe of shape (n_samples, n_features)
+        Feature array; accepts NumPy arrays or dataframe types.
+    labels : array-like or series of shape (n_samples,)
+        Cluster labels for each sample; accepts arrays or series types.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes.
         

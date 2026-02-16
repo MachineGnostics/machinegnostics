@@ -7,9 +7,11 @@ Machine Gnostics
 
 import numpy as np
 from machinegnostics.magcal import EGDF, QGDF
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 from machinegnostics.magcal.util.logging import get_logger
 import logging
 
+@narwhalify
 def median(data: np.ndarray,
             case: str = 'i',
             S: float = 'auto', 
@@ -18,7 +20,7 @@ def median(data: np.ndarray,
             tolerance: float = 1e-6,
             verbose: bool = False) -> float:
     """
-    Calculate the median of a dataset.
+    Calculate the median of a dataset. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported dataframe types.
 
     The Gnostic median metric is based on the principles of gnostic theory, which
     provides robust estimates of data relationships. This metric leverages the concepts
@@ -26,8 +28,9 @@ def median(data: np.ndarray,
 
     Parameters:
     -----------
-    data : np.ndarray
-        Input data array.
+    data : array-like or dataframe/series
+        Input data. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported
+        dataframe types. Internally converted to NumPy via Narwhals.
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating irrelevance, 'j' for quantifying irrelevance.

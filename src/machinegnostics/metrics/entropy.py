@@ -13,8 +13,10 @@ import numpy as np
 
 from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import EGDF, QGDF
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 
+@narwhalify
 def entropy(data: np.ndarray, 
             data_compare: Optional[np.ndarray] = None,
             S: Union[float, str] = 'auto', 
@@ -33,10 +35,10 @@ def entropy(data: np.ndarray,
 
     Parameters
     ----------
-    data : array-like
+    data : array-like or dataframe/series
         Reference data values (e.g., Ground Truth) or the single dataset to evaluate. 
         Must be a 1D array.
-    data_compare : array-like, optional
+    data_compare : array-like or dataframe/series, optional
         Data values to compare against the reference (e.g., Estimated/Predicted values). 
         If provided, entropy is calculated on (data_compare - data).
         If None, entropy is calculated on `data` directly.

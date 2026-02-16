@@ -12,7 +12,9 @@ from machinegnostics.magcal.util.logging import get_logger
 import numpy as np
 from machinegnostics.magcal import ELDF, QLDF
 from typing import Union
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def mean(data: np.ndarray, 
          S: Union[float, str] = 'auto', 
          case: str = 'i',
@@ -29,8 +31,9 @@ def mean(data: np.ndarray,
 
     Parameters:
     -----------
-    data : np.ndarray
-        Input data array.
+    data : array-like or dataframe/series
+        Input data. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported
+        dataframe types. Internally converted to NumPy via Narwhals.
     S : float, optional
         Scaling parameter for ELDF. Default is 'auto' to optimize. Suggested range is [0.01, 2].
     case : str, optional

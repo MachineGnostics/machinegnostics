@@ -10,7 +10,9 @@ import logging
 import numpy as np
 from machinegnostics.magcal.characteristics import GnosticsCharacteristics
 from machinegnostics.magcal.scale_param import ScaleParam
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: str = 'auto', verbose: bool = False) -> float:
     """
     Calculate the Gnostic Characteristics (Hc) metric of the data sample.
@@ -27,10 +29,10 @@ def hc(y_true: np.ndarray, y_pred: np.ndarray, case: str = 'i', S: str = 'auto',
 
     Parameters
     ----------
-    y_true : array-like
-        True values.
-    y_pred : array-like
-        Predicted values.
+    y_true : array-like or dataframe/series
+        True values; accepts arrays or series.
+    y_pred : array-like or dataframe/series
+        Predicted values; accepts arrays or series.
     case : str, optional
         Case to be used for calculation. Options are 'i' or 'j'. Default is 'i'.
     S : float or str, optional

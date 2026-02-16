@@ -8,7 +8,9 @@ from machinegnostics.magcal.util.logging import get_logger
 import logging
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: bool = False) -> float:
     """
     Compute the Evaluation Metric (EvalMet) for evaluating the fit between observed data and model predictions.
@@ -18,12 +20,12 @@ def evalMet(y: np.ndarray, y_fit: np.ndarray, w: np.ndarray = None, verbose: boo
 
     Parameters
     ----------
-    y : np.ndarray
-        The observed data (ground truth). Must be a 1D array of numerical values.
-    y_fit : np.ndarray
+    y : array-like or dataframe/series
+        The observed data (ground truth). Must be 1D.
+    y_fit : array-like or dataframe/series
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
-    w : np.ndarray, optional
-        Weights for the data points. If not provided, an array of ones is used.
+    w : array-like or series, optional
+        Weights for the data points. If not provided, an array of ones is used. Must match shape of `y`.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.
 
