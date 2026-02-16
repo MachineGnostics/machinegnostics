@@ -16,6 +16,7 @@ from machinegnostics.magcal.gdf.egdf import EGDF
 from machinegnostics.magcal.gdf.eldf import ELDF
 from machinegnostics.magcal.gdf.qgdf import QGDF
 from machinegnostics.magcal.gdf.qldf import QLDF
+from machinegnostics.magcal.gdf.wedf import WEDF
 from machinegnostics.magcal.gdf.z0_estimator import Z0Estimator
 from machinegnostics.magcal.gdf.homogeneity import DataHomogeneity
 from machinegnostics.magcal.gdf.data_cluster import DataCluster
@@ -25,13 +26,7 @@ from machinegnostics.magcal.gdf.scedasticity import DataScedasticity
 from machinegnostics.magcal.gdf.marginal_intv_analysis import IntervalAnalysis
 from machinegnostics.magcal.gdf.cluster_analysis import ClusterAnalysis
 
-# g correlation function
-# from machinegnostics.magcal.gmodulus import gmodulus
-# from machinegnostics.magcal.gacov import gautocovariance
-# from machinegnostics.magcal.gvar import gvariance
-# from machinegnostics.magcal.gcov import gcovariance
-# from machinegnostics.magcal.gmed import gmedian
-
 # util
 from machinegnostics.magcal.util.dis_docstring import disable_parent_docstring
 from machinegnostics.magcal.util.min_max_float import np_max_float, np_min_float, np_eps_float
+from machinegnostics.magcal.util.narwhals_df import narwhalify

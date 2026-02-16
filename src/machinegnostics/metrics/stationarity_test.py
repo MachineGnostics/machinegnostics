@@ -11,7 +11,9 @@ import numpy as np
 from typing import Union, List
 from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import EGDF, DataHomogeneity
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def stationarity_test(data: Union[np.ndarray, List], 
                       window_size: int = 10,
                       S: str = 'auto',
@@ -27,8 +29,8 @@ def stationarity_test(data: Union[np.ndarray, List],
     
     Parameters:
     -----------
-    data : array-like of shape (n_samples,)
-        Time series data to analyze.
+    data : array-like or dataframe/series of shape (n_samples,)
+        Time series data to analyze; accepts arrays or series types.
     window_size : int, optional (default=10)
         The size of the sliding window used to calculate Residual Entropy.
         Must be less than the length of the data.

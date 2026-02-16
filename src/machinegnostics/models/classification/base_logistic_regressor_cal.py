@@ -88,6 +88,9 @@ class LogisticRegressorCalBase(RegressorMethodsBase):
 
         # logger
         self.logger.info("ParamLogisticRegressorBase initialized.")
+        # check input
+        self._input_checks()
+        self.logger.info("Input parameters validated successfully.")
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """

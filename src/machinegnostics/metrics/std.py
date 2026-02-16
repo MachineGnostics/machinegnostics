@@ -14,7 +14,9 @@ from machinegnostics.metrics.mean import mean
 from machinegnostics.metrics.variance import variance
 from machinegnostics.magcal import EGDF, ELDF
 from machinegnostics.magcal import DataConversion
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def std(data: np.ndarray,
         case: str = 'i',
         S: float = 'auto',
@@ -31,8 +33,9 @@ def std(data: np.ndarray,
 
     Parameters:
     -----------
-    data : np.ndarray
-        Input data array.
+    data : array-like or dataframe/series
+        Input data. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported
+        dataframe types. Internally converted to NumPy via Narwhals.
     case : str, optional
         Case for irrelevance calculation ('i' or 'j'). Default is 'i'. 
         'i' for estimating variance, 'j' for quantifying variance.

@@ -30,6 +30,10 @@ class CartCalBase(CartMethodsBase):
         else:
              self._history = None
 
+        # check input
+        self._input_checks()
+        self.logger.info(f"Input parameters validated successfully.")
+
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the model using iterative gnostic weighting.

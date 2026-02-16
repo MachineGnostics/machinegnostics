@@ -22,6 +22,7 @@ from machinegnostics.models.clustering.base_clustering_history import HistoryClu
 from machinegnostics.magcal import ELDF
 from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import disable_parent_docstring
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
     """
@@ -167,6 +168,7 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
         self.logger.info(f"{self.__class__.__name__} initialized.")
 
+    @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray = None):
         """
         Fit the Gnostic Local Clustering model to the provided data.
@@ -176,8 +178,8 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features. Must be 1D array for standard ELDF clustering.
+        X : array-like or dataframe
+            Input features. Accepts NumPy arrays, Pandas DataFrame/Series. Must be 1D for standard ELDF clustering.
         y : np.ndarray, optional
             Not used.
 
@@ -337,6 +339,7 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         self.logger.info(f"Fit complete. Optimal S: {self.optimal_S}, Clusters: {self.n_clusters}")
         return self
 
+    @narwhalify
     def predict(self, model_input: np.ndarray) -> np.ndarray:
         """
         Predict cluster labels for new data.
@@ -345,13 +348,13 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         
         Parameters
         ----------
-        model_input : np.ndarray
-            Input features.
+        model_input : array-like or dataframe
+            Input features for prediction.
 
         Returns
         -------
-        labels : np.ndarray
-            Predicted cluster labels.
+        labels : array-like
+            Predicted cluster labels. Returns native type (NumPy array or Pandas Series) based on input.
         """
         self.logger.info("Making predictions with GnosticLocalClustering.")
         
@@ -369,6 +372,7 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         
         return labels
 
+    @narwhalify
     def score(self, X: np.ndarray, y: np.ndarray = None) -> float:
         """
         Return the residual entropy of the best fitted model.
@@ -378,8 +382,8 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features.
+        X : array-like or dataframe
+            Input features for scoring.
         y : np.ndarray, optional
             Ignored.
 

@@ -17,45 +17,142 @@ from machinegnostics.magcal import disable_parent_docstring
 from machinegnostics.metrics import robr2
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
     """
-    Gnostic SARIMA (Seasonal AutoRegressive Integrated Moving Average) with Robust Iterative Reweighting.
+    Gnostic SARIMA (Seasonal ARIMA) with robust iterative reweighting.
 
-    This model extends Gnostic ARIMA to support seasonal components (P, D, Q, s).
-    It implements a subset regression approach for SARIMA(p, d, q)x(P, D, Q, s).
+    Overview
+    --------
+    This implementation extends ARIMA to include seasonal components `(P, D, Q, s)` and
+    integrates the Machine Gnostics reweighting loop for noise/outlier robustness.
+    The model operates on a doubly-differenced series `y''` (seasonal differencing `D`
+    followed by regular differencing `d`) and builds a linear additive approximation
+    with AR/SAR and MA/SMA terms, optionally with a linear trend.
 
-    Model (Linear/Additive Approximation):
-        y''_t = c + Σ(φ_i * y''_{t-i}) + Σ(Φ_j * y''_{t-j*s}) + Σ(θ_k * ε_{t-k}) + Σ(Θ_l * ε_{t-l*s}) + ε_t
-        
-    Where:
-    
-    y''_t : Doubly differenced series (regular d and seasonal D)
-    s     : Seasonality period
-    φ, Φ  : Autoregressive parameters (Regular, Seasonal)
-    θ, Θ  : Moving Average parameters (Regular, Seasonal)
-    ε_t   : Residual error term
+    Model (on doubly-differenced series)
+    ------------------------------------
+        y''_t = c
+                 + Σ(φ_i · y''_{t-i})                # non-seasonal AR(p)
+                 + Σ(Φ_j · y''_{t-j·s})              # seasonal AR(P) with period s
+                 + Σ(θ_k · ε_{t-k})                  # non-seasonal MA(q)
+                 + Σ(Θ_l · ε_{t-l·s})                # seasonal MA(Q) with period s
+                 + ε_t
 
+    where:
+    - `y''_t` is the doubly-differenced series (first seasonal `D`, then regular `d`).
+    - `s` is the seasonality period (e.g., 12 for monthly data).
+    - `φ, Φ` are AR and seasonal AR parameters.
+    - `θ, Θ` are MA and seasonal MA parameters.
+    - `ε_t` is the residual error.
+
+    Robust Reweighting
+    ------------------
+    The underlying linear regression is fitted using the Machine Gnostics IO and
+    reweighting layers. Weights are learned using gnostic characteristics based on
+    irrelevance metrics. The choice of `mg_loss` controls the objective:
+    - `hi`: minimize irrelevance of observed data (estimation-focus).
+    - `hj`: minimize irrelevance of ideal/reference (quantification-focus).
+
+    Key Features
+    ------------
+    - Seasonal and non-seasonal orders: `(p, d, q) × (P, D, Q, s)`.
+    - Optional trend: `'c'` (constant), `'ct'` (constant + linear time), `'n'` (none).
+    - Robust reweighting with `scale='auto'` or a numeric value and `data_form` `'a'`/`'m'`.
+    - Convergence control via `max_iter`, `learning_rate`, `tolerance`, `early_stopping`.
+    - Training history collection for diagnostics (`_history`).
 
     Parameters
     ----------
-    order : tuple, default=(1, 0, 0)
-        The (p, d, q) order of the non-seasonal component.
-    seasonal_order : tuple, default=(0, 0, 0, 0)
-        The (P, D, Q, s) order of the seasonal component.
-        s is the periodicity (e.g., 12 for monthly).
-    trend : str, {'c', 'ct', 'n'}, default='c'
-        Trend to include in the model.
+    order : tuple[int, int, int], default=(1, 0, 0)
+        Non-seasonal order `(p, d, q)`.
+    seasonal_order : tuple[int, int, int, int], default=(0, 0, 0, 0)
+        Seasonal order `(P, D, Q, s)`; `s` is the periodicity.
     optimize : bool, default=False
-        If True, automatically selects best orders (within limits).
-    max_order_search : tuple, default=(2, 1, 2)
-        Max (p, d, q) for regular order search.
+        Placeholder for automatic order selection within `max_order_search`. Currently
+        not performing exhaustive model selection.
+    max_order_search : tuple[int, int, int], default=(2, 1, 2)
+        Limits for automatic non-seasonal order search when `optimize=True`.
+    trend : {'c', 'ct', 'n'}, default='c'
+        Trend option: constant only, constant+time, or none.
     scale : {'auto', int, float}, default='auto'
-        Scaling method or value for gnostic calculations.
+        Scaling for gnostic calculations; `'auto'` estimates a suitable scale.
     max_iter : int, default=100
-        Maximum number of gnostic reweighting iterations.
+        Maximum number of reweighting iterations.
+    learning_rate : float, default=0.1
+        Step size used by the reweighting optimizer.
     tolerance : float, default=1e-3
-        Convergence tolerance.
+        Convergence tolerance for the reweighting loop.
+    mg_loss : {'hi', 'hj'}, default='hi'
+        Loss selection for gnostic weighting (see Robust Reweighting).
+    early_stopping : bool, default=True
+        Stop iterations when progress falls below `tolerance`.
+    verbose : bool, default=False
+        Enable internal logging; uses `DEBUG` when `True`, `WARNING` otherwise.
+    data_form : {'a', 'm'}, default='a'
+        Data form for IO conversions: `'a'` additive or `'m'` multiplicative.
+    gnostic_characteristics : bool, default=True
+        Whether to compute gnostic characteristics in the IO layer.
+    history : bool, default=True
+        Collect training history in `_history` for diagnostics.
+
+    Attributes
+    ----------
+    p, d, q : int
+        Non-seasonal orders.
+    P, D, Q, s : int
+        Seasonal orders and seasonality period.
+    training_data_raw_ : np.ndarray | None
+        Original training series `y`.
+    training_data_diff_ : np.ndarray | None
+        Series after seasonal and regular differencing.
+    training_residuals_ : np.ndarray | None
+        Initial residuals estimate used for MA/SMA features.
+    _history : list[dict] | None
+        Training history entries: `iteration`, `h_loss`, `coefficients`, `rentropy`, `weights`.
+    logger : logging.Logger
+        Component logger (level controlled by `verbose`).
+
+    Methods Summary
+    ---------------
+    fit(y, X=None) -> SARIMA
+        Fit the model on `y`; builds features on the doubly-differenced series.
+    predict(steps=1, future=True) -> np.ndarray
+        Forecast `steps` ahead and invert differencing back to the original domain.
+    score(y, X=None) -> float
+        Robust R² computed on the differenced training series; returns `-inf`
+        for non-training data.
+    summary() -> None
+        Print a human-readable model summary.
+
+    Raises
+    ------
+    ValueError
+        If the series is too short for requested differencing/lags; if residuals
+        are required (MA terms present) but unavailable; or when feature creation
+        cannot proceed due to insufficient data.
+
+    Notes
+    -----
+    - Residuals are initialized via a long AR(m) heuristic to support MA/SMA terms.
+      Future residuals during forecasting are assumed to be zero.
+    - Trend `'ct'` uses a simple time index aligned to the training target length.
+    - Logging leverages `machinegnostics.magcal.util.logging.get_logger` and honors
+      `verbose` for level selection.
+    - History collection is enabled when `history=True`; the first entry is a
+      placeholder capturing initial state.
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from machinegnostics.models import SARIMA
+    >>> y = np.sin(np.linspace(0, 4*np.pi, 240)) + 0.1*np.random.randn(240)
+    >>> model = SARIMA(order=(2,1,1), seasonal_order=(1,1,1,12), trend='c', verbose=True)
+    >>> model.fit(y)
+    >>> forecast = model.predict(steps=12)
+    >>> r2 = model.score(y)
+    >>> model.summary()
     """
     @disable_parent_docstring
     def __init__(self,
@@ -282,6 +379,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         except:
             return np.zeros(n)
 
+    @narwhalify
     def fit(self, y: np.ndarray, X=None):
         """Fit Gnostic SARIMA."""
         self.logger.info("Starting fit process for Gnostic SARIMA.")
@@ -328,6 +426,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return self
 
+    @narwhalify
     def predict(self, steps: int = 1, future: bool = True) -> np.ndarray:
         """Forecast."""
         if self.training_data_diff_ is None:
@@ -418,6 +517,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return forecast_final
 
+    @narwhalify
     def score(self, y: np.ndarray, X=None) -> float:
         """
         Score using Robust R2 on the fully differenced series (in-sample only).

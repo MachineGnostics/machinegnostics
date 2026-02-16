@@ -1,4 +1,5 @@
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 import numpy as np
 import logging
 
@@ -79,19 +80,22 @@ class WEDF:
             self.wedf_values[k] = (self.wedf_values[k-1] + 
                                   (self.normalized_weights[k-1] + self.normalized_weights[k]) / 2)
             
+    @narwhalify
     def fit(self, z):
         """
         Fit the WEDF at given points.
         
         Parameters
         ----------
-        z : float or array-like
-            Points at which to fit the WEDF
+        z : float, array-like, or dataframe/series
+            Points at which to fit the WEDF. Accepts NumPy arrays, Pandas Series/DataFrame,
+            or other Narwhals-supported dataframe types. Internally converted to NumPy via Narwhals.
         
         Returns
         -------
-        float or ndarray
-            WEDF values at the given points
+        float or ndarray (or native Series/DataFrame when input was a dataframe)
+            WEDF values at the given points. If input was a dataframe/series, returns values
+            converted back to the original native type for smooth round-trip.
         """
         self.logger.info("Fitting WEDF at given points.")
         z = np.asarray(z)

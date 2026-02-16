@@ -16,6 +16,7 @@ from machinegnostics.models.clustering.base_clustering_history import HistoryClu
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 from machinegnostics.magcal import disable_parent_docstring
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
     """
@@ -180,6 +181,7 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
         self.logger.info(f"{self.__class__.__name__} initialized:")
 
+    @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray = None):
         """
         Fit the robust k-means clustering model to the provided data.
@@ -193,8 +195,8 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features of shape (n_samples, n_features).
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
         y : np.ndarray, optional
             Not used, present for API consistency.
 
@@ -224,19 +226,20 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
         super()._fit(Xc, y)
         return self
     
+    @narwhalify
     def predict(self, model_input: np.ndarray) -> np.ndarray:
         """
         Predict cluster labels using the fitted k-means clustering model.
 
         Parameters
         ----------
-        model_input : np.ndarray
-            Input features for prediction, shape (n_samples, n_features).
+        model_input : array-like or dataframe of shape (n_samples, n_features)
+            Input features for prediction.
 
         Returns
         -------
-        labels : np.ndarray
-            Predicted cluster labels, shape (n_samples,).
+        labels : array-like
+            Predicted cluster labels. Returns native type (NumPy array or Pandas Series) based on input.
 
         Example
         -------
@@ -248,6 +251,7 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
         model_input_c = super()._predict_io(model_input)
         return super()._predict(model_input_c)
     
+    @narwhalify
     def score(self, X: np.ndarray, y: np.ndarray = None) -> float:
         """
         Compute the negative inertia score for the k-means clustering model.
@@ -257,8 +261,8 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features for scoring, shape (n_samples, n_features).
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features for scoring.
         y : np.ndarray, optional
             Not used, present for API consistency.
 

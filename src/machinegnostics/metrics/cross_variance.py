@@ -9,18 +9,20 @@ import numpy as np
 from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def cross_covariance(X: np.ndarray, y: np.ndarray, case: str = 'i', verbose: bool = False) -> float:
     """
     Calculate the Gnostic cross-covariance between a feature array X and a target array y.
 
     Parameters:
     ----------
-    X : np.ndarray
-        The feature data sample. Must be a 1D numpy array (single feature/column).
+    X : array-like or dataframe/series
+        The feature data sample. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported types. Must be 1D (single feature/column).
         If X has more than one column, pass each column separately (e.g., X[:, i]).
-    y : np.ndarray
-        The target data sample. Must be a 1D numpy array without NaN or Inf values.
+    y : array-like or dataframe/series
+        The target data sample. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported types. Must be 1D without NaN or Inf values.
     case : str, optional, default='i'
         Specifies the type of geometry to use:
         - 'i': Estimation geometry.

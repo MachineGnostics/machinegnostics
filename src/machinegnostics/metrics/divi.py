@@ -8,7 +8,9 @@ from machinegnostics.magcal.util.logging import get_logger
 import logging
 import numpy as np
 from machinegnostics.magcal.criteria_eval import CriteriaEvaluator
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def divI(y: np.ndarray, y_fit: np.ndarray,  verbose: bool = False) -> float:
     """
     Compute the Divergence Information (DivI) for evaluating the fit between observed data and model predictions.
@@ -18,9 +20,9 @@ def divI(y: np.ndarray, y_fit: np.ndarray,  verbose: bool = False) -> float:
 
     Parameters
     ----------
-    y : np.ndarray
-        The observed data (ground truth). Must be a 1D array of numerical values.
-    y_fit : np.ndarray
+    y : array-like or dataframe/series
+        The observed data (ground truth). Must be 1D.
+    y_fit : array-like or dataframe/series
         The fitted data (model predictions). Must be a 1D array of the same shape as `y`.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.

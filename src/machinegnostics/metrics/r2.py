@@ -1,16 +1,18 @@
 import numpy as np
 from machinegnostics.magcal.util.logging import get_logger
 import logging
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def r2_score(y_true:np.ndarray, y_pred:np.ndarray, verbose:bool=False) -> float:
     """
     Computes the coefficient of determination (R² score).
 
     Parameters
     ----------
-    y_true : array-like
+    y_true : array-like or dataframe/series
         True values (targets).
-    y_pred : array-like
+    y_pred : array-like or dataframe/series
         Predicted values.
     verbose : bool, optional
         If True, enables detailed logging for debugging purposes. Default is False.
@@ -58,6 +60,7 @@ def r2_score(y_true:np.ndarray, y_pred:np.ndarray, verbose:bool=False) -> float:
 
     return float(1 - ss_res / ss_tot)
 
+@narwhalify
 def adjusted_r2_score(y_true:np.ndarray, y_pred:np.ndarray, n_features:int, verbose:bool=False) -> float:
     """
     Computes the adjusted R² score.

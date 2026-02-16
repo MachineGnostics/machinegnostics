@@ -179,7 +179,7 @@ examples/mlruns
 tests/checks/
 tests/exm/
 tests/exm/*.ipynb
-docs/*
+# docs/*
 tests/*
 
 # take out old dist func

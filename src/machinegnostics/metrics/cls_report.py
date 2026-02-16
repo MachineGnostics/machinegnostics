@@ -3,7 +3,9 @@ import pandas as pd
 from machinegnostics.metrics import precision_score, recall_score, f1_score
 from machinegnostics.magcal.util.logging import get_logger
 import logging
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def classification_report(
     y_true:np.ndarray | pd.Series,
     y_pred:np.ndarray | pd.Series,
@@ -20,10 +22,10 @@ def classification_report(
 
     Parameters
     ----------
-    y_true : array-like or pandas Series/DataFrame column of shape (n_samples,)
+    y_true : array-like or dataframe/series of shape (n_samples,)
         Ground truth (correct) target values.
 
-    y_pred : array-like or pandas Series/DataFrame column of shape (n_samples,)
+    y_pred : array-like or dataframe/series of shape (n_samples,)
         Estimated targets as returned by a classifier.
 
     labels : array-like, default=None

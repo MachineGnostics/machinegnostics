@@ -6,6 +6,7 @@ Machine Gnostics
 """
 
 import numpy as np
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 from machinegnostics.magcal.gdf.base_qgdf import BaseQGDF
 
 class QGDF(BaseQGDF):
@@ -175,6 +176,7 @@ class QGDF(BaseQGDF):
         self.max_data_size = max_data_size
         self.flush = flush
 
+    @narwhalify
     def fit(self, data: np.ndarray, plot: bool = False):
         """
         Short Description: Fit the Quantifying Global Distribution Function to the provided data.
@@ -182,7 +184,8 @@ class QGDF(BaseQGDF):
         Detailed Description: This method performs the core estimation process for the QGDF. It validates and preprocesses the data, sets up optimization constraints, runs numerical optimization, and calculates the final QGDF and PDF with optimized parameters. The QGDF provides a unique global representation of the data distribution.
 
         Parameters:
-            data (np.ndarray): Input data array for distribution estimation. Must be a 1D numpy array.
+            data (array-like or dataframe/series): Input data for estimation. Accepts NumPy arrays, Pandas Series/DataFrame,
+                or other Narwhals-supported dataframe types. Internally converted to NumPy via Narwhals.
             plot (bool, optional): Whether to automatically plot the fitted distribution after fitting. Default is False.
 
         Returns:

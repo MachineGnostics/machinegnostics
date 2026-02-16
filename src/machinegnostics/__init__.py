@@ -269,7 +269,7 @@ __all__ = [
 __author__ = 'Nirmal Parmar'
 
 # check version with tomal file
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 # =============================================================================
 # Import Validation and Health Check

@@ -11,18 +11,20 @@ import numpy as np
 from machinegnostics.magcal import EGDF, QGDF, DataHomogeneity
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def correlation(X: np.ndarray, y: np.ndarray, case: str = 'i', S:str ='auto', verbose: bool = False) -> float:
     """
     Calculate the Gnostic correlation coefficient between a feature array X and a target array y.
 
     Parameters:
     ----------
-    X : np.ndarray
-        The feature data sample. Must be a numpy array without NaN or Inf values.
+    X : array-like or dataframe/series
+        The feature data sample. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported types.
         If X has more than one column, pass each column one by one to this function.
-    y : np.ndarray
-        The target data sample. Must be a 1D numpy array without NaN or Inf values.
+    y : array-like or dataframe/series
+        The target data sample. Accepts NumPy arrays, Pandas Series/DataFrame, or other Narwhals-supported types.
     case : str, optional, default='i'
         Specifies the type of geometry to use:
         - 'i': Estimation geometry (EGDF).

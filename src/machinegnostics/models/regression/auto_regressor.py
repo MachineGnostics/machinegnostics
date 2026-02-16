@@ -15,6 +15,7 @@ from machinegnostics.magcal import disable_parent_docstring
 from machinegnostics.metrics import robr2
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class AutoRegressor(HistoryRegressorBase, DataProcessLayerBase):
     """
@@ -141,14 +142,15 @@ class AutoRegressor(HistoryRegressorBase, DataProcessLayerBase):
             
         return np.array(X_lags), np.array(y_target)
 
+    @narwhalify
     def fit(self, y: np.ndarray, X=None):
         """
         Fit the Autoregressor to the time series y.
         
         Parameters
         ----------
-        y : array-like
-            Target time series.
+        y : array-like or series
+            Target time series. Accepts NumPy arrays, Pandas Series/DataFrame column.
         X : Ignored
             Included for compatibility, but ignored.
         """
@@ -189,6 +191,7 @@ class AutoRegressor(HistoryRegressorBase, DataProcessLayerBase):
         
         return self
 
+    @narwhalify
     def predict(self, steps: int = 1, future: bool = True) -> np.ndarray:
         """
         Forecast future values.
@@ -253,6 +256,7 @@ class AutoRegressor(HistoryRegressorBase, DataProcessLayerBase):
             
         return np.array(forecast)
 
+    @narwhalify
     def score(self, y: np.ndarray, X=None) -> float:
         """
         Score the model on a time series y using Robust R2.

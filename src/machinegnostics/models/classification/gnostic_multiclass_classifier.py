@@ -17,6 +17,7 @@ from machinegnostics.models.base_io_models import DataProcessLayerBase
 from machinegnostics.metrics import accuracy_score
 from machinegnostics.magcal import disable_parent_docstring
 from typing import Union
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase):
     """
@@ -138,6 +139,7 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
             history=history
         )
     
+    @narwhalify
     def fit(self, X, y):
         """
         Fit the MulticlassClassifier model to the training data.
@@ -149,10 +151,10 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
 
         Parameters
         ----------
-        X : array-like or DataFrame
-            Input features for training. Can be a NumPy array, pandas DataFrame, or compatible type.
-        y : array-like
-            Target labels for training. Should be a 1D array or Series of class labels (integers starting from 0).
+        X : array-like or dataframe
+            Input features for training. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
+        y : array-like or series
+            Target labels for training. Accepts NumPy arrays, Pandas Series/DataFrame column.
 
         Returns
         -------
@@ -179,6 +181,7 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
         self.weights = self.weights
         return self
     
+    @narwhalify
     def predict(self, model_input) -> np.ndarray:
         """
         Predict class labels for new input data.
@@ -189,13 +192,13 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
 
         Parameters
         ----------
-        model_input : array-like or DataFrame
-            Input data for prediction. Can be a NumPy array, pandas DataFrame, or compatible type.
+        model_input : array-like or dataframe
+            Input data for prediction. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
 
         Returns
         -------
-        np.ndarray
-            Array of predicted class labels (integers).
+        array-like
+            Predicted class labels (integers). Returns native type (NumPy array or Pandas Series) based on input.
 
         Examples
         --------
@@ -206,6 +209,7 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
         model_input_checked = super()._predict_io(model_input)
         return super()._predict(model_input_checked)
     
+    @narwhalify
     def predict_proba(self, model_input) -> np.ndarray:
         """
         Predict class probabilities for new input data.
@@ -216,14 +220,13 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
 
         Parameters
         ----------
-        model_input : array-like or DataFrame
-            Input data for probability prediction. Can be a NumPy array, pandas DataFrame, or compatible type.
+        model_input : array-like or dataframe
+            Input data for probability prediction. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
 
         Returns
         -------
-        np.ndarray
-            Array of predicted probabilities for each class, shape (n_samples, n_classes).
-            Each row sums to 1.0.
+        array-like
+            Predicted probabilities for each class, shape (n_samples, n_classes). Returns native type (NumPy array or Pandas DataFrame) based on input. Each row sums to 1.0.
 
         Examples
         --------
@@ -235,6 +238,7 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
         model_input_checked = super()._predict_io(model_input)
         return super()._predict_proba(model_input_checked)
 
+    @narwhalify
     def score(self, X, y) -> float:
         """
         Compute the accuracy score of the model on the provided test data.
@@ -244,9 +248,9 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
 
         Parameters
         ----------
-        X : array-like or DataFrame
+        X : array-like or dataframe
             Input features for evaluation.
-        y : array-like
+        y : array-like or series
             True class labels for evaluation.
 
         Returns
