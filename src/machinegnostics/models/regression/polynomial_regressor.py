@@ -15,6 +15,7 @@ from machinegnostics.metrics import robr2
 from machinegnostics.magcal import disable_parent_docstring
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
     """
@@ -168,6 +169,7 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
         self.logger.debug(f"{self.__class__.__name__} initialized.")
 
+    @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fit the robust polynomial regressor model to the provided data.
@@ -178,10 +180,10 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features of shape (n_samples, n_features).
-        y : np.ndarray
-            Target values of shape (n_samples,).
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
+        y : array-like or series of shape (n_samples,)
+            Target values. Accepts NumPy arrays, Pandas Series/DataFrame column.
 
         Returns
         -------
@@ -204,14 +206,15 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         self.logger.info("Starting fit process.")
         super()._fit(X_checked, y_checked)
     
+    @narwhalify
     def predict(self, model_input: np.ndarray) -> np.ndarray:
         """
         Predict target values using the fitted polynomial regressor model.
 
         Parameters
         ----------
-        model_input : np.ndarray
-            Input features for prediction, shape (n_samples, n_features).
+        model_input : array-like or dataframe of shape (n_samples, n_features)
+            Input features for prediction.
 
         Returns
         -------
@@ -230,16 +233,17 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         self.logger.info("Making predictions.")
         return super()._predict(model_input_checked)
     
+    @narwhalify
     def score(self, X: np.ndarray, y: np.ndarray, case:str = 'i') -> float:
         """
         Compute the robust (gnostic) R2 score for the polynomial regressor model.
 
         Parameters
         ----------
-        X : np.ndarray
-            Input features for scoring, shape (n_samples, n_features).
-        y : np.ndarray
-            True target values, shape (n_samples,).
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features for scoring.
+        y : array-like or series of shape (n_samples,)
+            True target values.
         case : str, default='i'
             Specifies the case or variant of the R2 score to compute.
 

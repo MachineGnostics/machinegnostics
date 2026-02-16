@@ -75,10 +75,8 @@ class BoostingMethodsBase(ModelBase):
         self.logger.info("Performing input checks for arguments.")
         if not isinstance(self.n_estimators, int) or self.n_estimators < 1:
             raise ValueError("n_estimators must be a positive integer.")
-        if self.max_iter < 0:
-             raise ValueError("max_iter must be non-negative.")
-        if not isinstance(self.max_iter, int) or self.max_iter < 1:
-            raise ValueError("max_iter must be a positive integer.")
+        if not isinstance(self.max_iter, int) or self.max_iter < 0:
+            raise ValueError("max_iter must be a non-negative integer.")
         if not isinstance(self.tolerance, (float, int)) or self.tolerance <= 0:
             raise ValueError("tolerance must be a positive float or int.")
         if self.mg_loss not in ['hi', 'hj']:

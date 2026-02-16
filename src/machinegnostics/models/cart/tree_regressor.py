@@ -14,6 +14,7 @@ from machinegnostics.metrics import robr2
 from machinegnostics.magcal import disable_parent_docstring
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class GnosticDecisionTreeRegressor(HistoryCartBase, DataProcessLayerBase):
     """
@@ -106,8 +107,17 @@ class GnosticDecisionTreeRegressor(HistoryCartBase, DataProcessLayerBase):
         )
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
 
+    @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray):
-        """Fit the model."""
+        """Fit the model.
+
+        Parameters
+        ----------
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features. Accepts NumPy arrays, Pandas DataFrame.
+        y : array-like or series of shape (n_samples,)
+            Target values. Accepts NumPy arrays, Pandas Series/DataFrame column.
+        """
         self.logger.info("Starting fit process for GnosticDecisionTreeRegressor.")
         # Data process layer IO
         Xc, yc = super()._fit_io(X, y)
@@ -115,14 +125,35 @@ class GnosticDecisionTreeRegressor(HistoryCartBase, DataProcessLayerBase):
         super()._fit(Xc, yc)
         return self
 
+    @narwhalify
     def predict(self, model_input: np.ndarray) -> np.ndarray:
-        """Predict outcomes."""
+        """Predict outcomes.
+
+        Parameters
+        ----------
+        model_input : array-like or dataframe of shape (n_samples, n_features)
+            Input features for prediction.
+
+        Returns
+        -------
+        array-like
+            Predicted values. Returns native type (NumPy array or Pandas Series) based on input.
+        """
         self.logger.info("Making predictions with GnosticDecisionTreeRegressor.")
         model_input_c = super()._predict_io(model_input)
         return super()._predict(model_input_c)
 
+    @narwhalify
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
-        """Score the model."""
+        """Score the model.
+
+        Parameters
+        ----------
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features for scoring.
+        y : array-like or series of shape (n_samples,)
+            True target values.
+        """
         self.logger.info("Calculating score.")
         X_checked, y_checked = super()._score_io(X, y)
         y_pred = self.predict(X_checked)

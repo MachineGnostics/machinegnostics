@@ -12,6 +12,7 @@ from machinegnostics.metrics import accuracy_score
 from machinegnostics.magcal import disable_parent_docstring
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class GnosticBoostingClassifier(HistoryBoostingClassifierBase, DataProcessLayerBase):
     """
@@ -104,28 +105,70 @@ class GnosticBoostingClassifier(HistoryBoostingClassifierBase, DataProcessLayerB
         )
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
 
+    @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray):
-        """Fit the model."""
+        """Fit the model.
+
+        Parameters
+        ----------
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features. Accepts NumPy arrays, Pandas DataFrame.
+        y : array-like or series of shape (n_samples,)
+            Target class labels. Accepts NumPy arrays, Pandas Series/DataFrame column.
+        """
         self.logger.info("Starting fit process for GnosticBoostingClassifier.")
         # Data process layer IO
         Xc, yc = super()._fit_io(X, y)
         super()._fit(Xc, yc)
         return self
 
+    @narwhalify
     def predict(self, model_input: np.ndarray) -> np.ndarray:
-        """Predict class labels."""
+        """Predict class labels.
+
+        Parameters
+        ----------
+        model_input : array-like or dataframe of shape (n_samples, n_features)
+            Input features for prediction.
+
+        Returns
+        -------
+        array-like
+            Predicted class labels. Returns native type (NumPy array or Pandas Series) based on input.
+        """
         self.logger.info("Making predictions with GnosticBoostingClassifier.")
         model_input_c = super()._predict_io(model_input)
         return super()._predict_boosting_impl(model_input_c, self.model)
 
+    @narwhalify
     def predict_proba(self, model_input: np.ndarray) -> np.ndarray:
-        """Predict class probabilities."""
+        """Predict class probabilities.
+
+        Parameters
+        ----------
+        model_input : array-like or dataframe of shape (n_samples, n_features)
+            Input features for probability prediction.
+
+        Returns
+        -------
+        array-like
+            Predicted probabilities. Returns native type (NumPy array or Pandas Series/DataFrame) based on input.
+        """
         self.logger.info("Making probability predictions with GnosticBoostingClassifier.")
         model_input_c = super()._predict_io(model_input)
         return super()._predict_proba_boosting_impl(model_input_c, self.model)
 
+    @narwhalify
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
-        """Score (Accuracy)."""
+        """Score (Accuracy).
+
+        Parameters
+        ----------
+        X : array-like or dataframe of shape (n_samples, n_features)
+            Input features for evaluation.
+        y : array-like or series of shape (n_samples,)
+            True class labels.
+        """
         y_pred = self.predict(X)
         return accuracy_score(y, y_pred)
 

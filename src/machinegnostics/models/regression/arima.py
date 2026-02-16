@@ -17,6 +17,7 @@ from machinegnostics.magcal import disable_parent_docstring
 from machinegnostics.metrics import robr2
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
     """
@@ -385,14 +386,15 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
         self.logger.info(f"Optimization finished. Best order: {best_order}, RMSE: {best_rmse:.4f}")
         return best_order
 
+    @narwhalify
     def fit(self, y: np.ndarray, X=None):
         """
         Fit the ARIMA model.
         
         Parameters
         ----------
-        y : array-like
-            Target time series.
+        y : array-like or series
+            Target time series. Accepts NumPy arrays, Pandas Series/DataFrame column.
         X : Ignored
         """
         # print(f"DEBUG: Entering fit. Optimize={self.optimize}")
@@ -450,6 +452,7 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return self
 
+    @narwhalify
     def predict(self, steps: int = 1, future: bool = True) -> np.ndarray:
         """
         Forecast future values.
@@ -521,6 +524,7 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return final_forecast
 
+    @narwhalify
     def score(self, y: np.ndarray, X=None) -> float:
         """
         Score using Robust R2.

@@ -17,6 +17,7 @@ from machinegnostics.magcal import disable_parent_docstring
 from machinegnostics.metrics import robr2
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
     """
@@ -378,6 +379,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         except:
             return np.zeros(n)
 
+    @narwhalify
     def fit(self, y: np.ndarray, X=None):
         """Fit Gnostic SARIMA."""
         self.logger.info("Starting fit process for Gnostic SARIMA.")
@@ -424,6 +426,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return self
 
+    @narwhalify
     def predict(self, steps: int = 1, future: bool = True) -> np.ndarray:
         """Forecast."""
         if self.training_data_diff_ is None:
@@ -514,6 +517,7 @@ class SARIMA(HistoryRegressorBase, DataProcessLayerBase):
         
         return forecast_final
 
+    @narwhalify
     def score(self, y: np.ndarray, X=None) -> float:
         """
         Score using Robust R2 on the fully differenced series (in-sample only).

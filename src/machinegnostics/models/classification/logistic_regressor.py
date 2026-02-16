@@ -17,6 +17,7 @@ from machinegnostics.models.base_io_models import DataProcessLayerBase
 from machinegnostics.metrics import f1_score
 from machinegnostics.magcal import disable_parent_docstring
 from typing import Union
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
     """
@@ -146,6 +147,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         # logger
         self.logger.info(f"{self.__class__.__name__} initialized.")
     
+    @narwhalify
     def fit(self, X, y):
         """
         Fit the LogisticRegressor model to the training data.
@@ -156,10 +158,10 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
 
         Parameters
         ----------
-        X : array-like or DataFrame
-            Input features for training. Can be a NumPy array, pandas DataFrame, or compatible type.
-        y : array-like
-            Target labels for training. Should be a 1D array or Series of binary class labels (0 or 1).
+        X : array-like or dataframe
+            Input features for training. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
+        y : array-like or series
+            Target labels for training. Accepts NumPy arrays, Pandas Series/DataFrame column.
 
         Returns
         -------
@@ -186,6 +188,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         self.weights = self.weights
         return self
     
+    @narwhalify
     def predict(self, model_input) -> np.ndarray:
         """
         Predict class labels for new input data.
@@ -196,13 +199,13 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
 
         Parameters
         ----------
-        model_input : array-like or DataFrame
-            Input data for prediction. Can be a NumPy array, pandas DataFrame, or compatible type.
+        model_input : array-like or dataframe
+            Input data for prediction. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
 
         Returns
         -------
-        np.ndarray
-            Array of predicted class labels (0 or 1).
+        array-like
+            Predicted class labels. Returns native type (NumPy array or Pandas Series) based on input.
 
         Examples
         --------
@@ -213,6 +216,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         model_input_checked = super()._predict_io(model_input)
         return super()._predict(model_input_checked)
     
+    @narwhalify
     def predict_proba(self, model_input) -> np.ndarray:
         """
         Predict class probabilities for new input data.
@@ -224,13 +228,13 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
 
         Parameters
         ----------
-        model_input : array-like or DataFrame
-            Input data for probability prediction. Can be a NumPy array, pandas DataFrame, or compatible type.
+        model_input : array-like or dataframe
+            Input data for probability prediction. Accepts NumPy arrays, Pandas DataFrame, or other Narwhals-supported types.
 
         Returns
         -------
-        np.ndarray
-            Array of predicted probabilities for the positive class (values between 0 and 1).
+        array-like
+            Predicted probabilities for the positive class (values between 0 and 1). Returns native type (NumPy array or Pandas Series) based on input.
 
         Examples
         --------
@@ -242,6 +246,7 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         model_input_checked = super()._predict_io(model_input)
         return super()._predict_proba(model_input_checked)
 
+    @narwhalify
     def score(self, X, y) -> float:
         """
         Compute the F1 score of the model on the provided test data.
@@ -251,9 +256,9 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
 
         Parameters
         ----------
-        X : array-like or DataFrame
+        X : array-like or dataframe
             Input features for evaluation.
-        y : array-like
+        y : array-like or series
             True binary labels for evaluation.
 
         Returns
