@@ -66,10 +66,23 @@ class CartMethodsBase(ModelBase):
 
     def _input_checks(self):
         """Perform input validation."""
+        self.logger.info("Performing input checks for arguments.")
         if not isinstance(self.n_estimators, int) or self.n_estimators < 1:
             raise ValueError("n_estimators must be a positive integer.")
         if self.max_iter < 0:
              raise ValueError("max_iter must be non-negative.")
+        if not isinstance(self.max_iter, int) or self.max_iter < 1:
+            raise ValueError("max_iter must be a positive integer.")
+        if not isinstance(self.tolerance, (float, int)) or self.tolerance <= 0:
+            raise ValueError("tolerance must be a positive float or int.")
+        if self.mg_loss not in ['hi', 'hj']:
+            raise ValueError("mg_loss must be either 'hi' or 'hj'.")
+        if not isinstance(self.scale, (str, int, float)):
+            raise ValueError("scale must be a string, int, or float.")
+        if isinstance(self.scale, (int, float)) and (self.scale < 0 or self.scale > 2):
+            raise ValueError("scale must be between 0 and 2 if it is a number.")
+        if self.data_form not in ['a', 'm']:
+            raise ValueError("data_form must be either 'a' (additive) or 'm' (multiplicative).")
 
     def _weight_init(self, n_samples: int) -> np.ndarray:
         """Initialize weights to uniform."""

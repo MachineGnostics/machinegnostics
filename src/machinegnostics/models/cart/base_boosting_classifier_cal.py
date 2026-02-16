@@ -29,6 +29,10 @@ class BoostingClassifierCalBase(BoostingClassifierMethodsBase):
         else:
              self._history = None
 
+        # check input
+        self._input_checks()
+        self.logger.info(f"Input parameters validated successfully.")
+        
     def _one_hot_encode(self, y: np.ndarray) -> np.ndarray:
         n_samples = len(y)
         n_classes = len(self.classes_)

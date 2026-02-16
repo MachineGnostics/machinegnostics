@@ -95,6 +95,9 @@ class RegressorCalBase(RegressorMethodsBase):
         
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
         self.logger.info(f"{self.__class__.__name__} initialized:")
+        # check input
+        self._input_checks()
+        self.logger.info(f"Input parameters validated successfully.")
     
     def _fit(self, X: np.ndarray, y: np.ndarray):
         """

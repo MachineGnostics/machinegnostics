@@ -105,6 +105,10 @@ class MulticlassClassifierCalBase(RegressorMethodsBase):
     
         # logger
         self.logger.info("MulticlassClassifierCalBase initialized.")
+
+        # check input
+        self._input_checks()
+        self.logger.info("Input parameters validated successfully.")
     
     def _softmax(self, z: np.ndarray) -> np.ndarray:
         """
