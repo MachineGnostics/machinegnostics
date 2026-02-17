@@ -1,7 +1,6 @@
 # [Machine Gnostics](https://machinegnostics.info) 🥭
 
-
-[![PyPI version](https://badge.fury.io/py/machinegnostics.svg)](https://badge.fury.io/py/machinegnostics) [![Python Versions](https://img.shields.io/pypi/pyversions/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Downloads](https://static.pepy.tech/badge/machinegnostics)](https://pepy.tech/project/machinegnostics) [![Downloads](https://static.pepy.tech/badge/machinegnostics/month)](https://pepy.tech/project/machinegnostics) [![GitHub stars](https://img.shields.io/github/stars/MachineGnostics/machinegnostics?style=social)](https://github.com/MachineGnostics/machinegnostics)
+[![PyPI version](https://img.shields.io/pypi/v/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![Python Versions](https://img.shields.io/pypi/pyversions/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Downloads](https://static.pepy.tech/badge/machinegnostics)](https://pepy.tech/project/machinegnostics) [![Downloads](https://static.pepy.tech/badge/machinegnostics/month)](https://pepy.tech/project/machinegnostics) [![GitHub stars](https://img.shields.io/github/stars/MachineGnostics/machinegnostics?style=social)](https://github.com/MachineGnostics/machinegnostics)
 
 
 > Machine Gnostics: Laws of Nature, Encoded—For Everyone!
