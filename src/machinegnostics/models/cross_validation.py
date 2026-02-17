@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
 class CrossValidator:
     """
@@ -48,6 +49,7 @@ class CrossValidator:
     >>> print("Mean Score:", np.mean(scores))
     """
 
+    @narwhalify
     def __init__(self, model , X:np.ndarray, y:np.ndarray, k=5, shuffle=True, random_seed=None, verbose: bool = False):
         self.model = model
         self.X = np.array(X)
