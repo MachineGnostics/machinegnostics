@@ -1,67 +1,158 @@
-"""
-Gnostic-aware loss functions for neural networks.
-Computes mg_loss (hi/hj), entropy, and supports scale S optimization.
-"""
+from abc import ABCMeta, abstractmethod
+
 import numpy as np
-import logging
-from typing import Tuple
-from machinegnostics.magcal import (GnosticsCharacteristics, DataConversion, ScaleParam)
-from machinegnostics.magcal.util.logging import get_logger
-from machinegnostics.magcal.util.min_max_float import np_eps_float
+from npnet.activations import softmax
 
-class GnosticLoss:
-    def __init__(self, mg_loss: str = 'hi', data_form: str = 'a', verbose: bool = False):
-        if mg_loss not in ('hi', 'hj'):
-            raise ValueError("mg_loss must be 'hi' or 'hj'")
-        if data_form not in ('a', 'm'):
-            raise ValueError("data_form must be 'a' or 'm'")
-        self.mg_loss = mg_loss
-        self.data_form = data_form
-        self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
-        self.verbose = verbose
 
-    def _convert(self, arr: np.ndarray) -> np.ndarray:
-        dc = DataConversion()
-        if self.data_form == 'a':
-            return dc._convert_az(arr)
-        else:
-            return dc._convert_mz(arr)
+class Loss:
+    def __init__(self, loss, delta):
+        self.data = loss
+        self.delta = delta
 
-    def compute(self, y_true: np.ndarray, y_pred: np.ndarray, scale):
-        # residual and converted forms
-        r = y_pred - y_true
-        z = self._convert(r)
-        gc = GnosticsCharacteristics(R=z)
-        # z_true = self._convert(y_true)
-        # z_pred = self._convert(y_pred)
-        # zz = np.divide(z_pred, z_true, out=np.zeros_like(z_pred), where=z_true!=0)
-        # scale
-        if scale == 'auto':
-            q, q1 = gc._get_q_q1(S=1)
-            fi = gc._fi(q, q1)
-            sp = ScaleParam()
-            s = sp._gscale_loc(np.mean(fi))
-        else:
-            s = scale
-        self.S = s
-        # safe ratio
-        # eps = np_eps_float()
-        # z_pred_safe = np.where(np.abs(z_pred) < eps, eps, z_pred)
-        # zz = z_pred_safe / z_true
-        # gc = GnosticsCharacteristics(zz, verbose=self.verbose)
-        q, q1 = gc._get_q_q1(S=s)
-        if self.mg_loss == 'hi':
-            hi = gc._hi(q, q1)
-            fi = gc._fi(q, q1)
-            fj = gc._fj(q, q1)
-            re = gc._rentropy(fi, fj)
-            H = np.sum(hi ** 2)
-        else:
-            hj = gc._hj(q, q1)
-            fi = gc._fi(q, q1)
-            fj = gc._fj(q, q1)
-            re = gc._rentropy(fi, fj)
-            H = np.sum(hj ** 2)
-        # normalized entropy
-        re_norm = (re - np.min(re)) / (np.max(re) - np.min(re)) if np.max(re) != np.min(re) else re
-        return H, float(np.mean(re_norm))
+    def __repr__(self):
+        return str(self.data)
+
+
+class LossFunction(metaclass=ABCMeta):
+    def __init__(self):
+        self._pred = None
+        self._target = None
+
+    @abstractmethod
+    def apply(self, prediction, target):
+        pass
+
+    @property
+    @abstractmethod
+    def delta(self):
+        pass
+
+    def _store_pred_target(self, prediction, target):
+        p = prediction.data
+        p = p if p.dtype is np.float32 else p.astype(np.float32)
+        self._pred = p
+        self._target = target
+
+    def __call__(self, prediction, target):
+        return self.apply(prediction, target)
+
+
+class MSE(LossFunction):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        t = target if target.dtype is np.float32 else target.astype(np.float32)
+        self._store_pred_target(prediction, t)
+        loss = np.mean(np.square(self._pred - t))/2
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        t = self._target if self._target.dtype is np.float32 else self._target.astype(np.float32)
+        return self._pred - t
+
+
+class CrossEntropy(LossFunction, metaclass=ABCMeta):
+    def __init__(self):
+        super().__init__()
+        self._eps = 1e-6
+
+    @abstractmethod
+    def apply(self, prediction, target):
+        pass
+
+
+class SoftMaxCrossEntropy(CrossEntropy):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        t = target if target.dtype is np.float32 else target.astype(np.float32)
+        self._store_pred_target(prediction, t)
+        loss = - np.mean(np.sum(t * np.log(self._pred), axis=-1))
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        # according to: https://deepnotes.io/softmax-crossentropy
+        onehot_mask = self._target.astype(np.bool)
+        grad = self._pred.copy()
+        grad[onehot_mask] -= 1.
+        return grad / len(grad)
+
+
+class SoftMaxCrossEntropyWithLogits(CrossEntropy):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        t = target if target.dtype is np.float32 else target.astype(np.float32)
+        self._store_pred_target(prediction, t)
+        sm = softmax(self._pred)
+        loss = - np.mean(np.sum(t * np.log(sm), axis=-1))
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        grad = softmax(self._pred)
+        onehot_mask = self._target.astype(np.bool)
+        grad[onehot_mask] -= 1.
+        return grad / len(grad)
+
+
+class SparseSoftMaxCrossEntropy(CrossEntropy):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        target = target.astype(np.int32) if target.dtype is not np.int32 else target
+        self._store_pred_target(prediction, target)
+        sm = self._pred
+        log_likelihood = np.log(sm[np.arange(sm.shape[0]), target.ravel()] + self._eps)
+        loss = - np.mean(log_likelihood)
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        grad = self._pred.copy()
+        grad[np.arange(grad.shape[0]), self._target.ravel()] -= 1.
+        return grad / len(grad)
+
+
+class SparseSoftMaxCrossEntropyWithLogits(CrossEntropy):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        target = target.astype(np.int32) if target.dtype is not np.int32 else target
+        self._store_pred_target(prediction, target)
+        sm = softmax(self._pred)
+        log_likelihood = np.log(sm[np.arange(sm.shape[0]), target.ravel()] + self._eps)
+        loss = - np.mean(log_likelihood)
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        grad = softmax(self._pred)
+        grad[np.arange(grad.shape[0]), self._target.ravel()] -= 1.
+        return grad / len(grad)
+
+
+class SigmoidCrossEntropy(CrossEntropy):
+    def __init__(self):
+        super().__init__()
+
+    def apply(self, prediction, target):
+        t = target if target.dtype is np.float32 else target.astype(np.float32)
+        self._store_pred_target(prediction, t)
+        p = self._pred
+        loss = - np.mean(
+            t * np.log(p + self._eps) + (1. - t) * np.log(1 - p + self._eps),
+        )
+        return Loss(loss, self.delta)
+
+    @property
+    def delta(self):
+        t = self._target if self._target.dtype is np.float32 else self._target.astype(np.float32)
+        return self._pred - t

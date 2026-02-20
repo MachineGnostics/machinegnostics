@@ -12,13 +12,30 @@ from machinegnostics.magcal import (GnosticsWeights, EGDF, QGDF, ELDF, QLDF)
 from machinegnostics.magcal.util.logging import get_logger
 
 class GnosticEngine:
-    def __init__(self, geometry: str = 'E', gdf: str = 'global', verbose: bool = False, S: float | int | str = 'auto'):
-        if geometry not in ('E', 'Q'):
+    def __init__(self, geometry: str = 'E', gdf: str | None = 'global', verbose: bool = False, S: float | int | str = 'auto'):
+        # Normalize inputs
+        geom = (geometry or 'E').upper()
+        if geom not in ('E', 'Q'):
             raise ValueError("geometry must be 'E' or 'Q'")
-        if gdf not in ('global', 'local', None):
-            raise ValueError("gdf must be 'global', 'local', or None")
-        self.geometry = geometry
-        self.gdf = gdf
+        gdf_norm = None
+        if isinstance(gdf, str):
+            s = gdf.lower()
+            # accept aliases: 'egdf','eldf','qgdf','qldf'
+            if s in ('global', 'egdf', 'qgdf'):
+                gdf_norm = 'global'
+            elif s in ('local', 'eldf', 'qldf'):
+                gdf_norm = 'local'
+            elif s in ('none', 'null'):
+                gdf_norm = None
+            else:
+                # if explicit alias encodes geometry, keep geom consistent
+                gdf_norm = s if s in ('global', 'local') else None
+        elif gdf is None:
+            gdf_norm = None
+        else:
+            raise ValueError("gdf must be 'global', 'local', alias ('egdf','eldf','qgdf','qldf'), or None")
+        self.geometry = geom
+        self.gdf = gdf_norm
         self.S = S
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
 

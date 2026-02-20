@@ -19,7 +19,7 @@ import numpy as np
 import logging
 from typing import List, Tuple
 from machinegnostics.magcal.util.logging import get_logger
-from .losses import GnosticLoss
+from .gnostic_losses import GnosticLoss
 from .gnostics_engine import GnosticEngine
 from machinegnostics.magcal.util.narwhals_df import narwhalify
 
@@ -51,6 +51,7 @@ class BaseModel:
                  geometry: str = 'E', # 'E' Estimating (Euclidian) and 'Q' is Quantification (Minkowskian)
                  gdf: str = None, # global or local GDF modifier
                  scale: 'str | int | float' = 'auto',
+                 gnostic_weights: bool = True,
                  early_stopping: bool = True,
                  tolerance: float = 1e-6,
                  verbose: bool = False):
@@ -61,6 +62,7 @@ class BaseModel:
         self.geometry = geometry
         self.gdf = gdf
         self.scale = scale
+        self.gnostic_weights_enabled = bool(gnostic_weights)
         self.early_stopping = early_stopping
         self.tolerance = tolerance
         self.verbose = verbose
@@ -112,6 +114,13 @@ class BaseModel:
         - Average the resulting weight vectors elementwise and normalize.
         """
         n = residuals.shape[0]
+        if not self.gnostic_weights_enabled:
+            return np.ones(n) / n
+        # converted z for GDF modifier mixing when requested
+        try:
+            z = self.gloss._convert(residuals)
+        except Exception:
+            z = residuals
         weights_list = []
         for lyr in self.layers:
             if getattr(lyr, 'use_gnostic', True):
@@ -119,6 +128,14 @@ class BaseModel:
                 gdf = getattr(lyr, 'gdf', None) or self.gdf
                 eng = GnosticEngine(geometry=geom, gdf=gdf, verbose=self.verbose, S=self.scale)
                 w = np.asarray(eng.compute_sample_weights(residuals)).reshape(-1)
+                # optional GDF influence blending per layer
+                a = float(getattr(lyr, 'gdf_influence', 0.0) or 0.0)
+                if a > 0 and eng.gdf is not None:
+                    try:
+                        m = eng.apply_gdf_modifier(z, w)
+                        w = (1.0 - a) * w + a * m
+                    except Exception:
+                        pass
                 if w.size == n:
                     weights_list.append(w)
         if not weights_list:
@@ -140,7 +157,8 @@ class BaseModel:
         for epoch in range(1, epochs + 1):
             # forward full-batch to compute gnostic loss & weights
             y_pred = self._internal_forward(X)
-            H_loss, rentropy = self.gloss.compute(y_true=y, y_pred=y_pred, scale=self.scale)
+            comp = self.gloss.compute(y_true=y, y_pred=y_pred, scale=self.scale)
+            H_loss, rentropy = comp[0], comp[1]
             residuals = (y_pred - y).reshape(n, -1).mean(axis=1)
             # combine per-layer gnostic weights (or fallback to model-level)
             weights = self._internal_compute_sample_weights(residuals)
@@ -170,11 +188,18 @@ class BaseModel:
                 grad_pred = 2.0 * (ypb - yb) * wb
                 # backprop
                 params, grads = self._internal_backward(grad_pred)
+                # additional global scaling by mean weight (gnostic influence)
+                gscale = float(np.mean(wb_arr)) if wb_arr.size > 0 else 1.0
                 # apply optimizer
-                self.step(params, grads)
+                try:
+                    self.optimizer.step(params, grads, scale=gscale)
+                except TypeError:
+                    # fallback for older optimizer signature
+                    self.step(params, grads)
             # recompute metrics after epoch
             y_pred = self._internal_forward(X)
-            H_loss_new, rentropy_new = self.gloss.compute(y_true=y, y_pred=y_pred, scale=self.scale)
+            comp2 = self.gloss.compute(y_true=y, y_pred=y_pred, scale=self.scale)
+            H_loss_new, rentropy_new = comp2[0], comp2[1]
             self.history.append(epoch=epoch, H_loss=H_loss_new, rentropy=rentropy_new)
             if self.verbose:
                 self.logger.info(f"Epoch {epoch}: H_loss={H_loss_new:.6f}, rentropy={rentropy_new:.6f}")
