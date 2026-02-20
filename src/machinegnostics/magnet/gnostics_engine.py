@@ -1,18 +1,21 @@
-"""
-Gnostic integration for neural networks: weights updates, geometry (E/Q), GDF (local/global).
+"""Gnostic modifier engine for Magnet.
 
-geometry semantics:
-- 'E' → Estimating (Euclidian)
-- 'Q' → Quantification (Minkowskian)
+Developer notes
+---------------
+This engine intentionally handles *only* geometry/GDF-based weight modifiers.
+Residual-to-gnostic-weight computation is centralized in `GnosticLoss` so the
+project has a single source of truth for sample-wise gnostic weighting.
 """
-import numpy as np
 import logging
-from typing import Tuple
-from machinegnostics.magcal import (GnosticsWeights, EGDF, QGDF, ELDF, QLDF)
+from machinegnostics.magcal import (EGDF, QGDF, ELDF, QLDF)
 from machinegnostics.magcal.util.logging import get_logger
+import numpy as np
 
 class GnosticEngine:
-    def __init__(self, geometry: str = 'E', gdf: str | None = 'global', verbose: bool = False, S: float | int | str = 'auto'):
+    def __init__(self, 
+                 geometry: str = 'E', 
+                 gdf: str | None = 'global', 
+                 verbose: bool = False, S: float | int | str = 'auto'):
         # Normalize inputs
         geom = (geometry or 'E').upper()
         if geom not in ('E', 'Q'):
@@ -38,33 +41,6 @@ class GnosticEngine:
         self.gdf = gdf_norm
         self.S = S
         self.logger = get_logger(self.__class__.__name__, logging.DEBUG if verbose else logging.WARNING)
-
-    def compute_sample_weights(self, residuals: np.ndarray) -> np.ndarray:
-        gwc = GnosticsWeights()
-        gw = gwc._get_gnostic_weights(residuals)
-        # Ensure 1D shape aligned to residuals length
-        try:
-            gw = np.asarray(gw)
-            if gw.ndim > 1:
-                # Prefer reducing the last axis if it matches len(residuals)
-                if gw.shape[-1] == residuals.shape[0]:
-                    gw = gw.mean(axis=tuple(range(gw.ndim - 1)))
-                else:
-                    gw = gw.mean(axis=-1)
-            gw = gw.reshape(-1)
-            if gw.size != residuals.shape[0]:
-                # Fallback: inverse-residual weighting (robust to outliers)
-                r = np.abs(residuals).reshape(-1)
-                eps = 1e-8
-                gw = 1.0 / (r + eps)
-        except Exception:
-            # Fallback weights: uniform
-            gw = np.ones(residuals.shape[0])
-        # normalize
-        total = float(np.sum(gw))
-        if total <= 0:
-            return np.ones(residuals.shape[0]) / residuals.shape[0]
-        return gw / total
 
     def apply_gdf_modifier(self, z: np.ndarray, weights: np.ndarray) -> np.ndarray:
         # Attempt to apply geometry + GDF weight modifiers if available.

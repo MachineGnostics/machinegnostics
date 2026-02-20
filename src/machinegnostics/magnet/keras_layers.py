@@ -132,6 +132,8 @@ class Dense:
     def backward(self, grad_out: np.ndarray) -> np.ndarray:
         # grad_out is dL/dy where y = activation(z)
         dz = grad_out * self._act.derivative(self._z)
+        # keep last layer error signal for gnostic backward scaling
+        self._last_error = dz
         # grads
         dW = self._x.T.dot(dz)
         if self.use_bias:

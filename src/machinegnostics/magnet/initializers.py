@@ -58,6 +58,17 @@ class Constant(BaseInitializer):
 
 # gnostic weights
 class Gnostic(BaseInitializer):
+    """Data-driven gnostic initializer.
+
+    Developer notes
+    ---------------
+    This initializer estimates a GDF model and maps its learned distribution
+    characteristics to parameter initialization weights.
+
+    Unlike Gaussian initializers, this class can be driven by provided data
+    (`data`) to reduce dependency on synthetic normal sampling.
+    """
+
     def __init__(self,
                  gdf: str,
                  DLB: float = None,
@@ -79,7 +90,8 @@ class Gnostic(BaseInitializer):
                  opt_method: str = 'Powell',
                  verbose: bool = False,
                  max_data_size: int = 1000,
-                 flush: bool = True):
+                 flush: bool = True,
+                 data: np.ndarray = None):
         self.gdf = (gdf or '').lower()
         if self.gdf not in ('eldf', 'egdf', 'qldf', 'qgdf'):
             raise ValueError("gdf must be one of: 'eldf', 'egdf', 'qldf', 'qgdf'")
@@ -104,6 +116,7 @@ class Gnostic(BaseInitializer):
         self.verbose = verbose
         self.max_data_size = int(max_data_size)
         self.flush = flush
+        self.data = data
 
     def _build_gdf_model(self):
         cls_map = {
@@ -139,7 +152,18 @@ class Gnostic(BaseInitializer):
         return cls(**kwargs)
 
     def initialize(self, x):
-        base = np.random.normal(loc=0.0, scale=1.0, size=x.shape)
+        # Prefer user/data-driven initialization source if provided.
+        if self.data is not None:
+            d = np.asarray(self.data).reshape(-1)
+            if d.size == 0:
+                base = np.ones(x.shape, dtype=np.float64)
+            else:
+                reps = int(np.ceil(x.size / d.size))
+                base = np.tile(d, reps)[:x.size].reshape(x.shape).astype(np.float64)
+        else:
+            # fallback source when no data is given
+            base = np.random.uniform(low=-1.0, high=1.0, size=x.shape)
+
         flat = base.reshape(-1)
 
         # Fit GDF on a bounded sample for speed/stability.
@@ -178,6 +202,11 @@ class Gnostic(BaseInitializer):
         except Exception:
             # safe fallback
             x[:] = base
+
+
+class GDF(Gnostic):
+    """Backward-compatible alias for `Gnostic` initializer."""
+    pass
 
 
 random_normal = RandomNormal()

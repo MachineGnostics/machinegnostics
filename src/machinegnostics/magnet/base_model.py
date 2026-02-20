@@ -43,6 +43,20 @@ class HistoryTracker:
         return list(self.records)
 
 class BaseModel:
+    """Core Keras-like training loop with gnostic integration.
+
+    Developer architecture
+    ----------------------
+    1) Forward pass produces predictions.
+    2) `GnosticLoss.compute` calculates H/rentropy and *sample weights* (`gw`).
+    3) Optional geometry/GDF modifiers are blended in `GnosticEngine`.
+    4) Backward pass computes gradients and records layer error signals.
+    5) Layer error signals are converted to per-layer gnostic scales and applied
+       to parameter gradients before optimizer updates.
+
+    This makes residual-based gnostic weights come from one source (`GnosticLoss`)
+    and keeps `GnosticEngine` focused on modifier behavior.
+    """
     def __init__(self,
                  layers: List,
                  optimizer,
@@ -104,18 +118,26 @@ class BaseModel:
         self.optimizer.step(params, grads)
 
     def _internal_compute_sample_weights(self, residuals: np.ndarray) -> np.ndarray:
-        """Compute per-sample weights, combining per-layer gnostic configs if present.
-
-        Strategy:
-        - For each layer with `use_gnostic=True`, create a temporary engine
-          using layer-level `geometry`/`gdf` (falling back to model defaults)
-          and compute weights from residuals.
-        - If no layer opts in, use model-level engine.
-        - Average the resulting weight vectors elementwise and normalize.
-        """
+        """Build final sample weights from `GnosticLoss.gw` + optional GDF modifiers."""
         n = residuals.shape[0]
         if not self.gnostic_weights_enabled:
             return np.ones(n) / n
+
+        # Single source of residual-based weights from gnostic loss.
+        gw = getattr(self.gloss, 'gw', None)
+        if gw is None:
+            base = np.ones(n, dtype=np.float64)
+        else:
+            base = np.asarray(gw, dtype=np.float64).reshape(-1)
+            if base.size != n:
+                base = np.ones(n, dtype=np.float64)
+        base = np.abs(base)
+        s0 = float(base.sum())
+        if s0 <= 0 or not np.isfinite(s0):
+            base = np.ones(n, dtype=np.float64) / n
+        else:
+            base = base / s0
+
         # converted z for GDF modifier mixing when requested
         try:
             z = self.gloss._convert(residuals)
@@ -127,7 +149,7 @@ class BaseModel:
                 geom = getattr(lyr, 'geometry', None) or self.geometry
                 gdf = getattr(lyr, 'gdf', None) or self.gdf
                 eng = GnosticEngine(geometry=geom, gdf=gdf, verbose=self.verbose, S=self.scale)
-                w = np.asarray(eng.compute_sample_weights(residuals)).reshape(-1)
+                w = base.copy()
                 # optional GDF influence blending per layer
                 a = float(getattr(lyr, 'gdf_influence', 0.0) or 0.0)
                 if a > 0 and eng.gdf is not None:
@@ -139,16 +161,47 @@ class BaseModel:
                 if w.size == n:
                     weights_list.append(w)
         if not weights_list:
-            w = np.asarray(self.gengine.compute_sample_weights(residuals)).reshape(-1)
-            if w.size != n:
-                w = np.ones(n) / n
-            return w
+            # model-level optional modifier
+            if self.gengine.gdf is None:
+                return base
+            try:
+                w = self.gengine.apply_gdf_modifier(z, base)
+                w = np.asarray(w, dtype=np.float64).reshape(-1)
+                if w.size != n:
+                    return base
+                sw = float(np.sum(w))
+                return (w / sw) if sw > 0 else base
+            except Exception:
+                return base
         W = np.stack(weights_list, axis=1)
         w_avg = W.mean(axis=1)
         s = w_avg.sum()
         if s <= 0 or not np.isfinite(s):
             return np.ones(n) / n
         return w_avg / s
+
+    def _internal_compute_layer_error_scales(self) -> dict:
+        """Convert per-layer backward error tensors into normalized scalar scales."""
+        scales = {}
+        raw_vals = []
+        for layer in self.layers:
+            if not getattr(layer, 'use_gnostic', True):
+                continue
+            err = getattr(layer, '_last_error', None)
+            if err is None:
+                continue
+            val = float(np.mean(np.abs(err)))
+            if np.isfinite(val) and val > 0:
+                scales[layer.name] = val
+                raw_vals.append(val)
+        if not raw_vals:
+            return {}
+        mean_val = float(np.mean(raw_vals))
+        if mean_val <= 0 or not np.isfinite(mean_val):
+            return {}
+        for k in list(scales.keys()):
+            scales[k] = scales[k] / mean_val
+        return scales
 
     @narwhalify
     def fit(self, X: np.ndarray, y: np.ndarray, epochs: int = 100, batch_size: int = 32):
@@ -172,7 +225,12 @@ class BaseModel:
                 bi = idx[start:end]
                 xb = X[bi]
                 yb = y[bi]
-                wb_raw = weights[bi]
+                # compute gnostic loss on current batch to obtain single-source gw
+                ypb = self._internal_forward(xb)
+                self.gloss.compute(y_true=yb, y_pred=ypb, scale=self.scale)
+                residuals = (ypb - yb).reshape(len(bi), -1).mean(axis=1)
+                weights = self._internal_compute_sample_weights(residuals)
+                wb_raw = weights
                 wb_arr = np.asarray(wb_raw)
                 # Reduce any extra dimensions to per-sample weights
                 if wb_arr.ndim > 1:
@@ -182,12 +240,18 @@ class BaseModel:
                 if wb_arr.shape[0] != len(bi):
                     wb_arr = np.ones(len(bi)) / len(bi)
                 wb = wb_arr.reshape(-1, 1)
-                ypb = self._internal_forward(xb)
                 # simple squared error gradient scaled by sample weights
                 # grad wrt predictions
                 grad_pred = 2.0 * (ypb - yb) * wb
                 # backprop
                 params, grads = self._internal_backward(grad_pred)
+                # layer-wise scaling from backward error signals
+                layer_scales = self._internal_compute_layer_error_scales()
+                if layer_scales:
+                    for gk in list(grads.keys()):
+                        layer_name = gk.split(':', 1)[0]
+                        scale_k = layer_scales.get(layer_name, 1.0)
+                        grads[gk] = grads[gk] * scale_k
                 # additional global scaling by mean weight (gnostic influence)
                 gscale = float(np.mean(wb_arr)) if wb_arr.size > 0 else 1.0
                 # apply optimizer
