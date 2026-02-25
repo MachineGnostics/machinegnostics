@@ -117,11 +117,23 @@ def softmax(x: Tensor, axis: int = -1) -> Tensor:
 
 
 class ReLU(Layer):
+    """
+    ReLU activation layer.
+    Applies the rectified linear unit function: $y = \max(0, x)$.
+    Use for non-linear transformation in hidden layers.
+    """
     def forward(self, inputs: Tensor) -> Tensor:
         return relu(inputs)
 
 
 class LeakyReLU(Layer):
+    """
+    LeakyReLU activation layer.
+    Applies leaky rectified linear unit: $y = x$ if $x > 0$, else $y = \text{negative_slope} \times x$.
+    Helps prevent dying ReLU problem.
+    Args:
+        negative_slope (float): Slope for negative inputs (default 0.01).
+    """
     def __init__(self, negative_slope: float = 0.01):
         super().__init__()
         self.negative_slope = float(negative_slope)
@@ -131,21 +143,43 @@ class LeakyReLU(Layer):
 
 
 class Sigmoid(Layer):
+    """
+    Sigmoid activation layer.
+    Applies the sigmoid function: $y = \frac{1}{1 + e^{-x}}$.
+    Use for binary classification output or hidden layers.
+    """
     def forward(self, inputs: Tensor) -> Tensor:
         return sigmoid(inputs)
 
 
 class Tanh(Layer):
+    """
+    Tanh activation layer.
+    Applies the hyperbolic tangent function: $y = \tanh(x)$.
+    Use for hidden layers to squash values between -1 and 1.
+    """
     def forward(self, inputs: Tensor) -> Tensor:
         return tanh(inputs)
 
 
 class GELU(Layer):
+    """
+    GELU activation layer.
+    Applies the Gaussian Error Linear Unit function.
+    Use for modern architectures (e.g., Transformers).
+    """
     def forward(self, inputs: Tensor) -> Tensor:
         return gelu(inputs)
 
 
 class Softmax(Layer):
+    """
+    Softmax activation layer.
+    Converts logits to probabilities along a specified axis.
+    Use for multi-class classification output.
+    Args:
+        axis (int): Axis to apply softmax (default -1).
+    """
     def __init__(self, axis: int = -1):
         super().__init__()
         self.axis = axis
@@ -155,5 +189,9 @@ class Softmax(Layer):
 
 
 class Identity(Layer):
+    """
+    Identity activation layer.
+    Returns input unchanged. Useful for debugging or as a placeholder.
+    """
     def forward(self, inputs: Tensor) -> Tensor:
         return inputs
