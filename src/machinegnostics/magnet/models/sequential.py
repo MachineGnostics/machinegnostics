@@ -240,8 +240,9 @@ class Sequential(Layer, BaseModel):
                 losses = [lf(preds, Tensor(yb, requires_grad=False)) for lf in loss_functions]
 
                 optimizer.zero_grad()
-                # Only the first loss is used for backward by default
+                # NOTE Only the first loss is used for backward by default
                 losses[0].backward()
+                # weight update
                 optimizer.step()
 
                 for i, loss in enumerate(losses):
