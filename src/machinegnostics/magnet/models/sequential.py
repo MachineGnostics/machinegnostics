@@ -49,9 +49,10 @@ import numpy as np
 from ..data import batch_iterator
 from ..layers import Layer
 from ..tensor import Tensor
+from .base_model import BaseModel
 
 
-class Sequential(Layer):
+class Sequential(Layer, BaseModel):
     """
     Magnet Sequential Model
     ----------------------
@@ -266,8 +267,15 @@ class Sequential(Layer):
                 print(msg)
 
             # Callbacks (called at end of epoch)
+            stop_training = False
             for cb in callbacks:
                 if hasattr(cb, "on_epoch_end"):
                     cb.on_epoch_end(history=history, epoch=epoch, model=self)
+                # If callback signals stop_training, break
+                if hasattr(cb, "stop_training") and getattr(cb, "stop_training", False):
+                    stop_training = True
+            if stop_training:
+                print(f"[Callback] Training stopped early at epoch {epoch+1}")
+                break
 
         return history
