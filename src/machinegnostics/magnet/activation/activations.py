@@ -119,7 +119,8 @@ def softmax(x: Tensor, axis: int = -1) -> Tensor:
 class ReLU(Layer):
     """
     ReLU activation layer.
-    Applies the rectified linear unit function: $y = \max(0, x)$.
+    Applies the rectified linear unit function:
+        y = max(0, x)
     Use for non-linear transformation in hidden layers.
     """
     def forward(self, inputs: Tensor) -> Tensor:
@@ -129,7 +130,8 @@ class ReLU(Layer):
 class LeakyReLU(Layer):
     """
     LeakyReLU activation layer.
-    Applies leaky rectified linear unit: $y = x$ if $x > 0$, else $y = \text{negative_slope} \times x$.
+    Applies leaky rectified linear unit:
+        y = x if x > 0, else y = negative_slope * x
     Helps prevent dying ReLU problem.
     Args:
         negative_slope (float): Slope for negative inputs (default 0.01).
@@ -145,7 +147,8 @@ class LeakyReLU(Layer):
 class Sigmoid(Layer):
     """
     Sigmoid activation layer.
-    Applies the sigmoid function: $y = \frac{1}{1 + e^{-x}}$.
+    Applies the sigmoid function:
+        y = 1 / (1 + exp(-x))
     Use for binary classification output or hidden layers.
     """
     def forward(self, inputs: Tensor) -> Tensor:
@@ -155,7 +158,8 @@ class Sigmoid(Layer):
 class Tanh(Layer):
     """
     Tanh activation layer.
-    Applies the hyperbolic tangent function: $y = \tanh(x)$.
+    Applies the hyperbolic tangent function:
+        y = tanh(x)
     Use for hidden layers to squash values between -1 and 1.
     """
     def forward(self, inputs: Tensor) -> Tensor:
@@ -165,7 +169,8 @@ class Tanh(Layer):
 class GELU(Layer):
     """
     GELU activation layer.
-    Applies the Gaussian Error Linear Unit function.
+    Applies the Gaussian Error Linear Unit function:
+        y = 0.5 * x * (1 + tanh( sqrt(2/pi) * (x + 0.044715 * x^3) ))
     Use for modern architectures (e.g., Transformers).
     """
     def forward(self, inputs: Tensor) -> Tensor:
@@ -175,7 +180,8 @@ class GELU(Layer):
 class Softmax(Layer):
     """
     Softmax activation layer.
-    Converts logits to probabilities along a specified axis.
+    Converts logits to probabilities along a specified axis:
+        y_i = exp(x_i) / sum_j exp(x_j)
     Use for multi-class classification output.
     Args:
         axis (int): Axis to apply softmax (default -1).
