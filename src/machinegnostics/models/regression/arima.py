@@ -596,5 +596,36 @@ class ARIMA(HistoryRegressorBase, DataProcessLayerBase):
              print(f"  Mean: {np.mean(self.weights):.4f}")
 
     def __repr__(self):
-        return f"ARIMA(order=({self.p}, {self.d}, {self.q}), trend='{self.trend}')"
+        """Detailed string representation of the ARIMA instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'training_data_raw_') and self.training_data_raw_ is not None else "✗ Unfitted"
+        data_len = f"(n_observations={len(self.training_data_raw_)})" if hasattr(self, 'training_data_raw_') and self.training_data_raw_ is not None else ""
+        
+        return (
+            f"ARIMA(\n"
+            f"  arima_order={{\n"
+            f"    'p': {self.p},\n"
+            f"    'd': {self.d},\n"
+            f"    'q': {self.q},\n"
+            f"  }},\n"
+            f"  trend='{self.trend}',\n"
+            f"  optimization={{\n"
+            f"    'enabled': {self.optimize},\n"
+            f"    'max_order_search': {self.max_order_search},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'loss_function': '{self.mg_loss}',\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'convergence_tolerance': {self.tolerance},\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'learning_rate': {getattr(self, 'learning_rate', 'N/A')},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {data_len}\n"
+            f")"
+        )
 
