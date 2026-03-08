@@ -203,6 +203,30 @@ class GnosticRandomForestRegressor(HistoryCartBase, DataProcessLayerBase):
         return robr2(y_checked, y_pred, w=self.weights)
 
     def __repr__(self):
-        return (f"GnosticRandomForestRegressor(n_estimators={self.n_estimators}, "
-                f"gnostic_weights={self.gnostic_weights}, "
-                f"max_iter={self.max_iter})")
+        """Detailed string representation of the GnosticRandomForestRegressor instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'trees') and self.trees is not None else "✗ Unfitted"
+        tree_count = f"(n_trees={len(self.trees)})" if hasattr(self, 'trees') and self.trees is not None else ""
+        
+        return (
+            f"GnosticRandomForestRegressor(\n"
+            f"  model_architecture={{\n"
+            f"    'n_estimators': {self.n_estimators},\n"
+            f"    'max_depth': {self.max_depth},\n"
+            f"    'min_samples_split': {self.min_samples_split},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'gnostic_weights': {self.gnostic_weights},\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"    'tolerance': {self.tolerance},\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'random_state': {self.random_state},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {tree_count}\n"
+            f")"
+        )

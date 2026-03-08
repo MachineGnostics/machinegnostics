@@ -156,8 +156,29 @@ class GnosticBoostingRegressor(HistoryBoostingBase, DataProcessLayerBase):
         return robr2(y, y_pred, w=self.weights)
 
     def __repr__(self):
-        return (f"GnosticBoostingRegressor(n_estimators={self.n_estimators}, "
-                f"learning_rate={self.learning_rate}, "
-                f"gnostic_weights={self.gnostic_weights}, "
-                f"max_depth={self.max_depth}, "
-                f"max_iter={self.max_iter})")
+        """Detailed string representation of the GnosticBoostingRegressor instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'model') and self.model is not None else "✗ Unfitted"
+        
+        return (
+            f"GnosticBoostingRegressor(\n"
+            f"  model_architecture={{\n"
+            f"    'n_estimators': {self.n_estimators},\n"
+            f"    'max_depth': {self.max_depth},\n"
+            f"    'learning_rate': {self.learning_rate},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'gnostic_weights': {self.gnostic_weights},\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"    'tolerance': {self.tolerance},\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'random_state': {self.random_state},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}'\n"
+            f")"
+        )

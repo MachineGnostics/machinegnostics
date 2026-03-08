@@ -270,8 +270,30 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
         return accuracy_score(ycheck, y_pred)
 
     def __repr__(self):
-        """String representation of the MulticlassClassifier model."""
-        return (f"MulticlassClassifier(degree={self.degree}, max_iter={self.max_iter}, "
-                f"tolerance={self.tolerance}, early_stopping={self.early_stopping}, "
-                f"verbose={self.verbose}, scale='{self.scale}', data_form='{self.data_form}', "
-                f"gnostic_characteristics={self.gnostic_characteristics})")
+        """Detailed string representation of the MulticlassClassifier model."""
+        fitted = "✓ Fitted" if hasattr(self, 'coefficients') and self.coefficients is not None else "✗ Unfitted"
+        model_info = f"(n_classes={self.coefficients.shape[1]}, n_features={self.coefficients.shape[0]-1})" if hasattr(self, 'coefficients') and self.coefficients is not None else ""
+        
+        return (
+            f"MulticlassClassifier(\n"
+            f"  model_parameters={{\n"
+            f"    'degree': {self.degree},\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'convergence_tolerance': {self.tolerance},\n"
+            f"    'learning_rate': {getattr(self, 'learning_rate', 'N/A')},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'loss_function': '{getattr(self, 'mg_loss', 'N/A')}',\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'activation': 'softmax',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'gnostic_characteristics': {self.gnostic_characteristics},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {model_info}\n"
+            f")"
+        )

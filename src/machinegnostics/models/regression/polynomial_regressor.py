@@ -269,8 +269,29 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
         return r2
     
     def __repr__(self):
-        """String representation of the PolynomialRegressor instance."""
-        return (f"PolynomialRegressor(degree={self.degree}, max_iter={self.max_iter}, "
-                f"tol={self.tol}, mg_loss='{self.mg_loss}', early_stopping={self.early_stopping}, "
-                f"verbose={self.verbose}, scale={self.scale}, data_form='{self.data_form}', "
-                f"gnostic_characteristics={self.gnostic_characteristics}, history={self._record_history})")
+        """Detailed string representation of the PolynomialRegressor instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'coefficients') and self.coefficients is not None else "✗ Unfitted"
+        n_features = f"(n_features={self.coefficients.shape[0]-1})" if hasattr(self, 'coefficients') and self.coefficients is not None else ""
+        
+        return (
+            f"PolynomialRegressor(\n"
+            f"  model_parameters={{\n"
+            f"    'degree': {self.degree},\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'convergence_tolerance': {self.tolerance},\n"
+            f"    'learning_rate': {getattr(self, 'learning_rate', 'N/A')},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'loss_function': '{self.mg_loss}',\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self._record_history},\n"
+            f"    'gnostic_characteristics': {self.gnostic_characteristics},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {n_features}\n"
+            f")"
+        )

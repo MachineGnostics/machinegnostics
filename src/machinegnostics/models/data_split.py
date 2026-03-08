@@ -1,7 +1,9 @@
 import numpy as np
 import logging
 from machinegnostics.magcal.util.logging import get_logger
+from machinegnostics.magcal.util.narwhals_df import narwhalify
 
+@narwhalify
 def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_seed=None, verbose: bool = False):
     """
     Splits arrays or matrices into random train and test subsets.
@@ -29,11 +31,11 @@ def train_test_split(X:np.ndarray, y=None, test_size=0.25, shuffle=True, random_
 
     Returns
     -------
-    X_train, X_test : np.ndarray
-        Train-test split of X.
+    X_train, X_test : np.ndarray or native DataFrame
+        Train-test split of X. If a native dataframe/series is provided, returns in the same native type via Narwhals.
     
-    y_train, y_test : np.ndarray or None
-        Train-test split of y. If y is None, these will also be None.
+    y_train, y_test : np.ndarray or native Series or None
+        Train-test split of y. If y is None, these will also be None. If a native series/dataframe column is provided, returns in the same native type via Narwhals.
 
     Raises
     ------
