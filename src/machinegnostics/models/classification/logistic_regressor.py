@@ -278,10 +278,30 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
         return f1_score(ycheck, y_pred)
 
     def __repr__(self):
-        """String representation of the LogisticRegressor model."""
-        return (f"LogisticRegressor(degree={self.degree}, max_iter={self.max_iter}, "
-                f"tolerance={self.tolerance}, mg_loss='{self.mg_loss}', "
-                f"early_stopping={self.early_stopping}, verbose={self.verbose}, "
-                f"scale='{self.scale}', data_form='{self.data_form}', "
-                f"gnostic_characteristics={self.gnostic_characteristics}, "
-                f"proba='{self.proba}')")
+        """Detailed string representation of the LogisticRegressor model."""
+        fitted = "✓ Fitted" if hasattr(self, 'coefficients') and self.coefficients is not None else "✗ Unfitted"
+        model_info = f"(n_features={self.coefficients.shape[0]-1})" if hasattr(self, 'coefficients') and self.coefficients is not None else ""
+        
+        return (
+            f"LogisticRegressor(\n"
+            f"  model_parameters={{\n"
+            f"    'degree': {self.degree},\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'convergence_tolerance': {self.tolerance},\n"
+            f"    'learning_rate': {getattr(self, 'learning_rate', 'N/A')},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'loss_function': '{self.mg_loss}',\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'probability_method': '{getattr(self, 'proba', 'sigmoid')}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'gnostic_characteristics': {self.gnostic_characteristics},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {model_info}\n"
+            f")"
+        )

@@ -476,7 +476,26 @@ class GnosticLocalClustering(HistoryClusteringBase, DataProcessClusteringBase):
         plt.show()
 
     def __repr__(self):
-        """String representation of the GnosticLocalClustering instance."""
-        return (f"GnosticLocalClustering(start_S={self.start_S}, end_S={self.end_S}, "
-                f"step_S={self.step_S}, varS={self.varS}, auto_S={self.auto_S}, "
-                f"verbose={self.verbose}, history={self._record_history})")
+        """Detailed string representation of the GnosticLocalClustering instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'centroids') and self.centroids is not None else "✗ Unfitted"
+        cluster_info = f"(n_clusters={len(self.centroids)}, optimal_S={self.optimal_S:.3f})" if hasattr(self, 'centroids') and self.centroids is not None else ""
+        
+        return (
+            f"GnosticLocalClustering(\n"
+            f"  search_parameters={{\n"
+            f"    'start_S': {self.start_S},\n"
+            f"    'end_S': {self.end_S},\n"
+            f"    'step_S': {self.step_S},\n"
+            f"  }},\n"
+            f"  optimization_config={{\n"
+            f"    'auto_S': {self.auto_S},\n"
+            f"    'varS': {self.varS},\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"    'history_tracking': {self._record_history},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {cluster_info}\n"
+            f")"
+        )

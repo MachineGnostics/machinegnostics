@@ -286,9 +286,30 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
         return score
     
     def __repr__(self):
-        """String representation of the KMeansClustering instance."""
-        return (f"KMeansClustering(n_clusters={self.n_clusters}, max_iter={self.max_iter}, "
-                f"tol={self.tolerance}, mg_loss='{self.mg_loss}', early_stopping={self.early_stopping}, "
-                f"verbose={self.verbose}, scale={self.scale}, data_form='{self.data_form}', "
-                f"gnostic_characteristics={self.gnostic_characteristics}, history={self._record_history}, "
-                f"init='{self.init}')")
+        """Detailed string representation of the KMeansClustering instance."""
+        fitted = "✓ Fitted" if hasattr(self, 'centroids') and self.centroids is not None else "✗ Unfitted"
+        data_info = f"(n_clusters={self.n_clusters}, n_samples={len(self.labels)})" if hasattr(self, 'labels') and self.labels is not None else ""
+        
+        return (
+            f"KMeansClustering(\n"
+            f"  model_parameters={{\n"
+            f"    'n_clusters': {self.n_clusters},\n"
+            f"    'max_iterations': {self.max_iter},\n"
+            f"    'convergence_tolerance': {self.tolerance},\n"
+            f"    'learning_rate': {getattr(self, 'learning_rate', 'N/A')},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'loss_function': '{self.mg_loss}',\n"
+            f"    'scale': '{self.scale}',\n"
+            f"    'data_form': '{self.data_form}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'initialization': '{self.init}',\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self._record_history},\n"
+            f"    'gnostic_characteristics': {self.gnostic_characteristics},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {data_info}\n"
+            f")"
+        )
