@@ -189,6 +189,3 @@ src/machinegnostics/magcal/x_gdf/
 
 # mlfruns
 mlruns/
-
-# temporary not including files from magnet
-src/machinegnostics/magcal/magnet/*
