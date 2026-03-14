@@ -10,7 +10,7 @@ Machine Gnostics is an open-source initiative that seeks to redefine the mathema
 
 > As a pioneering project, Machine Gnostics invites users to adopt a fresh perspective and develop a new understanding of machine learning. The library is currently in its infancy, and as such, some features may require refinement and fixes. We are actively working to expand its capabilities, with new models and methods planned for the near future. Community support and collaboration are essential to realizing Machine Gnostics’ full potential. Together, let’s build a new AI grounded in a rational and resilient paradigm.
 
-More information at [Machine Gnostics](https://machinegnostics.com)
+Documentation available at [Machine Gnostics](https://docs.machinegnostics.com)
 
 ---
 
