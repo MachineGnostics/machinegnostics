@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1749031105297
+current_stage: None
+description: null
+last_updated_timestamp: 1749031105297
+name: GnosticPolynomialRegressor
+run_id: f21640af099b41b58e040876c02ec4d5
+run_link: null
+source: file:///Users/nirmal/Documents/np_research/ManGo_code/machinegnostics.io/examples/mlruns/587054476264220449/f21640af099b41b58e040876c02ec4d5/artifacts/robust_regressor
+status: READY
+status_message: null
+storage_location: file:///Users/nirmal/Documents/np_research/ManGo_code/machinegnostics.io/examples/mlruns/587054476264220449/f21640af099b41b58e040876c02ec4d5/artifacts/robust_regressor
+user_id: null
+version: 1

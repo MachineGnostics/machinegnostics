@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/nirmal/Documents/np_research/ManGo_code/machinegnostics.io/examples/mlruns/587054476264220449/f21640af099b41b58e040876c02ec4d5/artifacts
+end_time: 1749031105304
+entry_point_name: ''
+experiment_id: '587054476264220449'
+lifecycle_stage: active
+run_id: f21640af099b41b58e040876c02ec4d5
+run_name: rebellious-kit-241
+run_uuid: f21640af099b41b58e040876c02ec4d5
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1749031103118
+status: 3
+tags: []
+user_id: nirmal

@@ -1,0 +1,207 @@
+.md-banner {
+    background-color: #64ffda; /* Bright Mint */
+    color: #004d40; /* Dark Teal text */
+}
+
+.md-banner a {
+    color: #004d40; /* Dark Teal links */
+    text-decoration: underline; /* Optional: to make links obvious */
+}
+
+.md-banner a:hover {
+    color: #00695c; /* Darker teal on hover */
+}
+
+@import url('../assets/external/fonts.googleapis.com/css2.aed57817.css');
+
+.md-content .md-typeset {
+    max-width: 100%;
+}
+
+.gn-home {
+    position: relative;
+    isolation: isolate;
+    font-family: 'Space Grotesk', var(--md-text-font, sans-serif);
+    color: var(--md-default-fg-color);
+}
+
+.gn-home .gn-web-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.62;
+}
+
+[data-md-color-scheme="default"] .gn-home .gn-web-canvas {
+    opacity: 0.85;
+    mix-blend-mode: multiply;
+}
+
+[data-md-color-scheme="slate"] .gn-home .gn-web-canvas {
+    opacity: 0.62;
+    mix-blend-mode: normal;
+}
+
+.gn-home > section {
+    position: relative;
+    z-index: 1;
+}
+
+.gn-home .gn-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 4.5rem 2rem;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--md-primary-fg-color), transparent 70%);
+    background: radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--md-primary-fg-color), transparent 78%), transparent 45%),
+                radial-gradient(circle at 85% 15%, color-mix(in srgb, #ffd166, transparent 85%), transparent 38%),
+                linear-gradient(180deg, color-mix(in srgb, var(--md-default-bg-color), #000 15%) 0%, color-mix(in srgb, var(--md-default-bg-color), #000 28%) 100%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--md-primary-fg-color), transparent 85%),
+                0 20px 40px rgba(0, 0, 0, 0.26);
+}
+
+.gn-home .gn-hero-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(transparent 96%, color-mix(in srgb, var(--md-primary-fg-color), transparent 75%) 100%),
+        linear-gradient(90deg, transparent 96%, color-mix(in srgb, var(--md-primary-fg-color), transparent 75%) 100%);
+    background-size: 36px 36px;
+    opacity: 0.3;
+}
+
+.gn-home h1,
+.gn-home h2,
+.gn-home h3 {
+    font-family: 'Space Grotesk', var(--md-text-font, sans-serif);
+    letter-spacing: -0.01em;
+}
+
+.gn-home .gn-overline {
+    margin: 0 0 .75rem;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .16em;
+    color: color-mix(in srgb, var(--md-primary-fg-color), white 35%);
+    font-weight: 700;
+}
+
+.gn-home .gn-subtitle {
+    max-width: 56rem;
+    color: color-mix(in srgb, var(--md-default-fg-color), white 12%);
+    font-size: 1.08rem;
+}
+
+.gn-home .gn-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-top: 1.25rem;
+}
+
+.gn-home .gn-section {
+    margin-top: 2rem;
+    padding: 1.75rem;
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--md-default-bg-color), #111 9%);
+    border: 1px solid color-mix(in srgb, var(--md-primary-fg-color), transparent 82%);
+}
+
+.gn-home blockquote {
+    border-left-color: var(--md-primary-fg-color);
+    color: color-mix(in srgb, var(--md-default-fg-color), white 15%);
+}
+
+.gn-home .gn-compare,
+.gn-home .gn-features {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.gn-home .gn-compare {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.gn-home .gn-card,
+.gn-home .gn-feature {
+    border: 1px solid color-mix(in srgb, var(--md-primary-fg-color), transparent 78%);
+    border-radius: .9rem;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--md-default-bg-color), #111 16%);
+    transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+
+.gn-home .gn-card:hover,
+.gn-home .gn-feature:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--md-primary-fg-color), transparent 40%);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
+}
+
+.gn-home .gn-card--accent {
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--md-primary-fg-color), transparent 92%) 0%,
+                color-mix(in srgb, var(--md-default-bg-color), #111 14%) 100%);
+}
+
+.gn-home .gn-card ul,
+.gn-home .gn-feature ul {
+    margin-top: .8rem;
+}
+
+.gn-home .gn-tags,
+.gn-home .gn-pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .9rem;
+}
+
+.gn-home .gn-tags span,
+.gn-home .gn-pill-grid span {
+    display: inline-flex;
+    align-items: center;
+    font-size: .78rem;
+    padding: .35rem .62rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--md-primary-fg-color), transparent 62%);
+    background: color-mix(in srgb, var(--md-primary-fg-color), transparent 92%);
+}
+
+.gn-home .gn-feature a,
+.gn-home .gn-section > p > a {
+    font-weight: 600;
+}
+
+.gn-home .gn-cta {
+    text-align: center;
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--md-primary-fg-color), transparent 94%) 0%,
+                color-mix(in srgb, var(--md-default-bg-color), #111 8%) 100%);
+}
+
+.gn-home .gn-reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .5s ease, transform .5s ease;
+}
+
+.gn-home .gn-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media screen and (max-width: 76.1875em) {
+    .gn-home .gn-hero {
+        padding: 3.2rem 1.25rem;
+    }
+
+    .gn-home .gn-section {
+        padding: 1.1rem;
+    }
+}

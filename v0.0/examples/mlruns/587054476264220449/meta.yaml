@@ -1,0 +1,6 @@
+artifact_location: file:///Users/nirmal/Documents/np_research/ManGo_code/machinegnostics.io/examples/mlruns/587054476264220449
+creation_time: 1749031103044
+experiment_id: '587054476264220449'
+last_update_time: 1749031103044
+lifecycle_stage: active
+name: GnosticPolynomialRegressorExperiment
