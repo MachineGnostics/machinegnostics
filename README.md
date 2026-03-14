@@ -1,7 +1,6 @@
-# [Machine Gnostics](https://machinegnostics.info) 🥭
+# [Machine Gnostics](https://machinegnostics.com) 🥭
 
 [![PyPI version](https://img.shields.io/pypi/v/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![Python Versions](https://img.shields.io/pypi/pyversions/machinegnostics.svg)](https://pypi.org/project/machinegnostics/) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![Downloads](https://static.pepy.tech/badge/machinegnostics)](https://pepy.tech/project/machinegnostics) [![Downloads](https://static.pepy.tech/badge/machinegnostics/month)](https://pepy.tech/project/machinegnostics) [![GitHub stars](https://img.shields.io/github/stars/MachineGnostics/machinegnostics?style=social)](https://github.com/MachineGnostics/machinegnostics)
-
 
 > Machine Gnostics: Laws of Nature, Encoded—For Everyone!
 
@@ -11,7 +10,7 @@ Machine Gnostics is an open-source initiative that seeks to redefine the mathema
 
 > As a pioneering project, Machine Gnostics invites users to adopt a fresh perspective and develop a new understanding of machine learning. The library is currently in its infancy, and as such, some features may require refinement and fixes. We are actively working to expand its capabilities, with new models and methods planned for the near future. Community support and collaboration are essential to realizing Machine Gnostics’ full potential. Together, let’s build a new AI grounded in a rational and resilient paradigm.
 
-More information at [Machine Gnostics](https://machinegnostics.info)
+More information at [Machine Gnostics](https://machinegnostics.com)
 
 ---
 
@@ -210,7 +209,7 @@ plt.show()
 
 - **Still Stuck**
 
-  - [Contact us](https://machinegnostics.info/contact/) or open an issue on [GitHub](https://github.com/MachineGnostics/machinegnostics).
+  - [Contact us](https://machinegnostics.com/contact/) or open an issue on [GitHub](https://github.com/MachineGnostics/machinegnostics).
 
 ---
 
