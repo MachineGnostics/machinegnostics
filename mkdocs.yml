@@ -57,6 +57,7 @@ repo_url: https://github.com/MachineGnostics/machinegnostics
 repo_name: Machine Gnostics
 
 nav:
+  - welcome: home.md
   - Home: 
     - Welcome: index.md
     - History: stories/history.md
