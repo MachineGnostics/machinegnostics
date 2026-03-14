@@ -58,7 +58,7 @@ repo_name: Machine Gnostics
 
 nav:
   - Home: https://machinegnostics.com/
-  - Welcome: 
+  - Introduction: 
     - Welcome: index.md
     - History: stories/history.md
     - Learn: 
