@@ -1,15 +1,241 @@
-site_name: ManGo - Machine Gnostics
+site_name: Machine Gnostics
+site_url: https://docs.machinegnostics.com
 site_description: A python library for machine learning and data science based on non-statistical methods.
 site_author: Nirmal Parmar
+copyright: 
+  Copyright © 2026 Nirmal Parmar (Machine Gnostics) |  
+  <a href="https://github.com/MachineGnostics/machinegnostics/blob/main/LICENSE"> GNU v3.0 License  |</a>   
+  <a href="#__consent">Change cookie settings   |</a>
+  <a href="https://machinegnostics.com/contact/">Contact us</a>
 
 theme:
   name: material
   logo: images/logo.png
+  favicon: images/logo.png
   palette:
-    scheme: slate  # Optional but highly recommended theme
+    - scheme: slate
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light modee
+    - scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.footer
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.instant.preview
+    - navigation.instant.prefetch
+    - navigation.tracking
+    - navigation.tabs.sticky
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    # - announce.dismiss
+  custom_dir: overrides
+  language: en
+
+plugins:
+  - privacy
+  - search
+  # - search.suggest
+  # - search.highlight
+  # - search.share
+  - mike
+  - git-revision-date-localized
+  - awesome-pages
+
+repo_url: https://github.com/MachineGnostics/machinegnostics
+repo_name: Machine Gnostics
 
 nav:
-  - Home: index.md
-  - Installation: installation.md
-  - Foundation: foundation.md
-  - Usage: usage.md
+  - Home: https://machinegnostics.com/
+  - Welcome: 
+    - Welcome: index.md
+    - History: stories/history.md
+    - Learn: 
+        - Concept: mg/concepts.md
+        - Principles: mg/principles.md
+        - Distributions Functions: mg/gdf.md
+        - Architecture: mg/architecture.md
+        - Glossary: mg/mg_arguments.md
+  - Installation: 
+    - Installation: installation.md
+    - Quick Start: tutorials/overview.md
+    - Tutorials Library: tutorials/tutorials.md
+  - Tutorials:
+    - Quick Start: tutorials/overview.md
+    - Tutorials Library: tutorials/tutorials.md
+  # data analysis vertical
+  - Data Analysis:
+    - Models: da/da_models.md
+    - Distributions Functions:
+      - EGDF: da/egdf.md
+      - ELDF: da/eldf.md
+      - QGDF: da/qgdf.md
+      - QLDF: da/qldf.md
+    - Data Analysis:
+      - Cluster Analysis: da/cluster_analysis.md
+      - Interval Analysis: da/interval_analysis.md
+      - Data Homogeneity: da/homogeneity.md
+      - Data Scedasticity: da/scedasticity.md
+      - Data Membership: da/membership.md
+      - Data Interval: da/data_interval.md
+      - Data Cluster: da/data_cluster.md
+      # - Z0 Estimator: da/z0_estimator.md # moved to non-public class
+    - Datasets:
+      - Animal Data: datasets/animal_data.md
+      - Anscombe Quartet: datasets/anscombe_data.md
+      - Classification Data: datasets/cls_data.md
+      - Forbes Data: datasets/forbes_data.md
+      - Linnerud Data: datasets/linnerud_data.md
+      - Longley Data: datasets/longley_data.md
+      - MtCars Data: datasets/mtcars_data.md
+      - Moon Data: datasets/moon_data.md
+      - Puromycin Data: datasets/puromycin_data.md
+      - Regression Data: datasets/reg_data.md
+      - Stackloss Data: datasets/stackloss_data.md
+      - Starwars Data: datasets/starwars_data.md
+  # machine learning vertical
+  - Machine Learning:
+    - Models: models/ml_models.md
+    - Regressors:
+      - Linear Regressor: models/reg/lin_reg.md
+      - Polynomial Regressor: models/reg/poly_reg.md
+      - Logistic Regressor: models/cls/log_reg.md
+      - Decision Tree Regressor: models/cart/dt_reg.md
+      - Random Forest Regressor: models/cart/rf_reg.md
+      - Gnostic Boosting Regressor: models/cart/gb_reg.md
+    - Classifiers: 
+      - Multi Class Classifier: models/cls/multi_class.md
+      - Decision Tree Classifier: models/cart/dt_cls.md
+      - Random Forest Classifier: models/cart/rf_cls.md
+      - Gnostic Boosting Classifier: models/cart/gb_cls.md
+    - Clustering:
+      - KMeans Clustering: models/cluster/kmeans.md
+      - Estimating Local Clustering: models/cluster/glc.md
+    - Forecasting:
+      - Auto Regressor: models/forc/ar.md
+      - ARIMA: models/forc/arima.md
+      - SARIMA: models/forc/sarima.md
+    - Utils:
+      - Cross Validation: models/sup/cross_val.md
+      - Train Test Split: models/sup/train_test_split.md
+    - Mlflow Integration: 
+      - Mlflow Tracking: models/sup/mlflow.md
+  # deep learning vertical   
+  - Deep Learning:
+    - Magnet: magnet/magnet.md
+  - Metrics:
+    - Classical Metrics:
+      - Accuracy: metrics/accuracy.md
+      - Precision: metrics/precision.md
+      - Recall: metrics/recall.md
+      - Confusion Matrix: metrics/confusion_matrix.md
+      - F1 Score: metrics/f1_score.md
+      - R2 Score: metrics/r2.md
+      - Classification Report: metrics/classification_report.md
+      - Silhouette Score: metrics/silhouette_score.md
+    - Gnostic Metrics:
+      - Gnostic Mean: metrics/g_mean.md
+      - Gnostic Median: metrics/g_median.md
+      - Gnostic Std: metrics/g_std.md
+      - Gnostic Variance: metrics/g_variance.md
+      - Gnostic Mean Absolute Error: metrics/mae.md
+      - Gnostic Mean Squared Error: metrics/mse.md
+      - Gnostic Root Mean Squared Error: metrics/rmse.md
+      - Gnostic R2 Score: metrics/r2_score.md
+      - Gnostic Correlation: metrics/g_correlation.md
+      - Gnostic Relevance: metrics/g_relevance.md
+      - Gnostic DivI: metrics/divI.md
+      - Gnostic GMMFE: metrics/gmmfe.md
+      - Gnostic Entropy: metrics/entropy.md
+      - Gnostic EvalMet: metrics/evalmet.md 
+      - Gnostic Silhouette Score: metrics/silhouette_score.md
+      - Gnostic Stationarity Test: metrics/stationarity_test.md
+      - Gnostic Auto-Correlation: metrics/g_auto_corelation.md
+      - Gnostic Auto-Covariance: metrics/g_auto_covariance.md
+      - Gnostic Cross-Covariance: metrics/g_cross_variance.md
+  - References: ref/references.md
+  - Contact: contact.md
+
+markdown_extensions:
+  - def_list
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      # emoji_index: !!python/name:materialx.emoji.twemoji
+      # emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+  # - pymdownx:inlinehilite
+  # - pymdownx:snippets
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format 
+
+extra:
+  # announce: moved to overrides/main.html
+  version:
+    provider: mike
+  analytics:
+    provider: google
+    property: G-CKN0D75GBF
+  social:
+  - icon: fontawesome/brands/github
+    link: https://github.com/MachineGnostics/machinegnostics
+    name: Machine Gnostics on GitHub
+  - icon: fontawesome/brands/discord
+    link: https://discord.gg/WMMUaeJe2X
+    name: Join us on Discord
+  - icon: fontawesome/brands/linkedin
+    link: https://www.linkedin.com/company/109036022/
+    name: Machine Gnostics on LinkedIn
+  - icon: fontawesome/brands/python
+    link: https://pypi.org/project/machinegnostics/
+    name: Machine Gnostics on PyPI
+  - icon: fontawesome/brands/instagram
+    link: https://www.instagram.com/machinegnostics/
+    name: Machine Gnostics on Instagram
+  - icon: fontawesome/brands/youtube
+    link: https://www.youtube.com/@MachineGnostics
+    name: Machine Gnostics on YouTube
+  consent:
+    title: Cookie consent
+    description: >- 
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - javascripts/cookie-consent.js
+  - javascripts/vertical-colors.js
+  - javascripts/home-dynamics.js

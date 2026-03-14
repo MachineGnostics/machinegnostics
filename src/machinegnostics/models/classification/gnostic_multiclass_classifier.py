@@ -98,7 +98,6 @@ class MulticlassClassifier(HistoryMulticlassClassifierBase, DataProcessLayerBase
     - Uses softmax activation for multiclass probability estimation.
     - Gnostic weights help handle outliers and improve robustness of the classifier.
     - More information on gnostic characteristics can be found in the Machine Gnostics documentation.
-    - For more information, visit: https://machinegnostics.info/
     """
     
     @disable_parent_docstring
