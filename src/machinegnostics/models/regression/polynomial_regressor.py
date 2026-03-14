@@ -90,7 +90,6 @@ class PolynomialRegressor(HistoryRegressorBase, DataProcessLayerBase):
     -----
     - This model is part of the Machine Gnostics library, which implements advanced machine learning techniques
     based on mathematical gnostics principles.
-    - For more information, visit: https://machinegnostics.info/
     """
     @disable_parent_docstring
     def __init__(

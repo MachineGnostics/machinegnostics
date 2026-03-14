@@ -91,7 +91,6 @@ class LogisticRegressor(HistoryLogisticRegressorBase, DataProcessLayerBase):
     -----
     - The model supports only binary tasks.
     - More information on gnostic characteristics can be found in the Machine Gnostics documentation.
-    - For more information, visit: https://machinegnostics.info/
     """
     
     @disable_parent_docstring

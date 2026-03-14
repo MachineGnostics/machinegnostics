@@ -95,7 +95,6 @@ class KMeansClustering(HistoryClusteringBase, DataProcessClusteringBase):
     - This model is part of the Machine Gnostics library, which implements advanced machine learning techniques
       based on mathematical gnostics principles.
     - The key innovation is the multiplication of sample weights with gnostic weights (gw) for robust clustering.
-    - For more information, visit: https://machinegnostics.info/
     """
     @disable_parent_docstring
     def __init__(
