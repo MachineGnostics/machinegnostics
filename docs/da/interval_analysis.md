@@ -96,50 +96,50 @@ Returns a dictionary of estimated interval results and bounds. Also called 'Data
 **Returns:**
 `dict` — Contains keys such as `'LB', 'LSB', 'DLB', 'LCB', 'LSD', 'ZL', 'Z0L', 'Z0', 'Z0U', 'ZU', 'USD', 'UCB', 'DUB', 'USB', 'UB'`
 
-    -**LB**: Lower Bound
-    The practical lower limit for the interval (may be set by user or inferred).
+  - **LB**: Lower Bound
+  The practical lower limit for the interval (may be set by user or inferred).
 
-    -**LSB**: Lower Sample (Membership) Bound
-    The lowest value for which data is homogeneous.
+  - **LSB**: Lower Sample (Membership) Bound
+  The lowest value for which data is homogeneous.
 
-    -**DLB**: Data Lower Bound
-    The absolute minimum value present in the data.
+  - **DLB**: Data Lower Bound
+  The absolute minimum value present in the data.
 
-    -**LCB**: Lower Cluster Bound
-    The lower edge of the main data cluster.
+  - **LCB**: Lower Cluster Bound
+  The lower edge of the main data cluster.
 
-    -**LSD**: Lower Standard Deviation Bound
-    The lowest value as per gnostic standard deviation.
+  - **LSD**: Lower Standard Deviation Bound
+  The lowest value as per gnostic standard deviation.
 
-    -**ZL**: Z0 Lower Interval
-    The lower bound of the typical interval.
+  - **ZL**: Z0 Lower Interval
+  The lower bound of the typical interval.
 
-    -**Z0L**: Z0 Lower Bound
-    The lower bound of the tolerance interval.
+  - **Z0L**: Z0 Lower Bound
+  The lower bound of the tolerance interval.
 
-    -**Z0**: Central Value (Gnostic Mean)
-    The central parameter of the distribution (gnostic mean).
+  - **Z0**: Central Value (Gnostic Mean)
+  The central parameter of the distribution (gnostic mean).
 
-    -**Z0U**: Z0 Upper Bound
-    The upper bound of the tolerance interval.
+  - **Z0U**: Z0 Upper Bound
+  The upper bound of the tolerance interval.
 
-    -**ZU**: Z0 Upper Interval
-    The upper bound of the typical interval.
+  - **ZU**: Z0 Upper Interval
+  The upper bound of the typical interval.
 
-    -**USD**: Upper Support/Domain Bound
-    The highest value in the support or domain of the fitted distribution.
+  - **USD**: Upper Support/Domain Bound
+  The highest value in the support or domain of the fitted distribution.
 
-    -**UCB**: Upper Cluster Bound
-    The upper edge of the main data cluster.
+  - **UCB**: Upper Cluster Bound
+  The upper edge of the main data cluster.
 
-    -**DUB**: Data Upper Bound
-    The absolute maximum value present in the data.
+  - **DUB**: Data Upper Bound
+  The absolute maximum value present in the data.
 
-    -**USB**: Upper Sample (Membership) Bound
-    The highest value for which data is homogeneous (membership analysis).
+  - **USB**: Upper Sample (Membership) Bound
+  The highest value for which data is homogeneous (membership analysis).
 
-    -**UB**: Upper Bound
-    The practical upper limit for the interval (may be set by user or inferred).
+  - **UB**: Upper Bound
+  The practical upper limit for the interval (may be set by user or inferred).
 
 ---
 
