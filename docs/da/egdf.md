@@ -150,11 +150,10 @@ Returns a dictionary of all fitted parameters and results.
 - Use weights for advanced analysis (e.g., reliability, risk).
 - For large datasets, set `catch=False` to save memory.
 - Visualization options allow in-depth analysis of distribution structure.
-- For more information, see [GDF documentation](../mg/gdf.md) and [Machine Gnostics](https://machinegnostics.info/).
-
+- For more information, see [GDF documentation](../mg/gdf.md).
 ---
 
-**Author:** Nirmal Parmar  
+**Author:** Nirmal Parmar   
 **Date:** 2025-09-24
 
 ---

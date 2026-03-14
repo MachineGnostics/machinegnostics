@@ -37,35 +37,34 @@ ELDF is optimized for local probability and density estimation, especially when 
 
 ## Parameters
 
-| Parameter         | Type                  | Default   | Description                                                      |
-| ----------------- | ---------------------| --------- | ---------------------------------------------------------------  |
-| `DLB`             | float or None         | None      | Data Lower Bound (absolute minimum, optional)                    |
-| `DUB`             | float or None         | None      | Data Upper Bound (absolute maximum, optional)                    |
-| `LB`              | float or None         | None      | Lower Probable Bound (practical lower limit, optional)           |
-| `UB`              | float or None         | None      | Upper Probable Bound (practical upper limit, optional)           |
-| `S`               | float or 'auto'       | 'auto'    | Scale parameter (auto-estimated or fixed value)                  |
-| `varS`            | bool                  | False     | Use variable scale parameter during optimization                 |
-| `minimum_varS`    | float                 | 0.1       | Minimum scale parameter value if varS is True                    |
-| `z0_optimize`     | bool                  | True      | Optimize location parameter Z0 during fitting                    |
-| `tolerance`       | float                 | 1e-9      | Convergence tolerance for optimization                           |
-| `data_form`       | str                   | 'a'       | Data form: 'a' (additive), 'm' (multiplicative)                  |
-| `n_points`        | int                   | 1000      | Number of points for distribution curve                          |
-| `homogeneous`     | bool                  | True      | Assume data homogeneity                                          |
-| `catch`           | bool                  | True      | Store intermediate results (memory usage)                        |
-| `weights`         | array-like or Series or None    | None      | Prior weights for data points (accepts NumPy arrays or Pandas Series). |
-| `wedf`            | bool                  | False     | Use Weighted Empirical Distribution Function                     |
-| `opt_method`      | str                   | 'Powell'  | Optimization method (scipy.optimize)                             |
-| `verbose`         | bool                  | False     | Print progress and diagnostics                                   |
-| `max_data_size`   | int                   | 1000      | Max data size for smooth ELDF generation                         |
-| `flush`           | bool                  | True      | Flush large arrays (memory management)                           |
+| Parameter         | Type                         | Default  | Description                                                            |
+| ----------------- | ---------------------------- | -------- | ---------------------------------------------------------------------- |
+| `DLB`           | float or None                | None     | Data Lower Bound (absolute minimum, optional)                          |
+| `DUB`           | float or None                | None     | Data Upper Bound (absolute maximum, optional)                          |
+| `LB`            | float or None                | None     | Lower Probable Bound (practical lower limit, optional)                 |
+| `UB`            | float or None                | None     | Upper Probable Bound (practical upper limit, optional)                 |
+| `S`             | float or 'auto'              | 'auto'   | Scale parameter (auto-estimated or fixed value)                        |
+| `varS`          | bool                         | False    | Use variable scale parameter during optimization                       |
+| `minimum_varS`  | float                        | 0.1      | Minimum scale parameter value if varS is True                          |
+| `z0_optimize`   | bool                         | True     | Optimize location parameter Z0 during fitting                          |
+| `tolerance`     | float                        | 1e-9     | Convergence tolerance for optimization                                 |
+| `data_form`     | str                          | 'a'      | Data form: 'a' (additive), 'm' (multiplicative)                        |
+| `n_points`      | int                          | 1000     | Number of points for distribution curve                                |
+| `homogeneous`   | bool                         | True     | Assume data homogeneity                                                |
+| `catch`         | bool                         | True     | Store intermediate results (memory usage)                              |
+| `weights`       | array-like or Series or None | None     | Prior weights for data points (accepts NumPy arrays or Pandas Series). |
+| `wedf`          | bool                         | False    | Use Weighted Empirical Distribution Function                           |
+| `opt_method`    | str                          | 'Powell' | Optimization method (scipy.optimize)                                   |
+| `verbose`       | bool                         | False    | Print progress and diagnostics                                         |
+| `max_data_size` | int                          | 1000     | Max data size for smooth ELDF generation                               |
+| `flush`         | bool                         | True     | Flush large arrays (memory management)                                 |
 
 ---
 
 ## Attributes
 
-- **params**: `dict`  
-  Fitted parameters and results after fitting.
-- **DLB, DUB, LB, UB, S, varS, z0_optimize, tolerance, data_form, n_points, homogeneous, catch, weights, wedf, opt_method, verbose, max_data_size, flush**:  
+- **params**: `dict`Fitted parameters and results after fitting.
+- **DLB, DUB, LB, UB, S, varS, z0_optimize, tolerance, data_form, n_points, homogeneous, catch, weights, wedf, opt_method, verbose, max_data_size, flush**:
   Configuration parameters as set at initialization.
 
 ---
@@ -76,12 +75,11 @@ ELDF is optimized for local probability and density estimation, especially when 
 
 Fits the ELDF to your data, estimating all relevant parameters and generating the local distribution function.
 
-- **data**: array-like or Series, shape `(n_samples,)`  
-  Input data. Accepts NumPy arrays or Pandas Series/DataFrame column.
-- **plot**: `bool` (optional)  
+- **data**: array-like or Series, shape `(n_samples,)`Input data. Accepts NumPy arrays or Pandas Series/DataFrame column.
+- **plot**: `bool` (optional)
   If True, automatically plots the fitted distribution.
 
-**Returns:**  
+**Returns:**
 None (results stored in `params`)
 
 ---
@@ -90,18 +88,14 @@ None (results stored in `params`)
 
 Visualizes the fitted ELDF and related plots.
 
-- **plot_smooth**: `bool`  
-  Plot smooth interpolated curve.
-- **plot**: `str`  
-  'eldf', 'pdf', or 'both'.
-- **bounds**: `bool`  
-  Show bound lines.
-- **extra_df**: `bool`  
-  Include additional distribution functions.
-- **figsize**: `tuple`  
+- **plot_smooth**: `bool`Plot smooth interpolated curve.
+- **plot**: `str`'eldf', 'pdf', or 'both'.
+- **bounds**: `bool`Show bound lines.
+- **extra_df**: `bool`Include additional distribution functions.
+- **figsize**: `tuple`
   Figure size.
 
-**Returns:**  
+**Returns:**
 None (displays plot)
 
 ---
@@ -110,7 +104,7 @@ None (displays plot)
 
 Returns a dictionary of all fitted parameters and results.
 
-**Returns:**  
+**Returns:**
 `dict` (fitted parameters, bounds, scale, diagnostics, etc.)
 
 ---
@@ -143,9 +137,6 @@ Returns a dictionary of all fitted parameters and results.
 
 === "Output"
 
-    ![ELDF Plot](image/eldf/1770031665093.png)
----
-
 ## Notes
 
 - ELDF is robust to outliers and suitable for non-Gaussian, contaminated, or uncertain data.
@@ -153,11 +144,11 @@ Returns a dictionary of all fitted parameters and results.
 - Use weights for advanced analysis (e.g., clustering, risk).
 - For large datasets, set `catch=False` to save memory.
 - Visualization options allow in-depth analysis of local distribution structure.
-- For more information, see [GDF documentation](../mg/gdf.md) and [Machine Gnostics](https://machinegnostics.info/).
+- For more information, see [GDF documentation](../mg/gdf.md).
 
 ---
 
-**Author:** Nirmal Parmar  
+**Author:** Nirmal Parmar   
 **Date:** 2025-09-24
 
 ---

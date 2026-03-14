@@ -35,25 +35,25 @@ QGDF is optimized for global quantification and density estimation, especially w
 
 ## Parameters
 
-| Parameter         | Type               | Default    | Description                                            |
-| ----------------- | ------------------ | ---------- | ------------------------------------------------------ |
-| `DLB`           | float or None      | None       | Data Lower Bound (absolute minimum, optional)          |
-| `DUB`           | float or None      | None       | Data Upper Bound (absolute maximum, optional)          |
-| `LB`            | float or None      | None       | Lower Probable Bound (practical lower limit, optional) |
-| `UB`            | float or None      | None       | Upper Probable Bound (practical upper limit, optional) |
-| `S`             | float or 'auto'    | 'auto'     | Scale parameter (auto-estimated or fixed value)        |
-| `z0_optimize`   | bool               | True       | Optimize location parameter during fitting             |
-| `tolerance`     | float              | 1e-9       | Convergence tolerance for optimization                 |
-| `data_form`     | str                | 'a'        | Data form: 'a' (additive), 'm' (multiplicative)        |
-| `n_points`      | int                | 500        | Number of points for distribution curve                |
-| `homogeneous`   | bool               | True       | Assume data homogeneity                                |
-| `catch`         | bool               | True       | Store intermediate results (memory usage)              |
-| `weights`       | array-like or Series or None | None       | Prior weights for data points (accepts NumPy arrays or Pandas Series).                          |
-| `wedf`          | bool               | False      | Use Weighted Empirical Distribution Function           |
-| `opt_method`    | str                | 'Powell' | Optimization method (scipy.optimize)                   |
-| `verbose`       | bool               | False      | Print progress and diagnostics                         |
-| `max_data_size` | int                | 1000       | Max data size for smooth QGDF generation               |
-| `flush`         | bool               | True       | Flush large arrays (memory management)                 |
+| Parameter         | Type                         | Default  | Description                                                            |
+| ----------------- | ---------------------------- | -------- | ---------------------------------------------------------------------- |
+| `DLB`           | float or None                | None     | Data Lower Bound (absolute minimum, optional)                          |
+| `DUB`           | float or None                | None     | Data Upper Bound (absolute maximum, optional)                          |
+| `LB`            | float or None                | None     | Lower Probable Bound (practical lower limit, optional)                 |
+| `UB`            | float or None                | None     | Upper Probable Bound (practical upper limit, optional)                 |
+| `S`             | float or 'auto'              | 'auto'   | Scale parameter (auto-estimated or fixed value)                        |
+| `z0_optimize`   | bool                         | True     | Optimize location parameter during fitting                             |
+| `tolerance`     | float                        | 1e-9     | Convergence tolerance for optimization                                 |
+| `data_form`     | str                          | 'a'      | Data form: 'a' (additive), 'm' (multiplicative)                        |
+| `n_points`      | int                          | 500      | Number of points for distribution curve                                |
+| `homogeneous`   | bool                         | True     | Assume data homogeneity                                                |
+| `catch`         | bool                         | True     | Store intermediate results (memory usage)                              |
+| `weights`       | array-like or Series or None | None     | Prior weights for data points (accepts NumPy arrays or Pandas Series). |
+| `wedf`          | bool                         | False    | Use Weighted Empirical Distribution Function                           |
+| `opt_method`    | str                          | 'Powell' | Optimization method (scipy.optimize)                                   |
+| `verbose`       | bool                         | False    | Print progress and diagnostics                                         |
+| `max_data_size` | int                          | 1000     | Max data size for smooth QGDF generation                               |
+| `flush`         | bool                         | True     | Flush large arrays (memory management)                                 |
 
 ---
 
@@ -71,8 +71,7 @@ QGDF is optimized for global quantification and density estimation, especially w
 
 Fits the QGDF to your data, estimating all relevant parameters and generating the global quantifying distribution function.
 
-- **data**: array-like or Series, shape `(n_samples,)`  
-  Input data. Accepts NumPy arrays or Pandas Series/DataFrame column.
+- **data**: array-like or Series, shape `(n_samples,)`Input data. Accepts NumPy arrays or Pandas Series/DataFrame column.
 - **plot**: `bool` (optional)
   If True, automatically plots the fitted distribution.
 
@@ -134,9 +133,6 @@ Returns a dictionary of all fitted parameters and results.
 
 === "Output"
 
-    ![QGDF Plot](image/qgdf/1770031894102.png)
----
-
 ## Notes
 
 - QGDF is robust to inliers and suitable for non-Gaussian, clustered, or uncertain data.
@@ -144,7 +140,7 @@ Returns a dictionary of all fitted parameters and results.
 - Use weights for advanced analysis (e.g., reliability, risk).
 - For large datasets, set `catch=False` to save memory.
 - Visualization options allow in-depth analysis of distribution structure.
-- For more information, see [GDF documentation](../mg/gdf.md) and [Machine Gnostics](https://machinegnostics.info/).
+- For more information, see [GDF documentation](../mg/gdf.md).
 
 ---
 

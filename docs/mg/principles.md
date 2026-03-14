@@ -81,4 +81,4 @@ Machine Gnostics provides a principled, robust, and data-centric foundation for 
 
 ---
 
-## [References](https://machinegnostics.info/references/)
+## [References](../ref/references.md)
