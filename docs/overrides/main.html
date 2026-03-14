@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block announce %}
+<div style="display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap;">
+    <span>
+        <strong>Welcome to Machine Gnostics!</strong> <em>Released a new version! 🎈 Follow us for more updates.</em>
+    </span>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <a href="https://github.com/MachineGnostics/machinegnostics" title="Machine Gnostics on GitHub" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/github.svg" %}</span>
+        </a>
+        <a href="https://discord.gg/WMMUaeJe2X" title="Join us on Discord" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/discord.svg" %}</span>
+        </a>
+        <a href="https://www.linkedin.com/company/109036022/" title="Machine Gnostics on LinkedIn" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/linkedin.svg" %}</span>
+        </a>
+        <a href="https://pypi.org/project/machinegnostics/" title="Machine Gnostics on PyPI" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/python.svg" %}</span>
+        </a>
+        <a href="https://www.instagram.com/machinegnostics/" title="Machine Gnostics on Instagram" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/instagram.svg" %}</span>
+        </a>
+        <a href="https://www.youtube.com/@MachineGnostics" title="Machine Gnostics on YouTube" style="color: inherit; display: flex;">
+            <span class="twemoji">{% include ".icons/fontawesome/brands/youtube.svg" %}</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
