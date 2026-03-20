@@ -137,6 +137,8 @@ Returns a dictionary of all fitted parameters and results.
 
 === "Output"
 
+    ![QLDF Plot](image/qldf/1774047113781.png)
+
 ## Notes
 
 - QLDF is robust to inliers and suitable for non-Gaussian, clustered, or uncertain data.

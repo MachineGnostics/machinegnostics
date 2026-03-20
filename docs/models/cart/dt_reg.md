@@ -30,6 +30,9 @@ Machine Gnostics `GnosticDecisionTreeRegressor` combines the interpretability of
 ---
 
 ## Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
 | `data_form` | `str` | `'a'` | Data form: 'a' (additive) or 'm' (multiplicative). |
 | `random_state` | `int` | `None` | Random seed. |
 | `history` | `bool` | `True` | Whether to record training history. |

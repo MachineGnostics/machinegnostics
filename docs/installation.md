@@ -101,7 +101,7 @@ Machine Gnostics is designed to be as simple to use as other machine learning li
 
     # Example data
     X = np.array([0., 0.4, 0.8, 1.2, 1.6, 2. ])
-    y = np.array([17.89408548, 69.61586934, -7.19890572, 9.37670866, -10.55673099, 16.57855348])
+    y = np.array([17.89, 69.61, -7.19, 9.37, -10.55, 16.57])
 
     # Create and fit a robust polynomial regression model
     model = PolynomialRegressor(degree=2)
