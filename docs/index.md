@@ -51,8 +51,6 @@ Machine Gnostics is an open-source initiative that seeks to redefine the mathema
 !!! tip "Machine Gnostics"
     As a pioneering project, Machine Gnostics invites users to adopt a fresh perspective and develop a new understanding of machine learning. The library is currently in its infancy, and as such, some features may require refinement and fixes. We are actively working to expand its capabilities, with new models and methods planned for the near future. Community support and collaboration are essential to realizing Machine Gnostics’ full potential. Together, let’s build a new AI grounded in a rational and resilient paradigm.
 
-    Machine Gnostics challenges the limitations of traditional, probabilistic models. Instead of relying on assumptions and large data samples, it encodes the very laws of nature—geometry, physics, entropy—into algorithms that extract truth from data, even when samples are small, noisy, or corrupted.
-
 ---
 
 ## Data Science Rooted in Nature
