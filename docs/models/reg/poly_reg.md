@@ -140,11 +140,11 @@ Instance of `PolynomialRegressor` with loaded parameters.
 
     # Generate synthetic data with outliers
     np.random.seed(42)
-    X_train = np.random.rand(50, 1) * 10
-    y_train = 0.5 * X_train.flatten()**2 - 2 * X_train.flatten() + 5 + np.random.normal(0, 1, 50)
-    
+    X_train = np.random.rand(10, 1) * 10
+    y_train = 0.5 * X_train.flatten()**2 - 2 * X_train.flatten() + 5 + np.random.normal(0, 1, 10)
+
     # Introduce outliers
-    y_train[::10] += 20 * np.random.choice([-1, 1], size=5)
+    y_train[[0, 5]] += 20 * np.random.choice([-1, 1], size=2)
 
     # Initialize model
     model = PolynomialRegressor(
@@ -171,14 +171,18 @@ Instance of `PolynomialRegressor` with loaded parameters.
     import matplotlib.pyplot as plt
 
     # Generate smooth curve for visualization
-    X_test = np.linspace(0, 2, 100).reshape(-1, 1)
+    X_test = np.linspace(0, 10, 10).reshape(-1, 1)
     y_test = model.predict(X_test)
 
     # Plot
     plt.figure(figsize=(10, 6))
-    plt.scatter(X, y, color='blue', s=100, label='Data', zorder=3, alpha=0.6)
-    plt.scatter(X[8:], y[8:], color='red', s=150, label='Outliers', zorder=4, marker='X')
+    plt.scatter(X_train, y_train, color='blue', s=100, label='Data', zorder=3, alpha=0.6)
+    plt.scatter(X_train[[0, 5]], y_train[[0, 5]], color='red', s=150, label='Outliers', zorder=4, marker='X')
     plt.plot(X_test, y_test, 'g-', linewidth=2, label='Fitted Model')
+
+    # True polynomial for reference
+    y_true = 0.5 * X_test.flatten()**2 - 2 * X_test.flatten() + 5
+    plt.plot(X_test, y_true, 'k--', linewidth=1, alpha=0.5, label='True: y=0.5x²-2x+5')
 
     plt.xlabel('X')
     plt.ylabel('y')
@@ -191,7 +195,7 @@ Instance of `PolynomialRegressor` with loaded parameters.
 
 === "Output"
 
-    ![Polynomial Regression](image/poly_reg/1770041646288.png)
+    ![Polynomial Regression](image/poly_reg/1774199674994.png)
 
 ---
 
