@@ -159,7 +159,6 @@ nav:
       - Gnostic GMMFE: metrics/gmmfe.md
       - Gnostic Entropy: metrics/entropy.md
       - Gnostic EvalMet: metrics/evalmet.md 
-      - Gnostic Silhouette Score: metrics/silhouette_score.md
       - Gnostic Stationarity Test: metrics/stationarity_test.md
       - Gnostic Auto-Correlation: metrics/g_auto_corelation.md
       - Gnostic Auto-Covariance: metrics/g_auto_covariance.md
