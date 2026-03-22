@@ -98,21 +98,16 @@ Machine Gnostics is designed to be as simple to use as other machine learning li
     ```python
     import numpy as np
     from machinegnostics.models import PolynomialRegressor
+    from machinegnostics.data import make_regression_check_data
 
-    # Example data
-    X = np.array([0., 0.4, 0.8, 1.2, 1.6, 2. ])
-    y = np.array([17.89, 69.61, -7.19, 9.37, -10.55, 16.57])
+    # example data
+    X, y = make_regression_check_data(n_samples=10, noise_level=5, outlier_ratio=0.2)
 
     # Create and fit a robust polynomial regression model
     model = PolynomialRegressor(degree=2)
     model.fit(X, y)
-
-    model_lr = LinearRegressor()
-    model_lr.fit(X, y)
-
     # Make predictions
     y_pred = model.predict(X)
-    y_pred_lr = model_lr.predict(X)
 
     print("Predictions:", y_pred)
 
@@ -122,8 +117,7 @@ Machine Gnostics is designed to be as simple to use as other machine learning li
     # x vs y, y_pred plot
     import matplotlib.pyplot as plt
     plt.scatter(X, y, color='blue', label='Data')
-    plt.plot(X, y_pred, color='red', label='Polynomial Prediction')
-    plt.plot(X, y_pred_lr, color='green', label='Linear Prediction')
+    plt.plot(np.sort(X, axis=0), y_pred[np.argsort(X, axis=0).flatten()], color='red', label='Polynomial Prediction')
     plt.xlabel('X')
     plt.ylabel('y')
     plt.title('Polynomial and Linear Regression')
