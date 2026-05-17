@@ -6,7 +6,7 @@ Copyright (C) 2026 Nirmal Parmar
 """
 
 import numpy as np
-from machinegnostics.magcal import GnosticsCharacteristics
+from machinegnostics.magcal import GnosticsCharacteristics, DataConversion
 from machinegnostics.magnet.engine.gnostic_wights import GnosticsWeights
 
 class GnosticNeuron:
@@ -67,7 +67,10 @@ class GnosticNeuron:
     def _gnostic_activation(self, z):
         '''Gnostic activation function based on the characteristics of the input z.'''
         z0 = np.median(z)
-        z_acti = np.exp(np.sum(z) - z0)
+        z_acti = z0 - np.sum(z)
+        dc = DataConversion()
+        z_acti = dc._convert_az(z_acti)
+
         chars = GnosticsCharacteristics(R=z_acti)
         q, q1 = chars._get_q_q1(S=self.S)
         if self.gnostic_activation == 'fi':
@@ -80,6 +83,10 @@ class GnosticNeuron:
             acti = np.sum(chars._hj(q, q1))
         elif self.gnostic_activation == 'step':
             acti = self._step_activation(z)
+        elif self.gnostic_activation == 'sigmoid':
+            acti = 1 / (1 + np.exp(-z))  # Sigmoid activation
+        elif self.gnostic_activation == 'relu':
+            acti = np.maximum(0, z)  # ReLU activation
         elif self.gnostic_activation == 'linear':
             acti = 1  # Linear activation
         return acti * z
@@ -133,13 +140,13 @@ class GnosticNeuron:
 
                 # gnostic loss switch
                 if self.gnostic_loss == 'fi':
-                    err = np.sum(self.fi )+ 1e-6
+                    err = np.sum(self.fi)
                 elif self.gnostic_loss == 'fj':
                     err = np.sum(gw_engine._get_fj())
                 elif self.gnostic_loss == 'hi':
-                    err = np.sum(self.hi)
+                    err = np.sum(self.hi**2)
                 elif self.gnostic_loss == 'hj':
-                    err = np.sum(gw_engine._get_hj())
+                    err = np.sum(gw_engine._get_hj()**2)
                 elif self.gnostic_loss == 're':
                     err = np.sum(self.re)
             else:
@@ -165,7 +172,7 @@ class GnosticNeuron:
 
             # Verbose logging            
             if self.verbose and self.gnostic_weights:
-                print(f"Epoch {epoch+1}/{self.epochs}, Error: {np.sum(np.abs(error))}, Gnostic Error: {np.abs(err).sum()}, Residual Entropy: {np.mean(self.re)}")
+                print(f"Epoch {epoch+1}/{self.epochs}, Error: {np.sum(np.abs(error))}, Gnostic Error: {np.abs(err).sum()}, Mean Residual Entropy: {np.mean(self.re)}")
             elif self.verbose:
                 print(f"Epoch {epoch+1}/{self.epochs}, Error: {np.sum(np.abs(error))}")
             
@@ -175,18 +182,14 @@ class GnosticNeuron:
             # if loss is increasing, stop training, or loss come to a plateau, stop training
             if self.early_stopping:
                 STEPS = 5
+                PROPERTY = self.gnostic_loss if self.gnostic_weights else 'loss'
                 if self.gnostic_weights:
-                    if np.sum(np.abs(error)) < self.threshold or \
-                    np.abs(err).sum() < self.threshold or \
-                    (epoch > 1 and np.abs(error).sum() >= np.abs(prev_error).sum()) or \
-                    (epoch > STEPS and np.abs(error).sum() >= np.abs(self._history['loss'][-STEPS]).sum()) or \
-                    (epoch > 1 and np.abs(self._history['loss'][-1]).sum() >= np.abs(self._history['loss'][-2]).sum()) or \
-                    (epoch > STEPS and (np.abs(self._history['loss'][-1]).sum() - np.abs(self._history['loss'][-STEPS]).sum()) < self.threshold):
+                    if (epoch > 1 and np.abs(self._history[PROPERTY][-1]).sum() >= np.abs(self._history[PROPERTY][-2]).sum()) or \
+                    (epoch > STEPS and (np.abs(self._history[PROPERTY][-1]).sum() - np.abs(self._history[PROPERTY][-STEPS]).sum()) < self.threshold):
                         
                         if self.verbose:
                             print(f"Convergence reached at epoch {epoch+1}. Stopping training.")
                         break
-                    prev_error = error
                 else:
                     if np.sum(np.abs(error)) < self.threshold:
                         if self.verbose:
@@ -198,10 +201,11 @@ class GnosticNeuron:
 
             # History tracking
             if self.history and self.gnostic_weights:
-                self._history['loss'].append(np.sum(np.abs(error)))
-                self._history['fidelity'].append(np.mean(self.fi**2))
-                self._history['irrelevance'].append(np.mean(self.hi**2))
+                self._history['loss'].append(np.sum(np.abs(gw_error)))
+                self._history['fidelity'].append(np.sum(self.fi**2))
+                self._history['irrelevance'].append(np.sum(self.hi**2))
                 self._history['re'].append(np.sum(np.abs(self.re)))
+                # self._history[self.gnostic_loss].append(np.abs(err).sum())
             elif self.history:
                 self._history['loss'].append(np.sum(np.abs(error)))
                 # other gnostic characteristics are not tracked when gnostic_weights is False
