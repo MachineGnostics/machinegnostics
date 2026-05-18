@@ -24,21 +24,33 @@ class GnosticsWeights:
         self.logger = get_logger('GnosticsWeights', level=logging.WARNING if not verbose else logging.INFO)
         self.logger.info("GnosticsWeights initialized.")
 
-    def _get_gnostic_weights(self, z):
+    def _get_gnostic_weights(self, z, scale_param='auto'):
         """Compute gnostic weights."""
-        self.logger.info("Computing gnostic weights...")
-        z0 = np.median(z)
-        zz = z / z0
-        self.gc = GnosticsCharacteristics(R=zz)
-        q, q1 = self.gc._get_q_q1(S=1)
-        fi = self.gc._fi(q, q1)
-        scale = ScaleParam()
-        self.s = scale._gscale_loc(np.mean(fi))
-        self.q, self.q1 = self.gc._get_q_q1(S=self.s)
-        self.fi = self.gc._fi(self.q, self.q1)
-        wt = self.fi**2
-        self.logger.info("Gnostic weights computation complete.")
-        return wt
+        if scale_param == 'auto':
+            self.logger.info("Computing gnostic weights and optimizing local scale...")
+            z0 = np.median(z)
+            zz = z / z0
+            self.gc = GnosticsCharacteristics(R=zz)
+            q, q1 = self.gc._get_q_q1(S=1)
+            fi = self.gc._fi(q, q1)
+            scale = ScaleParam()
+            self.s = scale._gscale_loc(np.mean(fi))
+            self.q, self.q1 = self.gc._get_q_q1(S=self.s)
+            self.fi = self.gc._fi(self.q, self.q1)
+            wt = self.fi**2
+            self.logger.info("Gnostic weights computation complete.")
+            return wt
+        else:
+            self.s = scale_param
+            self.logger.info("Computing gnostic weights with given scale parameter...")
+            z0 = np.median(z)
+            zz = z / z0
+            self.gc = GnosticsCharacteristics(R=zz)
+            self.q, self.q1 = self.gc._get_q_q1(S=self.s)
+            self.fi = self.gc._fi(self.q, self.q1)
+            wt = self.fi**2
+            self.logger.info("Gnostic weights computation with given scale parameter complete.")
+            return wt
     
     def _get_fi(self):
         return self.fi
