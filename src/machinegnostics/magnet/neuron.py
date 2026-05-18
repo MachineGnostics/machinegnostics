@@ -11,13 +11,15 @@ from machinegnostics.magnet.engine.gnostic_wights import GnosticsWeights
 
 class GnosticNeuron:
     def __init__(self, 
-                 learning_rate=0.01, 
+                 learning_rate=0.01,
+                 S='auto', # local scale parameter for gnostic weights; can be 'auto' or a float value in range of [0,2]
                  epochs=100,
                  verbose=False,
                  threshold=1e-2,
                  gnostic_weights=True,
                  gnostic_activation='fi', # options: 'fi', 'fj', 'hi', 'hj', step, sigmoid, relu, linear, tanh, leaky_relu, elu, softplus, swish, gelu, mish
                  gnostic_loss='re', #options: 'fi', 'fj', 'hi', 'hj', 're'
+                 random_state=42,
                  early_stopping=True,
                  history=False,
                  flush=False):
@@ -34,6 +36,28 @@ class GnosticNeuron:
         self.history = history
         self.flush = flush
         self.early_stopping = early_stopping
+        self.ScaleParam = S
+        self.random_state = random_state
+
+        # input validation
+        # for S
+        if isinstance(S, str):
+            if S.lower() != 'auto':
+                raise ValueError("Scale parameter S must be 'auto' or a float value in range [0.01, 2].")
+        elif isinstance(S, (int, float)):
+            if not (0.01 <= S <= 2):
+                raise ValueError("Scale parameter S must be in the range [0.01, 2].")
+        else:
+            raise ValueError("Scale parameter S must be a string ('auto') or a float value in range [0.01, 2].")
+        # for gnostic_activation
+        valid_activations = {'fi', 'fj', 'hi', 'hj', 'step', 'sigmoid', 'relu', 'tanh', 'leaky_relu', 'elu', 'softplus', 'swish', 'gelu', 'mish', 'linear', 'softmax'}
+        if self.gnostic_activation and self.gnostic_activation not in valid_activations:
+            raise ValueError(f"Gnostic activation must be one of {valid_activations}.")
+        
+        # for gnostic_loss
+        valid_losses = {'fi', 'fj', 'hi', 'hj', 're'}
+        if self.gnostic_loss and self.gnostic_loss not in valid_losses:
+            raise ValueError(f"Gnostic loss must be one of {valid_losses}.")
 
         self._fitted = False
 
@@ -59,7 +83,8 @@ class GnosticNeuron:
             'history': self.history,
             'flush': self.flush,
             'fitted': self._fitted,
-            'S': None
+            'S': self.ScaleParam,
+            'random_state': self.random_state
         }
 
     def _step_activation(self, Z):
@@ -97,6 +122,9 @@ class GnosticNeuron:
             acti = np.where(z > 0, z, np.exp(z) - 1)
         elif self.gnostic_activation == 'softplus':
             acti = np.log1p(np.exp(np.clip(z, -50, 50)))
+        elif self.gnostic_activation == 'softmax':
+            exp_z = np.exp(z - np.max(z))  # for numerical stability
+            acti = exp_z / np.sum(exp_z)
         elif self.gnostic_activation == 'swish':
             acti = z / (1 + np.exp(-z))
         elif self.gnostic_activation == 'gelu':
@@ -137,7 +165,12 @@ class GnosticNeuron:
     def fit(self, X, y):
         # Ensure y is a column vector (m, 1) to match predictions
         y = y.reshape(-1, 1)
-
+        # shuffle data at the start of training for better convergence
+        np.random.seed(self.random_state)
+        indices = np.random.permutation(X.shape[0])
+        X = X[indices]
+        y = y[indices]
+        # Initialize weights, bias, and gnostic weights if not already set
         if self.weights is None:
             self.weights = np.zeros((X.shape[1], 1))
         if self.bias is None:
@@ -189,8 +222,10 @@ class GnosticNeuron:
                     err = np.sum(gw_engine._get_hj()**2)
                 elif self.gnostic_loss == 're':
                     err = np.sum(self.re)
+                    # normalize re
+                    err = err / (np.sum(np.abs(error)) + 1e-8)  # Avoid division by zero
                 else:
-                    err = np.sum(self.re)
+                    err = err // np.sum(np.abs(error))  # Default to normalized error if unknown loss is specified
             else:
                 self.gw = np.ones_like(error)
                 self.S = 1.0
@@ -220,11 +255,11 @@ class GnosticNeuron:
 
             # History tracking
             if self.history and self.gnostic_weights:
-                self._history['loss'].append(np.sum(np.abs(gw_error)))
+                self._history['loss'].append(gnostic_score)
                 self._history['fidelity'].append(np.sum(self.fi**2))
                 self._history['irrelevance'].append(np.sum(self.hi**2))
-                self._history['re'].append(np.sum(np.abs(self.re)))
-                self._history['gnostic_score'].append(gnostic_score)
+                self._history['re'].append(err/(np.sum(np.abs(error)) + 1e-8))
+                # self._history['gnostic_score'].append(gnostic_score)
                 self._history['gw_error'].append(gw_error_score)
             elif self.history:
                 self._history['loss'].append(np.sum(np.abs(error)))
@@ -233,6 +268,11 @@ class GnosticNeuron:
                 # other gnostic characteristics are not tracked when gnostic_weights is False
 
             # Check for convergence using gnostic objective direction and gw_error minimization.
+            # if encounter negative entropy (RE) stop training
+            if self.re is not None and np.any(self.re < 0):
+                if self.verbose:
+                    print(f"Negative residual entropy encountered at epoch {epoch+1}. Stopping training.")
+                break
             if self.early_stopping:
                 if maximize_gnostic:
                     improved_gnostic = gnostic_score > (best_gnostic + self.threshold)
@@ -279,6 +319,35 @@ class GnosticNeuron:
                 self._history['fidelity'] = []
                 self._history['irrelevance'] = []
                 self._history['re'] = []
-                self._history['gnostic_score'] = []
+                # self._history['gnostic_score'] = []
                 self._history['gw_error'] = []
             
+    def __repr__(self):
+        """Detailed string representation of the GnosticNeuron instance."""
+        fitted = "✓ Fitted" if getattr(self, "_fitted", False) else "✗ Unfitted"
+        n_features = ""
+        if hasattr(self, "weights") and self.weights is not None:
+            n_features = f"(n_features={self.weights.shape[0]})"
+        return (
+            f"GnosticNeuron(\n"
+            f"  model_parameters={{\n"
+            f"    'learning_rate': {self.lr},\n"
+            f"    'epochs': {self.epochs},\n"
+            f"    'threshold': {self.threshold},\n"
+            f"    'random_state': {self.random_state},\n"
+            f"  }},\n"
+            f"  gnostic_config={{\n"
+            f"    'gnostic_weights': {self.gnostic_weights},\n"
+            f"    'activation': '{self.gnostic_activation}',\n"
+            f"    'loss_function': '{self.gnostic_loss}',\n"
+            f"    'scale_param': '{self.ScaleParam}',\n"
+            f"  }},\n"
+            f"  training_config={{\n"
+            f"    'early_stopping': {self.early_stopping},\n"
+            f"    'history_tracking': {self.history},\n"
+            f"    'flush_history': {self.flush},\n"
+            f"    'verbose': {self.verbose},\n"
+            f"  }},\n"
+            f"  status='{fitted}' {n_features}\n"
+            f")"
+        )
