@@ -36,7 +36,7 @@ class GnosticNeuron:
         self.history = history
         self.flush = flush
         self.early_stopping = early_stopping
-        self.ScaleParam = S
+        self.ScaleParam = S if isinstance(S, (int, float)) else S.lower()  # if string then lower case, else use as is
         self.random_state = random_state
 
         # input validation
@@ -69,6 +69,7 @@ class GnosticNeuron:
                 'irrelevance': [],
                 'gnostic_score': [],
                 'gw_error': [],
+                'errors': []
             }
 
         self.params = {
@@ -99,7 +100,7 @@ class GnosticNeuron:
         z_acti = dc._convert_az(z_acti)
 
         chars = GnosticsCharacteristics(R=z_acti)
-        q, q1 = chars._get_q_q1(S=self.S)
+        q, q1 = chars._get_q_q1(S=self.S_local)
         if self.gnostic_activation == 'fi':
             acti = np.sum(chars._fi(q, q1))
         elif self.gnostic_activation == 'fj':
@@ -177,7 +178,7 @@ class GnosticNeuron:
             self.bias = 0.0
         if self.gw is None:
             self.gw = np.ones_like(y).reshape(-1, 1)
-        self.S = 1.0  # Initial scale parameter for gnostic weights
+        self.S_local = 1.0  # Initial scale parameter for gnostic weights
 
         # Early-stopping controller state.
         patience = 5
@@ -205,8 +206,12 @@ class GnosticNeuron:
             # gnostic weights from transformed error vector
             # gnostic wights switch
             if self.gnostic_weights:
-                self.gw = gw_engine._get_gnostic_weights(z_error)
-                self.S = gw_engine._get_S_local()
+                self.gw = gw_engine._get_gnostic_weights(z_error, scale_param=self.ScaleParam)
+                # only optimize S_local if self.ScaleParam is 'auto'
+                if self.ScaleParam == 'auto':
+                    self.S_local = gw_engine._get_S_local()
+                else:
+                    self.S_local = self.ScaleParam
                 self.fi = gw_engine._get_fi()
                 self.hi = gw_engine._get_hi()
                 self.re = gw_engine._get_re()
@@ -222,13 +227,11 @@ class GnosticNeuron:
                     err = np.sum(gw_engine._get_hj()**2)
                 elif self.gnostic_loss == 're':
                     err = np.sum(self.re)
-                    # normalize re
-                    err = err / (np.sum(np.abs(error)) + 1e-8)  # Avoid division by zero
                 else:
-                    err = err // np.sum(np.abs(error))  # Default to normalized error if unknown loss is specified
+                    err = np.sum(self.re)
             else:
                 self.gw = np.ones_like(error)
-                self.S = 1.0
+                self.S = self.ScaleParam if self.ScaleParam != 'auto' else 1.0
                 self.fi = np.ones_like(error)
                 self.hi = np.zeros_like(error)
                 self.re = np.zeros_like(error)
@@ -259,7 +262,7 @@ class GnosticNeuron:
                 self._history['fidelity'].append(np.sum(self.fi**2))
                 self._history['irrelevance'].append(np.sum(self.hi**2))
                 self._history['re'].append(err/(np.sum(np.abs(error)) + 1e-8))
-                # self._history['gnostic_score'].append(gnostic_score)
+                self._history['errors'].append(np.sqrt(np.mean(error**2)))
                 self._history['gw_error'].append(gw_error_score)
             elif self.history:
                 self._history['loss'].append(np.sum(np.abs(error)))
@@ -309,8 +312,10 @@ class GnosticNeuron:
             self.params['bias'] = self.bias
             self.params['gnostic_weights'] = self.gw
             self.params['gnostic_activation'] = self.gnostic_activation
+            self.params['gnostic_loss'] = self.gnostic_loss
+            self.params['error'] = error
             self.params['history'] = self._history if self.history else None
-            self.params['S'] = self.S
+            self.params['S'] = self.S_local
             self.params['fitted'] = self._fitted
 
             # Flush history to save memory
@@ -319,8 +324,9 @@ class GnosticNeuron:
                 self._history['fidelity'] = []
                 self._history['irrelevance'] = []
                 self._history['re'] = []
-                # self._history['gnostic_score'] = []
+                self._history['gnostic_score'] = []
                 self._history['gw_error'] = []
+                self._history['errors'] = []
             
     def __repr__(self):
         """Detailed string representation of the GnosticNeuron instance."""
