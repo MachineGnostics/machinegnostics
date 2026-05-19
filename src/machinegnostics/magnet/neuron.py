@@ -97,27 +97,34 @@ class GnosticNeuron:
     def _gnostic_activation(self, z):
         '''Gnostic activation function based on the characteristics of the input z.'''
         # only calculate this if gnostic activation in fi hi fj hj, otherwise skip the gnostic characteristics calculations and directly apply the specified activation function
-        z_acti = np.median(self.y) - np.median(z) # NOTE: this logic require deep dive
-        dc = DataConversion()
-        z_acti = dc._convert_az(z_acti)
+        z_acti = z-np.median(z) # NOTE: this logic require deep dive, Y median also can be used. but then in inference phase it creates dependencies on the training data distribution. This is a critical design choice that needs to be carefully evaluated and tested for stability and generalization.
+        z_acti = np.exp(z_acti)  # Transform error to positive space for gnostic characteristics calculations
         chars = GnosticsCharacteristics(R=z_acti)
         q, q1 = chars._get_q_q1(S=self.S_local)
 
+        # if self.gnostic_activation == 'fi': # NOTE this is alternative logic that need exploration
+        #     fi_v = chars._fi(q, q1)
+        #     # activation 
+        #     zz = z_acti - fi_v
+        #     chars_o = GnosticsCharacteristics(R=zz)
+        #     q, q1 = chars_o._get_q_q1(S=self.S_local)
+        #     acti = chars_o._fi(q, q1)
+        #     return acti
         if self.gnostic_activation == 'fi':
-            acti = np.sum(chars._fi(q, q1))
-            return acti * z
+            acti = chars._fi(q, q1)
+            return acti
         elif self.gnostic_activation == 'fj':
-            acti = np.sum(chars._fj(q, q1))
-            return acti * z
+            acti = chars._fj(q, q1)
+            return acti
         elif self.gnostic_activation == 'hi':
-            acti = np.sum(chars._hi(q, q1))
-            return acti * z
+            acti = chars._hi(q, q1)
+            return acti
         elif self.gnostic_activation == 'hj':
-            acti = np.sum(chars._hj(q, q1))
-            return acti * z
+            acti = chars._hj(q, q1)
+            return acti
         elif self.gnostic_activation == 'step':
             acti = self._step_activation(z)
-            return acti * z
+            return acti
         elif self.gnostic_activation == 'sigmoid':
             acti = 1 / (1 + np.exp(-z))  # Sigmoid activation
             return acti
