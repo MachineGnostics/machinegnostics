@@ -112,16 +112,16 @@ class GnosticNeuron:
         #     return acti
         if self.gnostic_activation == 'fi':
             acti = chars._fi(q, q1)
-            return acti
+            return acti * z
         elif self.gnostic_activation == 'fj':
             acti = chars._fj(q, q1)
-            return acti
+            return acti * z
         elif self.gnostic_activation == 'hi':
             acti = chars._hi(q, q1)
-            return acti
+            return acti * z
         elif self.gnostic_activation == 'hj':
             acti = chars._hj(q, q1)
-            return acti
+            return acti * z
         elif self.gnostic_activation == 'step':
             acti = self._step_activation(z)
             return acti
