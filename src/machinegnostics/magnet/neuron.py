@@ -105,36 +105,51 @@ class GnosticNeuron:
 
         if self.gnostic_activation == 'fi':
             acti = np.sum(chars._fi(q, q1))
+            return acti * z
         elif self.gnostic_activation == 'fj':
             acti = np.sum(chars._fj(q, q1))
+            return acti * z
         elif self.gnostic_activation == 'hi':
             acti = np.sum(chars._hi(q, q1))
+            return acti * z
         elif self.gnostic_activation == 'hj':
             acti = np.sum(chars._hj(q, q1))
+            return acti * z
         elif self.gnostic_activation == 'step':
             acti = self._step_activation(z)
+            return acti * z
         elif self.gnostic_activation == 'sigmoid':
             acti = 1 / (1 + np.exp(-z))  # Sigmoid activation
+            return acti
         elif self.gnostic_activation == 'relu':
             acti = np.maximum(0, z)  # ReLU activation
+            return acti
         elif self.gnostic_activation == 'tanh':
             acti = np.tanh(z)
+            return acti
         elif self.gnostic_activation == 'leaky_relu':
             acti = np.where(z > 0, z, 0.01 * z)
+            return acti
         elif self.gnostic_activation == 'elu':
             acti = np.where(z > 0, z, np.exp(z) - 1)
+            return acti
         elif self.gnostic_activation == 'softplus':
             acti = np.log1p(np.exp(np.clip(z, -50, 50)))
+            return acti
         elif self.gnostic_activation == 'softmax':
             exp_z = np.exp(z - np.max(z))  # for numerical stability
             acti = exp_z / np.sum(exp_z)
+            return acti
         elif self.gnostic_activation == 'swish':
             acti = z / (1 + np.exp(-z))
+            return acti
         elif self.gnostic_activation == 'gelu':
             acti = 0.5 * z * (1 + np.tanh(np.sqrt(2 / np.pi) * (z + 0.044715 * np.power(z, 3))))
+            return acti
         elif self.gnostic_activation == 'mish':
             softplus_z = np.log1p(np.exp(np.clip(z, -50, 50)))
             acti = z * np.tanh(softplus_z)
+            return acti
         elif self.gnostic_activation == 'linear':
             acti = 1  # Linear activation
         else:
@@ -253,9 +268,9 @@ class GnosticNeuron:
 
             # Verbose logging            
             if self.verbose and self.gnostic_weights:
-                print(f"Epoch {epoch+1}/{self.epochs}, Error: {np.sum(np.abs(error))}, Gnostic Error: {gnostic_score}, Mean Residual Entropy: {np.mean(self.re)}")
+                print(f"Epoch {epoch+1}/{self.epochs} | Error: {np.sum(np.abs(error))}, Gnostic Weighted Error: {gw_error_score}, Gnostic Loss ({self.gnostic_loss}): {err}")
             elif self.verbose:
-                print(f"Epoch {epoch+1}/{self.epochs}, Error: {np.sum(np.abs(error))}")
+                print(f"Epoch {epoch+1}/{self.epochs} | Error: {np.sum(np.abs(error))}")
             
             # fit status
             self._fitted = True
