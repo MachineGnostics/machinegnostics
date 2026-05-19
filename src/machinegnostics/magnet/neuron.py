@@ -21,6 +21,7 @@ class GnosticNeuron:
                  gnostic_loss='re', #options: 'fi', 'fj', 'hi', 'hj', 're'
                  random_state=42,
                  early_stopping=True,
+                 early_stopping_patience=5,
                  history=False,
                  flush=False):
         self.weights = None  # Weights will be initialized during training
@@ -36,6 +37,7 @@ class GnosticNeuron:
         self.history = history
         self.flush = flush
         self.early_stopping = early_stopping
+        self.early_stopping_patience = early_stopping_patience
         self.ScaleParam = S if isinstance(S, (int, float)) else S.lower()  # if string then lower case, else use as is
         self.random_state = random_state
 
@@ -94,13 +96,13 @@ class GnosticNeuron:
     
     def _gnostic_activation(self, z):
         '''Gnostic activation function based on the characteristics of the input z.'''
-        z0 = np.median(z)
-        z_acti = z0 - np.sum(z)
+        # only calculate this if gnostic activation in fi hi fj hj, otherwise skip the gnostic characteristics calculations and directly apply the specified activation function
+        z_acti = np.median(self.y) - np.median(z) # NOTE: this logic require deep dive
         dc = DataConversion()
         z_acti = dc._convert_az(z_acti)
-
         chars = GnosticsCharacteristics(R=z_acti)
         q, q1 = chars._get_q_q1(S=self.S_local)
+
         if self.gnostic_activation == 'fi':
             acti = np.sum(chars._fi(q, q1))
         elif self.gnostic_activation == 'fj':
@@ -146,12 +148,12 @@ class GnosticNeuron:
         W shape: (n, 1)
         Z shape: (m, 1)
         """
-        Z = X @ self.weights + self.bias  # Linear transformation
+        Y = X @ self.weights + self.bias  # Linear transformation
 
         if self.gnostic_activation:
-            return self._gnostic_activation(Z)
+            return self._gnostic_activation(Y)
         else:
-            return Z  # No activation, return linear output
+            return Y  # No activation, return linear output
 
     def _is_maximize_mode(self):
         # fi and hj are optimized by maximizing; others are minimized.
@@ -169,19 +171,19 @@ class GnosticNeuron:
         # shuffle data at the start of training for better convergence
         np.random.seed(self.random_state)
         indices = np.random.permutation(X.shape[0])
-        X = X[indices]
-        y = y[indices]
+        self.X = X[indices]
+        self.y = y[indices]
         # Initialize weights, bias, and gnostic weights if not already set
         if self.weights is None:
-            self.weights = np.zeros((X.shape[1], 1))
+            self.weights = np.zeros((self.X.shape[1], 1))
         if self.bias is None:
             self.bias = 0.0
         if self.gw is None:
-            self.gw = np.ones_like(y).reshape(-1, 1)
+            self.gw = np.ones_like(self.y).reshape(-1, 1)
         self.S_local = 1.0  # Initial scale parameter for gnostic weights
 
         # Early-stopping controller state.
-        patience = 5
+        patience = self.early_stopping_patience
         maximize_gnostic = self._is_maximize_mode()
         best_gnostic = -np.inf if maximize_gnostic else np.inf
         best_gw_error = np.inf
@@ -195,10 +197,10 @@ class GnosticNeuron:
         # Training loop
         for epoch in range(self.epochs):
             # 1. Forward pass (Calculate all predictions at once)
-            predictions = self.predict(X)
+            predictions = self.predict(self.X)
             
             # 2. Calculate error vector
-            error = y - predictions
+            error = self.y - predictions
 
             # gnostic weights from error vector
             z_error = np.exp(error)
@@ -225,10 +227,10 @@ class GnosticNeuron:
                     err = np.sum(self.hi**2)
                 elif self.gnostic_loss == 'hj':
                     err = np.sum(gw_engine._get_hj()**2)
-                elif self.gnostic_loss == 're':
+                elif self.gnostic_loss == 're': # NOTE: RE cannot be best option for convergence, but it should be tracked for interpretability and insights into the training dynamics. It is not used as the primary optimization objective.
                     err = np.sum(self.re)
                 else:
-                    err = np.sum(self.re)
+                    err = np.sum(self.fi)  # default to fi if invalid option
             else:
                 self.gw = np.ones_like(error)
                 self.S = self.ScaleParam if self.ScaleParam != 'auto' else 1.0
@@ -240,12 +242,14 @@ class GnosticNeuron:
 
             # gnostic weight update
             gw_error = self.gw * error
-            self.weights += self.lr * np.dot(X.T, gw_error)
+            self.weights += self.lr * np.dot(self.X.T, gw_error)
             self.bias += self.lr * np.sum(gw_error)
 
             # Scalar convergence metrics tracked each epoch.
             gnostic_score = float(np.asarray(err))
-            gw_error_score = float(np.sum(np.abs(gw_error)))
+            # gw_error_score = float(np.sum(np.abs(gw_error)))
+            # in rmse form for better interpretability and comparison with error
+            gw_error_score = float(np.sqrt(np.mean(gw_error**2)))
 
             # Verbose logging            
             if self.verbose and self.gnostic_weights:
