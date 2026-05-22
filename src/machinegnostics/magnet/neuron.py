@@ -102,17 +102,18 @@ class GnosticNeuron:
         chars = GnosticsCharacteristics(R=z_acti)
         q, q1 = chars._get_q_q1(S=self.S_local)
 
-        # if self.gnostic_activation == 'fi': # NOTE this is alternative logic that need exploration
-        #     fi_v = chars._fi(q, q1)
-        #     # activation 
-        #     zz = z_acti - fi_v
-        #     chars_o = GnosticsCharacteristics(R=zz)
-        #     q, q1 = chars_o._get_q_q1(S=self.S_local)
-        #     acti = chars_o._fi(q, q1)
-        #     return acti
-        if self.gnostic_activation == 'fi':
-            acti = chars._fi(q, q1)
-            return acti * z
+        if self.gnostic_activation == 'fi': # NOTE this is alternative logic that need exploration
+            fi_v = chars._fi(q, q1)
+            # activation 
+            zz = fi_v - np.median(z)
+            zz = np.exp(zz)  # Transform error to positive space for gnostic characteristics calculations & avoid overflow
+            gnostic_engine = GnosticsWeights()
+            _ = gnostic_engine._get_gnostic_weights(zz, scale_param=2)
+            acti = gnostic_engine._get_fi()
+            return acti
+        # if self.gnostic_activation == 'fi':
+        #     acti = chars._fi(q, q1)
+        #     return acti * z
         elif self.gnostic_activation == 'fj':
             acti = chars._fj(q, q1)
             return acti * z
