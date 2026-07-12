@@ -20,7 +20,7 @@ graph LR
     Bounds["[0, ∞] Bounds"]
     Laws["Laws of Nature"]
     MG["Machine Gnostics"]
-    AI["**AI** built with 'Laws of Nature'"]
+    AI["AI built with 'Laws of Nature'"]
     Universe["Universe"]
 
     Universe --> Entropy

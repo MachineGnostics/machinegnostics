@@ -17,17 +17,17 @@ The origins of Mathematical Gnostics trace back to the early 1980s, when **Pavel
 
 !!! note "Timeline of Development"
 
-| Era                  | Milestone                                                                                                                                                                                                            |
-| :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Late 1970s** | **Foundation**`<br>`**Pavel Kovanic** laid the foundation of **Mathematical Gnostics**, establishing a new paradigm of data variability.                                                         |
-| **1984**       | **First Publication**`<br>`The first printed publications and presentation at an international conference, introducing the theory to the wider scientific community.                                         |
-| **1990s**      | **Early Adopters & Software**`<br>`Practical applications in economics and financial analysis. Early private software implementations in BASIC, C, and S-PLUS.                                               |
-| **2000s**      | **Open Source Beginnings**`<br>`The first free/public software implementation in R, marking a shift towards open availability.                                                                               |
-| **2015**       | **International Collaboration**`<br>`Collaboration with **Prof. M.B. Humber** (USA), resulting in a co-authored book and further dissemination of the theory.                                          |
-| **2017**       | **Scientific Analysis Tools**`<br>`**Z. Wagner** developed the Octave gnostic software, crucial for analyzing atmospheric aerosols at the Czech Academy of Sciences.                                   |
-| **2018–2022** | **Research Expansion**`<br>`Application of gnostic methods expanded into environmental and medical research, including major EU projects.                                                                    |
-| **Late 2022**  | **The Machine Learning Connection**`<br>`**Nirmal Parmar** identified the link between Mathematical Gnostics and Machine Learning, initiating explorations into non-statistical AI (Machine Gnostics). |
-| **2023**       | **Machine Gnostics & Legacy**`<br>`**Pavel Kovanic** published his paperback book shortly before his passing. Concurrently, **Machine Gnostics** was born, bridging the theory with modern AI.   |
+    | Era | Milestone | Summary |
+    | --- | --- | --- |
+    | Late 1970s | Foundation | Pavel Kovanic laid the foundation of Mathematical Gnostics and a new view of data variability. |
+    | 1984 | First Publication | The first printed publications and an international conference presentation introduced the theory more broadly. |
+    | 1990s | Early Adopters & Software | Practical applications appeared in economics and finance, with early software in BASIC, C, and S-PLUS. |
+    | 2000s | Open Source Beginnings | The first free public implementation in R marked a shift toward open availability. |
+    | 2015 | International Collaboration | Collaboration with Prof. M. B. Humber in the USA led to a co-authored book and wider dissemination. |
+    | 2017 | Scientific Analysis Tools | Z. Wagner developed Octave gnostic software for atmospheric aerosol analysis at the Czech Academy of Sciences. |
+    | 2018–2022 | Research Expansion | Gnostic methods expanded into environmental and medical research, including major EU projects. |
+    | Late 2022 | Machine Learning Connection | Nirmal Parmar identified the link between Mathematical Gnostics and machine learning. |
+    | 2023 | Machine Gnostics & Legacy | Pavel Kovanic published his paperback book, and Machine Gnostics emerged as a new project. |
 
     For more information on the history and development of mathematical gnostics, visit:[math-gnostics.eu](https://www.math-gnostics.eu/history/)
 

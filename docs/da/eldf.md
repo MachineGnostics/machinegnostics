@@ -136,6 +136,7 @@ Returns a dictionary of all fitted parameters and results.
     ```
 
 === "Output"
+    ![ELDF Plot](image/eldf/1770031665093.png)
 
 ## Notes
 
