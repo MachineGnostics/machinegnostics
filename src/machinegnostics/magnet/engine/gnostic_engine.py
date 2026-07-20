@@ -14,13 +14,15 @@ from machinegnostics.magcal.util.logging import get_logger
 
 class GnosticEngine:
     '''
+    Gnostic Engine Class
+    
     Calculates Machine Gnostics weights as per different requirements.
 
     For internal use only.
     '''
     def __init__(self, verbose: bool = False):
-        self.logger = get_logger('GnosticsWeights', level=logging.WARNING if not verbose else logging.INFO)
-        self.logger.info("GnosticsWeights initialized.")
+        self.logger = get_logger(self.__class__.__name__, level=logging.WARNING if not verbose else logging.INFO)
+        self.logger.info(f"{self.__class__.__name__} initialized.")
 
     def _get_gnostic_weights(self, z, scale_param='auto'):
         """Compute gnostic weights."""
