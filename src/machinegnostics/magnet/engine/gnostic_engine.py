@@ -7,8 +7,6 @@ NOTE: this code is extension of src/machinegnostics/magcal/mg_weights.py. This d
 Author: Nirmal Parmar
 '''
 
-import gc
-
 import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 import logging
@@ -52,31 +50,50 @@ class GnosticEngine:
             self.logger.info("Gnostic weights computation with given scale parameter complete.")
             return wt
     
-    def _get_activation(self, z, scale_param='auto'):
+    def _get_activation(self, z_fi, scale_param='auto', activation_type='fi'):
         """Compute gnostic activation."""
         if scale_param == 'auto':
             self.logger.info("Computing gnostic activation and optimizing local scale...")
-            z0 = 1
-            zz = z / z0
+            # z0 = np.median(z)
+            zz = z_fi
             self.gc = GnosticsCharacteristics(R=zz)
             q, q1 = self.gc._get_q_q1(S=1)
             fi = self.gc._fi(q, q1)
             scale = ScaleParam()
             self.s = scale._gscale_loc(np.mean(fi))
             self.q, self.q1 = self.gc._get_q_q1(S=self.s)
-            self.fi = self.gc._fi(self.q, self.q1)
-            activation = self.fi
+            if activation_type == 'fi':
+                self.acti = self.gc._fi(self.q, self.q1)
+            elif activation_type == 'hi':
+                self.acti = self.gc._hi(self.q, self.q1)
+            elif activation_type == 'fj':
+                self.acti = self.gc._fj(self.q, self.q1)
+            elif activation_type == 'hj':
+                self.acti = self.gc._hj(self.q, self.q1)
+            else:
+                raise ValueError(f"Invalid activation_type: {activation_type}. Must be one of ['fi', 'hi', 'fj', 'hj'].")
+            activation = self.acti
             self.logger.info("Gnostic activation computation complete.")
             return activation
         else:
             self.s = scale_param
             self.logger.info("Computing gnostic activation with given scale parameter...")
-            z0 = 1
-            zz = z / z0
+            # z0 = np.median(z)
+            zz = z_fi
             self.gc = GnosticsCharacteristics(R=zz)
             self.q, self.q1 = self.gc._get_q_q1(S=self.s)
             self.fi = self.gc._fi(self.q, self.q1)
-            activation = self.fi
+            if activation_type == 'fi':
+                self.acti = self.gc._fi(self.q, self.q1)
+            elif activation_type == 'hi':
+                self.acti = self.gc._hi(self.q, self.q1)
+            elif activation_type == 'fj':
+                self.acti = self.gc._fj(self.q, self.q1)
+            elif activation_type == 'hj':
+                self.acti = self.gc._hj(self.q, self.q1)
+            else:
+                raise ValueError(f"Invalid activation_type: {activation_type}. Must be one of ['fi', 'hi', 'fj', 'hj'].")
+            activation = self.acti
             self.logger.info("Gnostic activation computation with given scale parameter complete.")
             return activation
     
