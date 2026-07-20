@@ -243,7 +243,7 @@ class GnosticNeuron:
         Returns:
         - activation: Regular activation values (numpy array)
         """
-        activation = ActivationFunctions(verbose=self.verbose).activate(z, activation_type=activation_type)
+        activation = self.activation_functions.activate(z, activation_type=activation_type)
         return activation
     
     def score(self, X, y):
