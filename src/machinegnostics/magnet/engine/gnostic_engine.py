@@ -15,7 +15,7 @@ from machinegnostics.magcal.util.logging import get_logger
 class GnosticEngine:
     '''
     Gnostic Engine Class
-    
+
     Calculates Machine Gnostics weights as per different requirements.
 
     For internal use only.
@@ -27,7 +27,7 @@ class GnosticEngine:
     def _get_gnostic_weights(self, z, scale_param='auto'):
         """Compute gnostic weights."""
         if scale_param == 'auto':
-            self.logger.info("Computing gnostic weights and optimizing local scale...")
+            self.logger.debug("Computing gnostic weights and optimizing local scale...")
             z0 = np.median(z)
             zz = z / z0
             self.gc = GnosticsCharacteristics(R=zz)
@@ -38,24 +38,24 @@ class GnosticEngine:
             self.q, self.q1 = self.gc._get_q_q1(S=self.s)
             self.fi = self.gc._fi(self.q, self.q1)
             wt = self.fi**2
-            self.logger.info("Gnostic weights computation complete.")
+            self.logger.debug("Gnostic weights computation complete.")
             return wt
         else:
             self.s = scale_param
-            self.logger.info("Computing gnostic weights with given scale parameter...")
+            self.logger.debug("Computing gnostic weights with given scale parameter...")
             z0 = np.median(z)
             zz = z / z0
             self.gc = GnosticsCharacteristics(R=zz)
             self.q, self.q1 = self.gc._get_q_q1(S=self.s)
             self.fi = self.gc._fi(self.q, self.q1)
             wt = self.fi**2
-            self.logger.info("Gnostic weights computation with given scale parameter complete.")
+            self.logger.debug("Gnostic weights computation with given scale parameter complete.")
             return wt
     
     def _get_activation(self, z_fi, scale_param='auto', activation_type='fi'):
         """Compute gnostic activation."""
         if scale_param == 'auto':
-            self.logger.info("Computing gnostic activation and optimizing local scale...")
+            self.logger.debug("Computing gnostic activation and optimizing local scale...")
             # z0 = np.median(z)
             zz = z_fi
             self.gc = GnosticsCharacteristics(R=zz)
@@ -75,11 +75,11 @@ class GnosticEngine:
             else:
                 raise ValueError(f"Invalid activation_type: {activation_type}. Must be one of ['fi', 'hi', 'fj', 'hj'].")
             activation = self.acti
-            self.logger.info("Gnostic activation computation complete.")
+            self.logger.debug("Gnostic activation computation complete.")
             return activation
         else:
             self.s = scale_param
-            self.logger.info("Computing gnostic activation with given scale parameter...")
+            self.logger.debug("Computing gnostic activation with given scale parameter...")
             # z0 = np.median(z)
             zz = z_fi
             self.gc = GnosticsCharacteristics(R=zz)
@@ -96,7 +96,7 @@ class GnosticEngine:
             else:
                 raise ValueError(f"Invalid activation_type: {activation_type}. Must be one of ['fi', 'hi', 'fj', 'hj'].")
             activation = self.acti
-            self.logger.info("Gnostic activation computation with given scale parameter complete.")
+            self.logger.debug("Gnostic activation computation with given scale parameter complete.")
             return activation
     
     def _get_fi(self):
