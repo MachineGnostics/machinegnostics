@@ -186,12 +186,18 @@ class GnosticNeuron:
     
         # Optional rentropy check if history tracking is enabled
         if self.history and self._history is not None and len(self._history['rentropy']) >= early_stopping_patience:
-            recent_rentropy = self._history['rentropy'][-early_stopping_patience:]
-            rentropy_trend = np.mean(np.diff(recent_rentropy))
-    
-            if rentropy_trend > 0:
+            recent_rentropy = np.asarray(self._history['rentropy'][-early_stopping_patience:], dtype=float)
+            rentropy_deltas = np.diff(recent_rentropy)
+        
+            # Warn only if rentropy is rising in most recent steps
+            rising_steps = np.sum(rentropy_deltas > 0)
+            rentropy_slope = np.polyfit(np.arange(len(recent_rentropy)), recent_rentropy, 1)[0]
+        
+            if rising_steps >= max(1, early_stopping_patience - 2) and rentropy_slope > 0:
                 self.logger.warning(
-                    "Convergence check: rentropy is increasing. The model may be diverging or learning noise."
+                    f"Convergence check: rentropy is trending upward "
+                    # f"(slope={rentropy_slope:.6f}, recent_mean_delta={np.mean(rentropy_deltas):.6f}). "
+                    "The model may be diverging or learning noise."
                 )
     
         return False
