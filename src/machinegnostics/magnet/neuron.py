@@ -22,7 +22,8 @@ class GnosticNeuron:
     - Gnostic Neuron has two addional capabilities compared to a standard neuron: 1. Gnostic Weights and 2. Gnostic Activation. These are computed using the GnosticEngine class.
     """
 
-    def __init__(self, learning_rate:float=0.01,
+    def __init__(self, 
+                 learning_rate:float=0.01,
                  epochs:int=100, 
                  scale_param: str|float='auto',
                  early_stopping:bool=False,
@@ -52,7 +53,10 @@ class GnosticNeuron:
                         'loss': [],
                         'gnostic_loss': [],
                         'rentropy': [],
-                        'gnostic_characteristics': [],
+                        'mean_fi': [],
+                        'mean_hi_square': [],
+                        'mean_fj': [],
+                        'mean_hj_square': [],
                         } if history else None
         
         self.params = {
@@ -125,42 +129,71 @@ class GnosticNeuron:
             loss = np.mean(errors ** 2)
             gnostic_loss = np.mean(gnostic_errors ** 2)
             # gnsotic characteristics loss [fi, fj]
-            gnostic_char_loss = self.compute_gnostic_charc_loss()
+            self.compute_gnostic_charc_loss()
 
             # history tracking
             if self.history:
                 self._history['loss'].append(loss)
                 self._history['gnostic_loss'].append(gnostic_loss)
                 self._history['rentropy'].append(np.mean(self.gnostic_weights))
-                self._history['gnostic_characteristics'].append(gnostic_char_loss)
 
             # print status
             if self.verbose:
-                self.logger.info(f"Epoch {epoch+1}/{self.epochs} - Loss: {loss:.6f}, Gnostic Loss: {gnostic_loss:.6f}, Gnostic Char Loss: {gnostic_char_loss:.6f}")
+                self.logger.info(f"Epoch {epoch+1}/{self.epochs} - Loss: {loss:.6f}, Gnostic Loss: {gnostic_loss:.6f}")
 
             # convergance check
+            if self.early_stopping and self.convergance_check(self._history['gnostic_loss'], self.tolerance, self.early_stopping_patience):
+                if self.verbose:
+                    self.logger.info(f"Early stopping at epoch {epoch+1} due to convergence.")
+                break
+        
 
         self._fitted = True
+        if self.verbose:
+            self.logger.info("Gnostic Neuron model fitting complete.")
 
     def convergance_check(self, history, tolerance, early_stopping_patience):
         """
         Check for convergence based on the loss history.
-
+    
         Parameters:
-        - history: List of loss values
+        - history: List of gnostic loss values
         - tolerance: Tolerance for convergence
         - early_stopping_patience: Number of epochs to wait for improvement
-
+    
+        Logic:
+        - consider gnostic loss for convergence check.
+        - If gnostic loss is increasing or not improving for `early_stopping_patience` epochs,
+          then consider the model has converged.
+        - If the difference between the max and min gnostic loss in the last
+          `early_stopping_patience` epochs is less than `tolerance`, then consider the model
+          has converged.
+        - If rentropy is increasing, give a warning that the model may be diverging and may
+          be learning noise.
+    
         Returns:
         - converged: Boolean indicating if the model has converged
         """
         if len(history) < early_stopping_patience:
             return False
-
+    
         recent_losses = history[-early_stopping_patience:]
-        if max(recent_losses) - min(recent_losses) < tolerance:
+        loss_range = np.max(recent_losses) - np.min(recent_losses)
+    
+        if loss_range < tolerance:
+            self.logger.info("Convergence check: Model has converged based on gnostic loss.")
             return True
-
+    
+        # Optional rentropy check if history tracking is enabled
+        if self.history and self._history is not None and len(self._history['rentropy']) >= early_stopping_patience:
+            recent_rentropy = self._history['rentropy'][-early_stopping_patience:]
+            rentropy_trend = np.mean(np.diff(recent_rentropy))
+    
+            if rentropy_trend > 0:
+                self.logger.warning(
+                    "Convergence check: rentropy is increasing. The model may be diverging or learning noise."
+                )
+    
         return False
     
     def compute_gnostic_charc_loss(self):
@@ -171,13 +204,22 @@ class GnosticNeuron:
         - gnostic_char_loss: Computed gnostic characteristics loss (float)
         """
         if self.gnostic_char_loss == 'fi':
-            gnostic_char_loss = np.mean(self.gnostic_engine._get_fi())
+            gnostic_char_loss_fi = np.mean(self.gnostic_engine._get_fi())
+            gnostic_char_loss_hi = np.mean(self.gnostic_engine._get_hi()**2)
+            if self.history:
+                self._history['mean_fi'].append(gnostic_char_loss_fi)
+                self._history['mean_hi_square'].append(gnostic_char_loss_hi)
+
         elif self.gnostic_char_loss == 'fj':
-            gnostic_char_loss = np.mean(self.gnostic_engine._get_fj())
+            gnostic_char_loss_fj = np.mean(self.gnostic_engine._get_fj())
+            gnostic_char_loss_hj = np.mean(self.gnostic_engine._get_hj()**2)
+            if self.history:
+                self._history['mean_fj'].append(gnostic_char_loss_fj)
+                self._history['mean_hj_square'].append(gnostic_char_loss_hj)
         else:
             raise ValueError(f"Invalid gnostic_char_loss: {self.gnostic_char_loss}. Must be one of ['fi', 'fj'].")
         
-        return gnostic_char_loss
+        return None  # Placeholder, can be modified to return actual gnostic characteristics loss if needed
 
     def predict(self, X):
         """
