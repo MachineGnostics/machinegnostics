@@ -15,7 +15,7 @@ import logging
 
 import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics, DataConversion
-from machinegnostics.magnet.engine.gnostic_wights import GnosticsWeights
+from machinegnostics.magnet.engine.gnostic_engine import GnosticEngine
 from machinegnostics.magnet.base_neuron import BaseGnosticNeuron
 from machinegnostics.magcal.util.logging import get_logger
 
@@ -29,7 +29,7 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
                  use_gnostic_weights:bool=True, # NOTE: exploration with E-gw and Q-gw
                  activation:str='fi', # options: 'fi', 'fj', 'hi', 'hj', step, sigmoid, relu, linear, tanh, leaky_relu, elu, softplus, swish, gelu, mish
                  gnostic_weights_type:str='E', # Estimating and Quantifying gnostic weights, options: 'E' for E-gw, 'Q' for Q-gw ['E', 'Q'] or e q
-                 gnostic_loss:str='re', #options: 'fi', 'fj', 'hi', 'hj'
+                 gnostic_loss:str='fj', #options: 'fi', 'fj', 'hi', 'hj'
                  random_state:int=42,
                  early_stopping:bool=True,
                  early_stopping_patience:int=5,
@@ -167,7 +167,7 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
         # conditional initiation of gnostic engine
         if activation in ['fi', 'fj', 'hi', 'hj']:
             # init of classes
-            gnostic_engine = GnosticsWeights()
+            gnostic_engine = GnosticEngine()
             data_conv = DataConversion()
             error = predictions - np.median(true_labels)  # Calculate error based on median of true labels for stabilitycharacteristics calculations
             z_error = data_conv._convert_az(error)  # Convert error to az space for gnostic characteristics calculations
@@ -243,7 +243,7 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
         predictions = self._activation(linear_output, self.y)  # Apply activation
         return predictions
     
-    def _calculate_gnostic_weights(self, error, data_conv: DataConversion, gnostic_engine: GnosticsWeights):
+    def _calculate_gnostic_weights(self, error, data_conv: DataConversion, gnostic_engine: GnosticEngine):
         pass
         
     def _fit(self, X, y):
@@ -269,7 +269,7 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
         self.S_local = 1.0
 
         # Use config flag for enable/disable, keep gw for runtime tensor
-        self.gnostic_engine = GnosticsWeights() if self.use_gnostic_weights else None
+        self.gnostic_engine = GnosticEngine() if self.use_gnostic_weights else None
         data_conv = DataConversion()
         self.logger.info("Gnostic engine initialized. Starting training loop.")
 
@@ -317,7 +317,7 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
                     self.S_local = self.ScaleParam
 
                 self.fidelity = self.gnostic_engine._get_fi()
-                self.irrelevance = self.gnostic_engine._get_fj()
+                self.irrelevance = self.gnostic_engine._get_hi()
                 self.residual_entropy = self.gnostic_engine._get_re()
             else:
                 self.gw = np.ones_like(z_error, dtype=self.float_type)
@@ -329,13 +329,13 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
             # loss
             if self.gnostic_loss in {"fi", "fj", "hi", "hj"} and self.use_gnostic_weights:
                 if self.gnostic_loss == "fi":
-                    loss = np.sum(self.fidelity)
+                    loss = np.mean(self.fidelity)
                 elif self.gnostic_loss == "fj":
-                    loss = np.sum(self.gnostic_engine._get_fj())
+                    loss = np.mean(self.gnostic_engine._get_fj())
                 elif self.gnostic_loss == "hi":
-                    loss = np.sum(self.irrelevance)
+                    loss = np.mean(self.irrelevance)
                 else:  # "hj"
-                    loss = np.sum(self.gnostic_engine._get_hj())
+                    loss = np.mean(self.gnostic_engine._get_hj())
             else:
                 loss = np.mean(residual_error ** 2)
 
@@ -356,13 +356,13 @@ class BaseGnosticNeuronCalc(BaseGnosticNeuron):
             # history update first, then convergence checks use current epoch included
             if self.history:
                 self._history["loss"].append(float(loss))
-                self._history["errors"].append(float(np.sum(residual_error ** 2)))
-                self._history["fidelity"].append(float(np.sum(self.fidelity)))
-                self._history["irrelevance"].append(float(np.sum(self.irrelevance)))
-                re_val = float(np.sum(self.residual_entropy))
+                self._history["errors"].append(float(np.mean(residual_error ** 2)))
+                self._history["fidelity"].append(float(np.mean(self.fidelity)))
+                self._history["irrelevance"].append(float(np.mean(self.irrelevance)))
+                re_val = float(np.mean(self.residual_entropy))
                 self._history["residual_entropy"].append(re_val)
                 self._history["re"].append(re_val)
-                self._history["gw_error"].append(float(np.sum(gnostic_weighted_error ** 2)))
+                self._history["gw_error"].append(float(np.mean(gnostic_weighted_error ** 2)))
                 self._history["S_local"].append(float(self.S_local))
 
                 if self.gnostic_loss in {"fi", "fj", "hi", "hj"} and self.use_gnostic_weights:
