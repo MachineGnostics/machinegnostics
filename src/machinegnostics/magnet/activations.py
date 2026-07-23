@@ -29,10 +29,7 @@ class ActivationFunctions:
 
 	def __init__(self, verbose: bool = False):
 		self.verbose = verbose
-		self.logger = get_logger(
-			self.__class__.__name__,
-			logging.DEBUG if self.verbose else logging.WARNING,
-		)
+		self.logger = get_logger(self.__class__.__name__, logging.INFO if self.verbose else logging.WARNING)
 		self.logger.info(f"{self.__class__.__name__} initialized.")
 
 	def _as_array(self, z):
@@ -46,7 +43,7 @@ class ActivationFunctions:
 		Notes:
 		- This is the identity transformation.
 		"""
-		self.logger.info("Computing linear activation.")
+		self.logger.debug("Computing linear activation.")
 		return self._as_array(z)
 
 	def sigmoid(self, z):
@@ -56,7 +53,7 @@ class ActivationFunctions:
 		Notes:
 		- Output is bounded between 0 and 1.
 		"""
-		self.logger.info("Computing sigmoid activation.")
+		self.logger.debug("Computing sigmoid activation.")
 		z = self._as_array(z)
 		return 1 / (1 + np.exp(-z))
 
@@ -67,7 +64,7 @@ class ActivationFunctions:
 		Notes:
 		- Output is bounded between -1 and 1.
 		"""
-		self.logger.info("Computing tanh activation.")
+		self.logger.debug("Computing tanh activation.")
 		z = self._as_array(z)
 		return np.tanh(z)
 
@@ -78,7 +75,7 @@ class ActivationFunctions:
 		Notes:
 		- Negative values are clipped to zero.
 		"""
-		self.logger.info("Computing relu activation.")
+		self.logger.debug("Computing relu activation.")
 		z = self._as_array(z)
 		return np.maximum(0, z)
 
@@ -89,7 +86,7 @@ class ActivationFunctions:
 		Notes:
 		- Values greater than or equal to zero map to 1, otherwise 0.
 		"""
-		self.logger.info("Computing step activation.")
+		self.logger.debug("Computing step activation.")
 		z = self._as_array(z)
 		return np.where(z >= 0, 1, 0)
 
@@ -100,7 +97,7 @@ class ActivationFunctions:
 		Notes:
 		- Negative values are scaled by `alpha` instead of being clipped to zero.
 		"""
-		self.logger.info("Computing leaky_relu activation.")
+		self.logger.debug("Computing leaky_relu activation.")
 		z = self._as_array(z)
 		return np.where(z > 0, z, alpha * z)
 
@@ -112,7 +109,7 @@ class ActivationFunctions:
 		- Positive values pass through unchanged.
 		- Negative values use an exponential decay controlled by `alpha`.
 		"""
-		self.logger.info("Computing elu activation.")
+		self.logger.debug("Computing elu activation.")
 		z = self._as_array(z)
 		return np.where(z > 0, z, alpha * (np.exp(z) - 1))
 
@@ -124,7 +121,7 @@ class ActivationFunctions:
 		- This is a smooth approximation of ReLU.
 		- Implemented with `log1p` for better numerical stability.
 		"""
-		self.logger.info("Computing softplus activation.")
+		self.logger.debug("Computing softplus activation.")
 		z = self._as_array(z)
 		return np.log1p(np.exp(z))
 
@@ -135,7 +132,7 @@ class ActivationFunctions:
 		Notes:
 		- Swish is defined as `z * sigmoid(z)`.
 		"""
-		self.logger.info("Computing swish activation.")
+		self.logger.debug("Computing swish activation.")
 		z = self._as_array(z)
 		return z / (1 + np.exp(-z))
 
@@ -146,7 +143,7 @@ class ActivationFunctions:
 		Notes:
 		- Uses the common tanh-based approximation.
 		"""
-		self.logger.info("Computing gelu activation.")
+		self.logger.debug("Computing gelu activation.")
 		z = self._as_array(z)
 		return 0.5 * z * (1 + np.tanh(np.sqrt(2 / np.pi) * (z + 0.044715 * np.power(z, 3))))
 
@@ -157,7 +154,7 @@ class ActivationFunctions:
 		Notes:
 		- Mish is defined as `z * tanh(softplus(z))`.
 		"""
-		self.logger.info("Computing mish activation.")
+		self.logger.debug("Computing mish activation.")
 		z = self._as_array(z)
 		return z * np.tanh(np.log1p(np.exp(z)))
 
@@ -169,7 +166,7 @@ class ActivationFunctions:
 		- The last axis is normalized.
 		- A max-subtraction is used for numerical stability.
 		"""
-		self.logger.info("Computing softmax activation.")
+		self.logger.debug("Computing softmax activation.")
 		z = self._as_array(z)
 		if z.ndim == 0:
 			return np.array(1.0)
@@ -188,7 +185,7 @@ class ActivationFunctions:
 		Returns:
 		- activation: Activated values.
 		"""
-		self.logger.info(f"Dispatching activation type: {activation_type}.")
+		self.logger.debug(f"Dispatching activation type: {activation_type}.")
 
 		if activation_type == 'linear':
 			return self.linear(z)
