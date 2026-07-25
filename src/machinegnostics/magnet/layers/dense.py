@@ -22,8 +22,9 @@ class Dense(Layer):
         kernel_initializer: InitializerLike | None = None,
         bias_initializer: InitializerLike | None = None,
         name: str | None = None,
+        verbose: bool = False,
     ):
-        super().__init__(name=name)
+        super().__init__(name=name, verbose=verbose)
         self.units = units
         self.input_dim = input_dim
         self.activation = get_activation(activation)
@@ -49,8 +50,10 @@ class Dense(Layer):
         if self.use_bias:
             self.bias = Tensor(self.bias_initializer((self.units,)), requires_grad=True)
         self.built = True
+        self.logger.info(f"Built Dense layer with input_dim={input_dim}, units={self.units}.")
 
     def forward(self, inputs: Tensor, training: bool = True) -> Tensor:
+        self.logger.debug(f"Forward pass through Dense layer '{self.name}'.")
         output = inputs.matmul(self.kernel)
         if self.use_bias and self.bias is not None:
             output = output + self.bias
