@@ -7,9 +7,9 @@ Copyright (C) 2026 Nirmal Parmar
 
 import numpy as np
 from machinegnostics.magcal import DataConversion
-from machinegnostics.magnet.activations import ActivationFunctions
+from machinegnostics.magnet.gn_activations import ActivationFunctions
 from machinegnostics.magnet.engine.gnostic_engine import GnosticEngine
-from machinegnostics.magnet.activations import ActivationFunctions
+from machinegnostics.magnet.gn_activations import ActivationFunctions
 import logging
 from machinegnostics.magcal.util.logging import get_logger
 
