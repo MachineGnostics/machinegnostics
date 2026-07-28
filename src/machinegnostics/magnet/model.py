@@ -1,174 +1,158 @@
-"""Model containers and training loop."""
+"""Model and Sequential containers for magnet."""
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Union
-
 import numpy as np
 
-from .callbacks import Callback
 from .history import History
-from .losses import LossLike, get_loss
-from .optimizers import Optimizer, get_optimizer
+from .losses import get_loss, Loss
+from .optimizers import get_optimizer
 from .tensor import Tensor
-from .layers import Layer
 
 
 class Model:
-    """Base ANN model with a Keras-style compile/fit/predict API."""
+	def __init__(self, layers=None):
+		self.layers = list(layers or [])
+		self.loss_fn: Loss | None = None
+		self.optimizer = None
+		self._history = History()
+		self.history = self._history
+		self.stop_training = False
 
-    def __init__(self, name: str | None = None):
-        self.name = name or self.__class__.__name__.lower()
-        self.loss_fn = None
-        self.optimizer: Optimizer | None = None
-        self._history = History()
-        self.stop_training = False
+	@property
+	def params(self):
+		parameters = []
+		for layer in self.layers:
+			if getattr(layer, "trainable", True):
+				parameters.extend(list(layer.parameters()))
+		return parameters
 
-    @property
-    def params(self) -> List[Tensor]:
-        return []
+	def add(self, layer):
+		self.layers.append(layer)
 
-    def compile(self, optimizer: Union[str, Optimizer, None] = None, loss: LossLike = "mse") -> None:
-        """Attach optimizer and loss function before training."""
+	def compile(self, loss, optimizer):
+		self.loss_fn = get_loss(loss)
+		self.optimizer = get_optimizer(optimizer)
 
-        self.optimizer = get_optimizer(optimizer)
-        self.loss_fn = get_loss(loss)
+	def forward(self, x, training=True):
+		output = x if isinstance(x, Tensor) else Tensor(x)
+		for layer in self.layers:
+			output = layer(output, training=training)
+		return output
 
-    def forward(self, inputs: Tensor, training: bool = True) -> Tensor:
-        raise NotImplementedError
+	def predict(self, x, batch_size=None):
+		array = np.asarray(x, dtype=np.float64)
+		if batch_size is None:
+			return self.forward(array, training=False).data
+		outputs = []
+		for index in range(0, len(array), batch_size):
+			outputs.append(self.forward(array[index : index + batch_size], training=False).data)
+		return np.concatenate(outputs, axis=0)
 
-    def _tensorize(self, x, requires_grad: bool = False) -> Tensor:
-        return Tensor(np.asarray(x, dtype=np.float64), requires_grad=requires_grad)
+	def evaluate(self, x, y, batch_size=32):
+		array_x = np.asarray(x, dtype=np.float64)
+		array_y = np.asarray(y, dtype=np.float64)
+		total_loss = 0.0
+		n_batches = 0
+		for index in range(0, len(array_x), batch_size):
+			xb, yb = array_x[index : index + batch_size], array_y[index : index + batch_size]
+			y_pred = self.forward(xb, training=False)
+			loss = self.loss_fn(y_pred, yb)
+			total_loss += loss.data.item() if isinstance(loss, Tensor) else float(loss)
+			n_batches += 1
+		return total_loss / max(n_batches, 1)
 
-    def get_weights(self):
-        return [param.data.copy() for param in self.params]
+	def fit(self, x, y, epochs=10, batch_size=32, validation_data=None, shuffle=True, verbose=True, callbacks=None):
+		array_x = np.asarray(x, dtype=np.float64)
+		array_y = np.asarray(y, dtype=np.float64)
+		callback_list = list(callbacks or [])
+		self.stop_training = False
+		self._history = History()
+		self.history = self._history
 
-    def set_weights(self, weights) -> None:
-        for param, weight in zip(self.params, weights):
-            param.data = np.asarray(weight, dtype=np.float64)
+		for callback in callback_list:
+			if hasattr(callback, "set_model"):
+				callback.set_model(self)
+			if hasattr(callback, "on_train_begin"):
+				callback.on_train_begin({})
 
-    def _prepare_callbacks(self, callbacks: Optional[Sequence[Callback]]) -> List[Callback]:
-        callback_list = list(callbacks or [])
-        for callback in callback_list:
-            callback.set_model(self)
-        return callback_list
+		for epoch in range(epochs):
+			for callback in callback_list:
+				if hasattr(callback, "on_epoch_begin"):
+					callback.on_epoch_begin(epoch, {})
 
-    def fit(
-        self,
-        x,
-        y,
-        epochs: int = 1,
-        batch_size: int = 32,
-        validation_split: float = 0.0,
-        validation_data=None,
-        callbacks: Optional[Sequence[Callback]] = None,
-        shuffle: bool = True,
-        verbose: int = 1,
-    ) -> History:
-        if self.optimizer is None or self.loss_fn is None:
-            raise RuntimeError("Call compile() before fit().")
+			if shuffle:
+				indices = np.random.permutation(len(array_x))
+				array_x = array_x[indices]
+				array_y = array_y[indices]
 
-        x = np.asarray(x, dtype=np.float64)
-        y = np.asarray(y, dtype=np.float64)
+			epoch_loss = 0.0
+			n_batches = 0
+			for index in range(0, len(array_x), batch_size):
+				xb, yb = array_x[index : index + batch_size], array_y[index : index + batch_size]
+				y_pred = self.forward(xb, training=True)
+				loss = self.loss_fn(y_pred, yb)
+				if isinstance(loss, Tensor):
+					loss.backward()
+					self.optimizer.step(self.params)
+					self.optimizer.zero_grad(self.params)
+					batch_loss = loss.data.item()
+				else:
+					batch_loss = float(loss)
+				epoch_loss += batch_loss
+				n_batches += 1
 
-        if validation_data is not None:
-            x_val, y_val = validation_data
-            x_train, y_train = x, y
-        elif validation_split > 0.0:
-            split_index = int(len(x) * (1.0 - validation_split))
-            x_train, x_val = x[:split_index], x[split_index:]
-            y_train, y_val = y[:split_index], y[split_index:]
-        else:
-            x_train, y_train = x, y
-            x_val = y_val = None
+			epoch_loss /= max(n_batches, 1)
+			self._history.setdefault("loss", []).append(epoch_loss)
+			logs = {"loss": epoch_loss}
 
-        callback_list = self._prepare_callbacks(callbacks)
-        self.stop_training = False
-        for callback in callback_list:
-            callback.on_train_begin({})
+			if validation_data is not None:
+				val_x, val_y = validation_data
+				val_loss = self.evaluate(val_x, val_y, batch_size=batch_size)
+				self._history.setdefault("val_loss", []).append(val_loss)
+				logs["val_loss"] = val_loss
 
-        history = History()
+			for layer in self.layers:
+				if hasattr(layer, "sync_grads"):
+					layer.sync_grads()
 
-        for epoch in range(epochs):
-            for callback in callback_list:
-                callback.on_epoch_begin(epoch, {})
+			for callback in callback_list:
+				if hasattr(callback, "on_epoch_end"):
+					callback.on_epoch_end(epoch, logs)
 
-            if shuffle:
-                indices = np.random.permutation(len(x_train))
-                x_train = x_train[indices]
-                y_train = y_train[indices]
+			if verbose:
+				message = f"Epoch {epoch + 1}/{epochs} - loss: {epoch_loss:.4f}"
+				if validation_data is not None:
+					message += f" - val_loss: {logs['val_loss']:.4f}"
+				print(message)
 
-            epoch_losses = []
-            for start in range(0, len(x_train), batch_size):
-                end = start + batch_size
-                batch_x = self._tensorize(x_train[start:end])
-                batch_y = self._tensorize(y_train[start:end])
+			if self.stop_training:
+				break
 
-                predictions = self.forward(batch_x, training=True)
-                loss = self.loss_fn(batch_y, predictions)
-                epoch_losses.append(float(loss.data))
+		for callback in callback_list:
+			if hasattr(callback, "on_train_end"):
+				callback.on_train_end({"loss": self._history.get("loss", []), "val_loss": self._history.get("val_loss", [])})
 
-                loss.backward()
-                self.optimizer.step(self.params)
-                self.optimizer.zero_grad(self.params)
+		return self._history
 
-            logs = {"loss": float(np.mean(epoch_losses))}
+	def get_weights(self):
+		return [param.data.copy() for param in self.params]
 
-            if x_val is not None and y_val is not None:
-                val_predictions = self.predict(x_val)
-                val_loss = self.loss_fn(self._tensorize(y_val), self._tensorize(val_predictions))
-                logs["val_loss"] = float(val_loss.data)
+	def set_weights(self, weights):
+		for param, weight in zip(self.params, weights):
+			param.data = np.asarray(weight, dtype=np.float64).copy()
 
-            history.append(logs)
-            self._history.append(logs)
-
-            for callback in callback_list:
-                callback.on_epoch_end(epoch, logs)
-
-            if verbose:
-                metrics_text = ", ".join(f"{key}: {value:.6f}" for key, value in logs.items())
-                print(f"Epoch {epoch + 1}/{epochs} - {metrics_text}")
-
-            if self.stop_training:
-                break
-
-        for callback in callback_list:
-            callback.on_train_end(self._history.as_dict())
-
-        return history
-
-    def predict(self, x):
-        inputs = self._tensorize(x)
-        outputs = self.forward(inputs, training=False)
-        return outputs.data
+	def summary(self):
+		print(f"{'Layer':<20}{'Output Shape':<20}{'Param #':<10}")
+		print("-" * 50)
+		total_params = 0
+		for layer in self.layers:
+			n_params = sum(param.data.size for param in layer.parameters())
+			total_params += n_params
+			print(f"{layer.name:<20}{'?':<20}{n_params:<10}")
+		print("-" * 50)
+		print(f"Total trainable params: {total_params}")
 
 
 class Sequential(Model):
-    """A simple stack of layers for ANN workflows."""
-
-    def __init__(self, layers: Optional[Sequence[Layer]] = None, name: str | None = None):
-        super().__init__(name=name)
-        self.layers: List[Layer] = list(layers or [])
-
-    def add(self, layer: Layer) -> None:
-        self.layers.append(layer)
-
-    @property
-    def params(self) -> List[Tensor]:
-        params: List[Tensor] = []
-        for layer in self.layers:
-            params.extend(layer.params)
-        return params
-
-    def forward(self, inputs: Tensor, training: bool = True) -> Tensor:
-        output = inputs
-        for layer in self.layers:
-            output = layer(output, training=training)
-        return output
-
-    def summary(self) -> None:
-        """Print a small human-readable model summary."""
-
-        print(f"Model: {self.name}")
-        for index, layer in enumerate(self.layers, start=1):
-            print(f"  {index}. {layer.__class__.__name__} name={layer.name} trainable={layer.trainable}")
+	pass

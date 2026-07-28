@@ -1,15 +1,38 @@
 """Machine Gnostics magnet package.
 
-The package exposes ANN building blocks directly from `machinegnostics.magnet`.
+Tensor-based neural network primitives for the Machine Gnostics project.
 """
 
-from .gn_activations import ActivationFunctions
-from .neuron import GnosticNeuron
 from .tensor import Tensor
-from .model import Model, Sequential
 from .history import History
+from .initializers import get_initializer, Initializer, Zeros, Ones, RandomNormal, XavierUniform, HeNormal
+from .activations import (
+	get_activation,
+	fi,
+	fj,
+	hi,
+	hj,
+	Activation,
+	ReLU,
+	Sigmoid,
+	Tanh,
+	Softmax,
+	Fidelity,
+	Infidelity,
+	Irrelevance,
+	Relevance,
+)
 from .losses import (
 	get_loss,
+	Loss,
+	MSE,
+	BinaryCrossEntropy,
+	GnosticFidelity,
+	GnosticInfidelity,
+	GnosticInformation,
+	GnosticResidualEntropy,
+	GnosticMSE,
+	GnosticBinaryCrossEntropy,
 	gnostic_weighted_mse,
 	gnostic_weighted_rmse,
 	fidelity_loss,
@@ -18,25 +41,47 @@ from .losses import (
 	relevance_loss,
 	gnostic_characteristic_loss,
 )
-from .activations import get_activation, fi, fj, hi, hj
 from .optimizers import get_optimizer, SGD, Adam
-from .initializers import get_initializer
 from .callbacks import Callback, EarlyStopping
-from .layers import Layer, Dense, iDense, jDense
+from .layers import Layer, Dense, iDense, jDense, BatchNorm, GnosticBatchNorm, Flatten
+from .model import Model, Sequential
+from .gn_activations import ActivationFunctions
+from .neuron import GnosticNeuron
 
 __all__ = [
-	"ActivationFunctions",
-	"GnosticNeuron",
 	"Tensor",
-	"Model",
-	"Sequential",
 	"History",
-	"get_loss",
+	"get_initializer",
+	"Initializer",
+	"Zeros",
+	"Ones",
+	"RandomNormal",
+	"XavierUniform",
+	"HeNormal",
 	"get_activation",
 	"fi",
 	"fj",
 	"hi",
 	"hj",
+	"Activation",
+	"ReLU",
+	"Sigmoid",
+	"Tanh",
+	"Softmax",
+	"Fidelity",
+	"Infidelity",
+	"Irrelevance",
+	"Relevance",
+	"get_loss",
+	"Loss",
+	"MSE",
+	"BinaryCrossEntropy",
+	"GnosticFidelity",
+	"GnosticInfidelity",
+	"GnosticInformation",
+	"GnosticResidualEntropy",
+	"GnosticMSE",
+	"GnosticBinaryCrossEntropy",
 	"gnostic_weighted_mse",
 	"gnostic_weighted_rmse",
 	"fidelity_loss",
@@ -47,11 +92,17 @@ __all__ = [
 	"get_optimizer",
 	"SGD",
 	"Adam",
-	"get_initializer",
 	"Callback",
 	"EarlyStopping",
 	"Layer",
 	"Dense",
 	"iDense",
 	"jDense",
+	"BatchNorm",
+	"GnosticBatchNorm",
+	"Flatten",
+	"Model",
+	"Sequential",
+	"ActivationFunctions",
+	"GnosticNeuron",
 ]

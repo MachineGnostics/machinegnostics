@@ -1,38 +1,42 @@
-"""Base layer class."""
+"""Base magnet layer class."""
 
 from __future__ import annotations
 
-from typing import List
-
-import logging
-
-from machinegnostics.magcal.util.logging import get_logger
-
-from ..tensor import Tensor
+import numpy as np
 
 
 class Layer:
-    """Base class for user-facing layers."""
+	def __init__(self, name=None):
+		self.name = name or self.__class__.__name__
+		self.params = {}
+		self.grads = {}
+		self.trainable = True
+		self._training = True
 
-    def __init__(self, name: str | None = None, trainable: bool = True, verbose: bool = False):
-        self.name = name or self.__class__.__name__.lower()
-        self.trainable = trainable
-        self.built = False
-        self.verbose = verbose
-        self.logger = get_logger(self.__class__.__name__, logging.INFO if self.verbose else logging.WARNING)
-        self.logger.info(f"{self.__class__.__name__} initialized.")
+	def forward(self, x, training=True):
+		raise NotImplementedError
 
-    @property
-    def params(self) -> List[Tensor]:
-        return []
+	def backward(self, grad_output):
+		raise NotImplementedError
 
-    def build(self, input_shape):
-        self.built = True
+	def __call__(self, x, training=True):
+		return self.forward(x, training=training)
 
-    def forward(self, inputs: Tensor, training: bool = True) -> Tensor:
-        raise NotImplementedError
+	def parameters(self):
+		for param in self.params.values():
+			yield param
 
-    def __call__(self, inputs: Tensor, training: bool = True) -> Tensor:
-        if not self.built:
-            self.build(inputs.shape)
-        return self.forward(inputs, training=training)
+	def sync_grads(self):
+		for key, param in self.params.items():
+			self.grads[key] = None if param.grad is None else np.asarray(param.grad, dtype=np.float64).copy()
+
+	def get_params_and_grads(self):
+		for key, param in self.params.items():
+			yield param, None if param.grad is None else np.asarray(param.grad, dtype=np.float64)
+
+	def set_mode(self, training: bool):
+		self._training = training
+
+	def __repr__(self):
+		n_params = sum(param.data.size for param in self.params.values())
+		return f"<{self.name}: {n_params} params>"
