@@ -1,4 +1,9 @@
-"""Optimizer exports."""
+"""Optimizer exports for MAGNET (Machine Gnostics Neural Networks).
+
+Developer note
+-------------
+Author: Nirmal Parmar
+"""
 
 from .base import Optimizer, get_optimizer
 from .sgd import SGD

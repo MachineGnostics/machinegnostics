@@ -1,6 +1,18 @@
-"""Machine Gnostics magnet package.
+"""MAGNET (Machine Gnostics Neural Networks) public package exports.
 
-Tensor-based neural network primitives for the Machine Gnostics project.
+Developer note
+-------------
+Author: Nirmal Parmar
+
+This package exposes the tensor-based MAGNET stack used for neural networks,
+including tensors, layers, activations, losses, optimizers, and training
+utilities.
+
+Examples
+--------
+>>> from machinegnostics.magnet import Sequential, Dense, Sigmoid, Adam, MSE
+>>> model = Sequential([Dense(2, 1), Sigmoid()])
+>>> model.compile(loss=MSE(), optimizer=Adam(lr=0.01))
 """
 
 from .tensor import Tensor

@@ -1,4 +1,15 @@
-"""Adam optimizer."""
+"""Adam optimizer for MAGNET.
+
+Developer note
+-------------
+Author: Nirmal Parmar
+
+Examples
+--------
+>>> from machinegnostics.magnet.optimizers import Adam
+>>> Adam(lr=0.001)
+Adam(...)
+"""
 
 from __future__ import annotations
 
@@ -11,7 +22,10 @@ from .base import Optimizer
 
 
 class Adam(Optimizer):
+	"""Adam optimizer with bias correction."""
+
 	def __init__(self, learning_rate: float = 0.001, beta1: float = 0.9, beta2: float = 0.999, epsilon: float = 1e-8, lr: float | None = None):
+		"""Create an Adam optimizer."""
 		super().__init__(learning_rate=learning_rate, lr=lr)
 		self.beta1 = beta1
 		self.beta2 = beta2
@@ -21,6 +35,7 @@ class Adam(Optimizer):
 		self._t = 0
 
 	def step(self, params: Iterable[Tensor]) -> None:
+		"""Update each parameter tensor using the Adam rule."""
 		self._t += 1
 		for param in params:
 			if param.grad is None:

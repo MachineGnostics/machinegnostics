@@ -1,4 +1,17 @@
-"""Batch normalization layers."""
+"""Batch normalization layers for MAGNET.
+
+Developer note
+-------------
+Author: Nirmal Parmar
+
+Examples
+--------
+>>> import numpy as np
+>>> from machinegnostics.magnet.layers.batchnorm import BatchNorm
+>>> layer = BatchNorm(3)
+>>> layer(np.ones((2, 3))).shape
+(2, 3)
+"""
 
 from __future__ import annotations
 
@@ -10,7 +23,13 @@ from .base import Layer
 
 
 class BatchNorm(Layer):
+	"""Standard batch normalization layer for feature vectors.
+
+	The layer maintains running mean and variance for inference-time use.
+	"""
+
 	def __init__(self, num_features, momentum=0.9, eps=1e-5, name=None):
+		"""Create a batch-normalization layer."""
 		super().__init__(name)
 		self.momentum = momentum
 		self.eps = eps
@@ -22,6 +41,7 @@ class BatchNorm(Layer):
 		self.running_var = np.ones(num_features, dtype=np.float64)
 
 	def forward(self, x, training=True):
+		"""Normalize the batch during training and reuse running stats at inference."""
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		if training:
 			batch_mean = x.data.mean(axis=0)
@@ -36,11 +56,15 @@ class BatchNorm(Layer):
 		return self.params["gamma"] * self.x_norm + self.params["beta"]
 
 	def backward(self, grad_output):
+		"""BatchNorm uses tensor autograd, so explicit backward is unused."""
 		raise NotImplementedError("BatchNorm uses tensor autograd; call loss.backward() instead")
 
 
 class GnosticBatchNorm(BatchNorm):
+	"""Batch normalization variant that applies gnostic sample weighting."""
+
 	def forward(self, x, training=True):
+		"""Normalize the batch with an additional gnostic weighting term."""
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		if training:
 			batch_mean = x.data.mean(axis=0)

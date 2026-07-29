@@ -1,4 +1,23 @@
-"""Minimal autograd-enabled tensor used by magnet."""
+"""Autograd tensor primitive for MAGNET (Machine Gnostics Neural Networks).
+
+Developer note
+-------------
+Author: Nirmal Parmar
+
+This tensor is intentionally small and explicit: it supports the arithmetic,
+matrix, and reduction operations needed by the MAGNET layers and losses.
+
+Examples
+--------
+>>> import numpy as np
+>>> from machinegnostics.magnet.tensor import Tensor
+>>> x = Tensor(np.array([[1., 2.]]), requires_grad=True)
+>>> w = Tensor(np.array([[3.], [4.]]), requires_grad=True)
+>>> y = (x @ w).sum()
+>>> y.backward()
+>>> x.grad.shape
+(1, 2)
+"""
 
 from __future__ import annotations
 
@@ -25,9 +44,28 @@ def unbroadcast(gradient: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
 
 
 class Tensor:
+	"""A NumPy-backed tensor with reverse-mode automatic differentiation.
+
+	Parameters
+	----------
+	data:
+		Any array-like object that can be converted to ``numpy.ndarray``.
+	requires_grad:
+		Whether gradients should be tracked for this tensor.
+	name:
+		Optional display name used in debugging and inspection.
+	"""
 	__array_priority__ = 1000
 
 	def __init__(self, data, requires_grad: bool = False, name: str | None = None):
+		"""Create a tensor from raw data.
+
+		Examples
+		--------
+		>>> from machinegnostics.magnet import Tensor
+		>>> Tensor([1, 2, 3]).shape
+		(3,)
+		"""
 		self.data = np.asarray(data, dtype=np.float64)
 		self.requires_grad = requires_grad
 		self.name = name
@@ -37,21 +75,29 @@ class Tensor:
 
 	@staticmethod
 	def _ensure_tensor(value) -> "Tensor":
+		"""Convert a scalar or array-like object into a ``Tensor``."""
 		return value if isinstance(value, Tensor) else Tensor(value)
 
 	def _add_grad(self, gradient: np.ndarray) -> None:
+		"""Accumulate a gradient contribution into ``self.grad``."""
 		if not self.requires_grad:
 			return
 		gradient = np.asarray(gradient, dtype=np.float64)
 		self.grad = gradient if self.grad is None else self.grad + gradient
 
 	def zero_grad(self) -> None:
+		"""Reset the stored gradient to zeros with the same shape as the data."""
 		self.grad = np.zeros_like(self.data)
 
 	def detach(self) -> "Tensor":
+		"""Return a non-tracking copy of the tensor."""
 		return Tensor(self.data.copy(), requires_grad=False, name=self.name)
 
 	def backward(self, gradient=None) -> None:
+		"""Backpropagate through the computation graph.
+
+		If the tensor is scalar, the default upstream gradient is 1.0.
+		"""
 		if not self.requires_grad:
 			return
 		if gradient is None:
@@ -160,6 +206,7 @@ class Tensor:
 		return out
 
 	def sum(self, axis=None, keepdims: bool = False):
+		"""Sum tensor elements with autograd support."""
 		out = Tensor(self.data.sum(axis=axis, keepdims=keepdims), requires_grad=self.requires_grad)
 		out._prev = {self}
 
@@ -180,6 +227,7 @@ class Tensor:
 		return out
 
 	def mean(self, axis=None, keepdims: bool = False):
+		"""Compute the mean with gradient propagation."""
 		if axis is None:
 			count = self.data.size
 		else:
@@ -190,6 +238,7 @@ class Tensor:
 		return self.sum(axis=axis, keepdims=keepdims) / count
 
 	def reshape(self, *shape):
+		"""Return a reshaped view of the tensor for forward passes."""
 		if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
 			shape = tuple(shape[0])
 		out = Tensor(self.data.reshape(*shape), requires_grad=self.requires_grad)
@@ -203,6 +252,7 @@ class Tensor:
 		return out
 
 	def transpose(self, *axes):
+		"""Transpose the tensor and preserve the backward path."""
 		if not axes:
 			axes = tuple(reversed(range(self.data.ndim)))
 		elif len(axes) == 1 and isinstance(axes[0], (tuple, list)):
@@ -223,6 +273,7 @@ class Tensor:
 		return self.transpose()
 
 	def exp(self):
+		"""Elementwise exponential."""
 		out = Tensor(np.exp(self.data), requires_grad=self.requires_grad)
 		out._prev = {self}
 
@@ -234,6 +285,7 @@ class Tensor:
 		return out
 
 	def log(self):
+		"""Elementwise natural logarithm."""
 		out = Tensor(np.log(self.data), requires_grad=self.requires_grad)
 		out._prev = {self}
 
@@ -245,6 +297,7 @@ class Tensor:
 		return out
 
 	def tanh(self):
+		"""Elementwise hyperbolic tangent."""
 		out = Tensor(np.tanh(self.data), requires_grad=self.requires_grad)
 		out._prev = {self}
 
@@ -256,6 +309,7 @@ class Tensor:
 		return out
 
 	def sigmoid(self):
+		"""Elementwise logistic sigmoid."""
 		clipped = np.clip(self.data, -500, 500)
 		data = 1.0 / (1.0 + np.exp(-clipped))
 		out = Tensor(data, requires_grad=self.requires_grad)
@@ -269,6 +323,7 @@ class Tensor:
 		return out
 
 	def relu(self):
+		"""Elementwise rectified linear unit."""
 		out = Tensor(np.maximum(0.0, self.data), requires_grad=self.requires_grad)
 		out._prev = {self}
 
@@ -280,6 +335,7 @@ class Tensor:
 		return out
 
 	def clip(self, min_value, max_value):
+		"""Clamp tensor values into ``[min_value, max_value]``."""
 		out = Tensor(np.clip(self.data, min_value, max_value), requires_grad=self.requires_grad)
 		out._prev = {self}
 

@@ -1,4 +1,9 @@
-"""Layer exports."""
+"""Layer exports for MAGNET (Machine Gnostics Neural Networks).
+
+Developer note
+-------------
+Author: Nirmal Parmar
+"""
 
 from .base import Layer
 from .dense import Dense, iDense, jDense
