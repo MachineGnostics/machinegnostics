@@ -6,7 +6,9 @@ Author: Nirmal Parmar
 """
 
 from .base import Layer
-from .dense import Dense, iDense, jDense
+from .dense import Dense
+from .idense import iDense
+from .jdense import jDense
 from .batchnorm import BatchNorm, GnosticBatchNorm
 from .flatten import Flatten
 
