@@ -6,7 +6,7 @@ Author: Nirmal Parmar
 
 Examples
 --------
->>> from machinegnostics.magnet.optimizers import Adam
+>>> from machinegnostics.magnet import Adam
 >>> Adam(lr=0.001)
 Adam(...)
 """
@@ -22,11 +22,37 @@ from .base import Optimizer
 
 
 class Adam(Optimizer):
-	"""Adam optimizer with bias correction."""
+	"""Adam optimizer with bias correction.
 
-	def __init__(self, learning_rate: float = 0.001, beta1: float = 0.9, beta2: float = 0.999, epsilon: float = 1e-8, lr: float | None = None):
-		"""Create an Adam optimizer."""
-		super().__init__(learning_rate=learning_rate, lr=lr)
+	Adam combines first- and second-moment estimates of the gradients, which
+	usually makes it a strong default choice for MAGNET training loops.
+
+	Examples
+	--------
+	>>> from machinegnostics.magnet import Adam
+	>>> Adam(lr=0.001)
+	Adam(...)
+	"""
+
+	def __init__(self, learning_rate: float = 0.001, beta1: float = 0.9, beta2: float = 0.999, epsilon: float = 1e-8, lr: float | None = None, verbose: bool = False):
+		"""Create an Adam optimizer.
+
+		Parameters
+		----------
+		learning_rate:
+			Step size used for updates.
+		beta1:
+			Exponential decay for the first moment estimate.
+		beta2:
+			Exponential decay for the second moment estimate.
+		epsilon:
+			Small constant that prevents division by zero.
+		lr:
+			Alias for ``learning_rate``.
+		verbose:
+			Enable debug logging for the optimizer instance.
+		"""
+		super().__init__(learning_rate=learning_rate, lr=lr, verbose=verbose)
 		self.beta1 = beta1
 		self.beta2 = beta2
 		self.epsilon = epsilon

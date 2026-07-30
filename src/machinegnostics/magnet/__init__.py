@@ -58,7 +58,7 @@ from .losses import (
 	relevance_loss,
 	gnostic_characteristic_loss,
 )
-from .optimizers import get_optimizer, SGD, Adam
+from .optimizers import get_optimizer, Adagrad, SGD, Adam, RMSprop
 from .callbacks import Callback, EarlyStopping
 from .layers import Layer, Dense, iDense, jDense, BatchNorm, GnosticBatchNorm, Flatten
 from .model import Model, Sequential
@@ -112,8 +112,10 @@ __all__ = [
 	"relevance_loss",
 	"gnostic_characteristic_loss",
 	"get_optimizer",
+	"Adagrad",
 	"SGD",
 	"Adam",
+	"RMSprop",
 	"Callback",
 	"EarlyStopping",
 	"Layer",
