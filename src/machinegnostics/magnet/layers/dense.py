@@ -46,7 +46,7 @@ class Dense(Layer):
 	- the linear part of a larger gnostic network.
 	"""
 
-	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None):
+	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, verbose: bool = False):
 		"""Create a dense layer.
 
 		Parameters
@@ -61,6 +61,8 @@ class Dense(Layer):
 			Initializer for the bias vector.
 		name:
 			Optional layer name.
+		verbose:
+			Enable debug logging for the layer instance.
 
 		Examples
 		--------
@@ -70,7 +72,7 @@ class Dense(Layer):
 		>>> layer(np.array([[1.0, 2.0]])).shape
 		(1, 1)
 		"""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		weight_init = get_initializer(weight_init) if weight_init is not None else XavierUniform()
 		bias_init = get_initializer(bias_init) if bias_init is not None else Zeros()
 		self.params["W"] = weight_init((in_features, out_features))

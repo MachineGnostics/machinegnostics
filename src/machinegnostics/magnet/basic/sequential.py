@@ -4,12 +4,13 @@ from .early_stopping import EarlyStopping
 
 
 class Sequential:
-    def __init__(self, layers=None):
+    def __init__(self, layers=None, verbose=False):
         self.layers = layers or []
         self.loss_fn = None
         self.optimizer = None
         self.history = {"loss": [], "val_loss": []}
         self.stop_training = False
+        self.verbose = verbose
 
     def add(self, layer):
         self.layers.append(layer)
@@ -70,7 +71,6 @@ class Sequential:
         batch_size=32,
         validation_data=None,
         shuffle=True,
-        verbose=True,
         callbacks=None,
     ):
         n = len(x)
@@ -121,7 +121,7 @@ class Sequential:
                 if hasattr(callback, "on_epoch_end"):
                     callback.on_epoch_end(epoch - 1, logs)
 
-            if verbose:
+            if self.verbose:
                 print(log)
 
             if self.stop_training:

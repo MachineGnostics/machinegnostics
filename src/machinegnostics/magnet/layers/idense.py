@@ -42,7 +42,7 @@ class iDense(Dense):
 	(1, 1)
 	"""
 
-	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, S: float | str = 2.0):
+	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, S: float | str = 2.0, verbose: bool = False):
 		"""Create an input-weighted dense layer.
 
 		Parameters
@@ -59,6 +59,8 @@ class iDense(Dense):
 			Optional layer name.
 		S:
 			Scale parameter for the gnostic weighting calculation.
+		verbose:
+			Enable debug logging for the layer instance.
 
 		Examples
 		--------
@@ -66,7 +68,7 @@ class iDense(Dense):
 		>>> iDense(4, 2)
 		<iDense: 10 params>
 		"""
-		super().__init__(in_features, out_features, weight_init=weight_init, bias_init=bias_init, name=name)
+		super().__init__(in_features, out_features, weight_init=weight_init, bias_init=bias_init, name=name, verbose=verbose)
 		self.S = S
 		self.logger.debug("iDense initialized with scale=%s.", S)
 

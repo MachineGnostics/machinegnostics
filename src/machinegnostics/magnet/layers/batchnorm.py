@@ -48,7 +48,7 @@ class BatchNorm(Layer):
 	(2, 3)
 	"""
 
-	def __init__(self, num_features, momentum=0.9, eps=1e-5, name=None):
+	def __init__(self, num_features, momentum=0.9, eps=1e-5, name=None, verbose: bool = False):
 		"""Create a batch-normalization layer.
 
 		Parameters
@@ -61,6 +61,8 @@ class BatchNorm(Layer):
 			Small constant added to the variance for numerical stability.
 		name:
 			Optional layer name.
+		verbose:
+			Enable debug logging for the layer instance.
 
 		Examples
 		--------
@@ -68,7 +70,7 @@ class BatchNorm(Layer):
 		>>> BatchNorm(4)
 		<BatchNorm: 8 params>
 		"""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.momentum = momentum
 		self.eps = eps
 		self.params["gamma"] = Tensor(np.ones(num_features, dtype=np.float64), requires_grad=True)
@@ -143,7 +145,7 @@ class GnosticBatchNorm(BatchNorm):
 	>>> layer(np.ones((2, 3))).shape
 	(2, 3)
 	"""
-	def __init__(self, num_features, momentum=0.9, eps=1e-5, name=None, S:float|str=2.0, kind:str="i"):
+	def __init__(self, num_features, momentum=0.9, eps=1e-5, name=None, S:float|str=2.0, kind:str="i", verbose: bool = False):
 		"""Create a gnostic batch-normalization layer.
 
 		Parameters
@@ -160,8 +162,10 @@ class GnosticBatchNorm(BatchNorm):
 			Scale parameter passed to the gnostic weighting helper.
 		kind:
 			Weighting family to use, either ``"i"`` or ``"j"``.
+		verbose:
+			Enable debug logging for the layer instance.
 		"""
-		super().__init__(num_features, momentum, eps, name)
+		super().__init__(num_features, momentum, eps, name, verbose=verbose)
 		self.S = S
 		self.kind = kind
 		self.logger.debug("GnosticBatchNorm initialized with kind=%s, scale=%s.", kind, S)

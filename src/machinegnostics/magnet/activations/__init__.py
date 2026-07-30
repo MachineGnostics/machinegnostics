@@ -39,8 +39,8 @@ class Activation(Layer):
 	>>> isinstance(DoubleActivation(), Activation)
 	True
 	"""
-	def __init__(self, name=None):
-		super().__init__(name)
+	def __init__(self, name=None, verbose: bool = False):
+		super().__init__(name, verbose=verbose)
 
 	def forward(self, x, training=True):
 		"""Transform the input tensor and return the activated output."""
@@ -151,9 +151,9 @@ class Step(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, threshold: float = 0.0, name=None):
+	def __init__(self, threshold: float = 0.0, name=None, verbose: bool = False):
 		"""Create a step activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.threshold = float(threshold)
 
 	def forward(self, x, training=True):
@@ -179,9 +179,9 @@ class LeakyReLU(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, alpha: float = 0.01, name=None):
+	def __init__(self, alpha: float = 0.01, name=None, verbose: bool = False):
 		"""Create a leaky ReLU activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.alpha = float(alpha)
 
 	def forward(self, x, training=True):
@@ -207,9 +207,9 @@ class ELU(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, alpha: float = 1.0, name=None):
+	def __init__(self, alpha: float = 1.0, name=None, verbose: bool = False):
 		"""Create an ELU activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.alpha = float(alpha)
 
 	def forward(self, x, training=True):
@@ -287,7 +287,7 @@ class Fidelity(Activation):
 	>>> model(np.array([[0.1, 0.2]])).shape
 	(1, 2)
 	"""
-	def __init__(self, S: float | str = 1, name=None):
+	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
 		"""Create a fidelity activation.
 
 		Parameters
@@ -297,7 +297,7 @@ class Fidelity(Activation):
 		name:
 			Optional layer name.
 		"""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.S = S
 
 	def forward(self, x, training=True):
@@ -335,9 +335,9 @@ class Infidelity(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, S: float | str = 1, name=None):
+	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
 		"""Create an infidelity activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.S = S
 
 	def forward(self, x, training=True):
@@ -366,9 +366,9 @@ class Irrelevance(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, S: float | str = 1, name=None):
+	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
 		"""Create an irrelevance activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.S = S
 
 	def forward(self, x, training=True):
@@ -397,9 +397,9 @@ class Relevance(Activation):
 	(1, 2)
 	"""
 
-	def __init__(self, S: float | str = 1, name=None):
+	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
 		"""Create a relevance activation."""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.S = S
 
 	def forward(self, x, training=True):
@@ -433,7 +433,7 @@ def hj(x, S: float | str = 1):
 	return np.asarray(compute_characteristics(x, scale=S)["hj"], dtype=np.float64)
 
 
-def get_activation(activation):
+def get_activation(activation, verbose: bool = False):
 	"""Resolve a string or layer instance into an activation object.
 
 	Examples
@@ -447,25 +447,25 @@ def get_activation(activation):
 		return activation
 	if isinstance(activation, str):
 		registry = {
-			"relu": ReLU(),
-			"step": Step(),
-			"threshold": Step(),
-			"heaviside": Step(),
-			"leakyrelu": LeakyReLU(),
-			"elu": ELU(),
-			"sigmoid": Sigmoid(),
-			"softplus": Softplus(),
-			"tanh": Tanh(),
-			"swish": Swish(),
-			"softmax": Softmax(),
-			"fidelity": Fidelity(),
-			"infidelity": Infidelity(),
-			"irrelevance": Irrelevance(),
-			"relevance": Relevance(),
+			"relu": ReLU,
+			"step": Step,
+			"threshold": Step,
+			"heaviside": Step,
+			"leakyrelu": LeakyReLU,
+			"elu": ELU,
+			"sigmoid": Sigmoid,
+			"softplus": Softplus,
+			"tanh": Tanh,
+			"swish": Swish,
+			"softmax": Softmax,
+			"fidelity": Fidelity,
+			"infidelity": Infidelity,
+			"irrelevance": Irrelevance,
+			"relevance": Relevance,
 		}
 		key = activation.replace("_", "").replace("-", "").lower()
 		try:
-			return registry[key]
+			return registry[key](verbose=verbose)
 		except KeyError as exc:
 			raise ValueError(f"Unknown activation: {activation}") from exc
 	raise TypeError(f"Unsupported activation specification: {type(activation)!r}")

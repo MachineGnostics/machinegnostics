@@ -40,7 +40,7 @@ class jDense(Dense):
 	(1, 1)
 	"""
 
-	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, S: float | str = 2.0):
+	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, S: float | str = 2.0, verbose: bool = False):
 		"""Create a quantifying-weight dense layer.
 
 		Parameters
@@ -57,8 +57,10 @@ class jDense(Dense):
 			Optional layer name.
 		S:
 			Scale parameter for the gnostic weighting calculation.
+		verbose:
+			Enable debug logging for the layer instance.
 		"""
-		super().__init__(in_features, out_features, weight_init=weight_init, bias_init=bias_init, name=name)
+		super().__init__(in_features, out_features, weight_init=weight_init, bias_init=bias_init, name=name, verbose=verbose)
 		self.S = S
 		self.logger.debug("jDense initialized with scale=%s.", S)
 

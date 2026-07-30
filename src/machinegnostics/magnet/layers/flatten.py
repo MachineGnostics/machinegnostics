@@ -38,13 +38,15 @@ class Flatten(Layer):
 	- any model that expects a vector per sample.
 	"""
 
-	def __init__(self, name=None):
+	def __init__(self, name=None, verbose: bool = False):
 		"""Create a flatten layer.
 
 		Parameters
 		----------
 		name:
 			Optional display name for debugging and summaries.
+		verbose:
+			Enable debug logging for the layer instance.
 
 		Examples
 		--------
@@ -52,7 +54,7 @@ class Flatten(Layer):
 		>>> Flatten()
 		<Flatten: 0 params>
 		"""
-		super().__init__(name)
+		super().__init__(name, verbose=verbose)
 		self.logger.debug("Flatten initialized.")
 
 	def forward(self, x, training=True):
