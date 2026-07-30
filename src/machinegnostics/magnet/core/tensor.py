@@ -25,6 +25,10 @@ from typing import Callable
 
 import numpy as np
 
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def _ensure_array(value) -> np.ndarray:
 	if isinstance(value, Tensor):
@@ -72,6 +76,7 @@ class Tensor:
 		self.grad: np.ndarray | None = None
 		self._prev: set[Tensor] = set()
 		self._backward: Callable[[], None] = lambda: None
+		logger.debug("Tensor initialized with shape %s and requires_grad=%s.", self.data.shape, self.requires_grad)
 
 	@staticmethod
 	def _ensure_tensor(value) -> "Tensor":
@@ -84,13 +89,16 @@ class Tensor:
 			return
 		gradient = np.asarray(gradient, dtype=np.float64)
 		self.grad = gradient if self.grad is None else self.grad + gradient
+		logger.debug("Accumulated gradient for tensor with shape %s.", self.data.shape)
 
 	def zero_grad(self) -> None:
 		"""Reset the stored gradient to zeros with the same shape as the data."""
 		self.grad = np.zeros_like(self.data)
+		logger.debug("Cleared tensor gradient for shape %s.", self.data.shape)
 
 	def detach(self) -> "Tensor":
 		"""Return a non-tracking copy of the tensor."""
+		logger.debug("Detached tensor with shape %s.", self.data.shape)
 		return Tensor(self.data.copy(), requires_grad=False, name=self.name)
 
 	def backward(self, gradient=None) -> None:
@@ -100,6 +108,7 @@ class Tensor:
 		"""
 		if not self.requires_grad:
 			return
+		logger.debug("Running backward pass for tensor with shape %s.", self.data.shape)
 		if gradient is None:
 			if self.data.size != 1:
 				raise ValueError("gradient must be provided for non-scalar tensors")

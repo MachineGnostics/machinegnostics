@@ -22,8 +22,10 @@ import numpy as np
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 
 from .tensor import Tensor, unbroadcast
+from ..utils.logging import get_logger
 
 EPS = np.finfo(float).eps
+logger = get_logger(__name__)
 
 
 def as_numpy(value) -> np.ndarray:
@@ -40,7 +42,9 @@ def as_numpy(value) -> np.ndarray:
 		A float64 NumPy array.
 	"""
 	if isinstance(value, Tensor):
+		logger.debug("Converted Tensor to NumPy array with shape %s.", value.data.shape)
 		return value.data
+	logger.debug("Converted array-like value to NumPy array.")
 	return np.asarray(value, dtype=np.float64)
 
 
@@ -55,6 +59,7 @@ def compute_characteristics(values, scale: float | str = 1.0) -> dict[str, np.nd
 	['S_local', 'characteristics', 'fi', 'fj', 'hi', 'hj']
 	"""
 	array = as_numpy(values)
+	logger.debug("Computing gnostic characteristics for array shape %s with scale=%s.", array.shape, scale)
 	z_values = np.exp(array - np.median(array))
 	characteristics = GnosticsCharacteristics(R=z_values)
 	if isinstance(scale, str) and scale == "auto":
@@ -83,6 +88,7 @@ def gnostic_weights_i(values, scale: float | str = 2.0):
 	info = compute_characteristics(values, scale=scale)
 	fi = np.asarray(info["fi"], dtype=np.float64)
 	weights = fi ** 2
+	logger.debug("Computed gnostic i-weights with shape %s.", weights.shape)
 	return weights / (np.sum(weights) + EPS)
 
 
@@ -90,12 +96,14 @@ def gnostic_weights_j(values, scale: float | str = 2.0):
 	"""Return normalized quantifying weights for MAGNET layers."""
 	weights = gnostic_weights_i(values, scale=scale)
 	inverse = 1.0 / (weights + EPS)
+	logger.debug("Computed gnostic j-weights with shape %s.", inverse.shape)
 	return inverse / (np.sum(inverse) + EPS)
 
 
 def custom_tensor(data, parents, backward_fn):
 	"""Create a Tensor whose backward pass is defined by a closure."""
 	requires_grad = any(getattr(parent, "requires_grad", False) for parent in parents)
+	logger.debug("Creating custom tensor with %s parents and requires_grad=%s.", len(parents), requires_grad)
 	out = Tensor(data, requires_grad=requires_grad)
 	out._prev = {parent for parent in parents if getattr(parent, "requires_grad", False)}
 	out._backward = lambda: backward_fn(out)
@@ -109,4 +117,5 @@ def custom_tensor_from_gradient(data, parent: Tensor, gradient):
 	is known ahead of time.
 	"""
 	gradient = np.asarray(gradient, dtype=np.float64)
+	logger.debug("Creating custom tensor from fixed gradient with shape %s.", gradient.shape)
 	return custom_tensor(data, [parent], lambda out: parent._add_grad(unbroadcast(out.grad * gradient, parent.data.shape) if out.grad is not None else 0.0))
