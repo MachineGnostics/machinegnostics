@@ -27,7 +27,17 @@ from .layers.base import Layer
 class Activation(Layer):
 	"""Base class for MAGNET activation layers.
 
-	Subclasses implement ``forward`` and rely on tensor autograd for gradients.
+	This class defines the shared interface for all standard and gnostic
+	activations in MAGNET. Subclasses implement ``forward`` and return a tensor
+	that participates in the library's autograd flow.
+
+	Examples
+	--------
+	>>> class DoubleActivation(Activation):
+	... 	def forward(self, x, training=True):
+	... 		return x if isinstance(x, Tensor) else Tensor(x)
+	>>> isinstance(DoubleActivation(), Activation)
+	True
 	"""
 	def __init__(self, name=None):
 		super().__init__(name)
@@ -42,7 +52,18 @@ class Activation(Layer):
 
 
 class ReLU(Activation):
-	"""Rectified linear unit activation."""
+	"""Rectified linear unit activation.
+
+	ReLU returns zero for negative inputs and preserves positive values.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, ReLU, Sequential
+	>>> model = Sequential([Dense(2, 2), ReLU()])
+	>>> model(np.array([[1.0, -2.0]])).shape
+	(1, 2)
+	"""
 
 	def forward(self, x, training=True):
 		"""Return ``max(0, x)`` elementwise."""
@@ -51,7 +72,19 @@ class ReLU(Activation):
 
 
 class Sigmoid(Activation):
-	"""Logistic sigmoid activation."""
+	"""Logistic sigmoid activation.
+
+	Sigmoid maps values into the open interval $(0, 1)$ and is commonly used
+	for binary classification output layers.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Sigmoid
+	>>> model = Sequential([Dense(2, 1), Sigmoid()])
+	>>> model(np.array([[0.0, 0.0]])).shape
+	(1, 1)
+	"""
 
 	def forward(self, x, training=True):
 		"""Return the elementwise sigmoid of the input."""
@@ -60,7 +93,18 @@ class Sigmoid(Activation):
 
 
 class Tanh(Activation):
-	"""Hyperbolic tangent activation."""
+	"""Hyperbolic tangent activation.
+
+	Tanh squashes inputs into $(-1, 1)$ and is often used in hidden layers.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Tanh
+	>>> model = Sequential([Dense(3, 2), Tanh()])
+	>>> model(np.array([[1.0, 0.0, -1.0]])).shape
+	(1, 2)
+	"""
 
 	def forward(self, x, training=True):
 		"""Return the elementwise hyperbolic tangent of the input."""
@@ -69,7 +113,19 @@ class Tanh(Activation):
 
 
 class Softmax(Activation):
-	"""Stable softmax activation over the last axis."""
+	"""Stable softmax activation over the last axis.
+
+	Softmax converts logits into probabilities that sum to 1 along the final
+	dimension.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Softmax
+	>>> model = Sequential([Dense(3, 3), Softmax()])
+	>>> model(np.array([[1.0, 2.0, 3.0]])).shape
+	(1, 3)
+	"""
 
 	def forward(self, x, training=True):
 		"""Convert logits to probabilities along the final dimension."""
@@ -77,6 +133,139 @@ class Softmax(Activation):
 		shifted = x - Tensor(np.max(x.data, axis=-1, keepdims=True))
 		exp = shifted.exp()
 		return exp / exp.sum(axis=-1, keepdims=True)
+
+
+class Step(Activation):
+	"""Hard step activation that maps values to 0 or 1.
+
+	Step is useful for thresholding and discrete gating. It is not smooth, so
+	it should be used when a binary output is more important than gradient-rich
+	training dynamics.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Step
+	>>> model = Sequential([Dense(3, 2), Step()])
+	>>> model(np.array([[0.0, 1.0, -1.0]])).shape
+	(1, 2)
+	"""
+
+	def __init__(self, threshold: float = 0.0, name=None):
+		"""Create a step activation."""
+		super().__init__(name)
+		self.threshold = float(threshold)
+
+	def forward(self, x, training=True):
+		"""Return 1 where the input exceeds the threshold, else 0."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		data = (x.data > self.threshold).astype(np.float64)
+		prime = np.zeros_like(x.data, dtype=np.float64)
+		return _gnostic_activation_tensor(x, data, prime)
+
+
+class LeakyReLU(Activation):
+	"""Leaky rectified linear unit activation.
+
+	LeakyReLU keeps a small slope for negative inputs so gradients can flow even
+	when activations fall below zero.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, LeakyReLU, Sequential
+	>>> model = Sequential([Dense(2, 2), LeakyReLU(alpha=0.1)])
+	>>> model(np.array([[-2.0, 3.0]])).shape
+	(1, 2)
+	"""
+
+	def __init__(self, alpha: float = 0.01, name=None):
+		"""Create a leaky ReLU activation."""
+		super().__init__(name)
+		self.alpha = float(alpha)
+
+	def forward(self, x, training=True):
+		"""Return ``x`` for positive inputs and ``alpha * x`` otherwise."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		data = np.where(x.data > 0, x.data, self.alpha * x.data)
+		prime = np.where(x.data > 0, 1.0, self.alpha)
+		return _gnostic_activation_tensor(x, data, prime)
+
+
+class ELU(Activation):
+	"""Exponential linear unit activation.
+
+	ELU behaves like an identity for positive inputs and transitions smoothly to
+	a negative exponential for values below zero.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, ELU, Sequential
+	>>> model = Sequential([Dense(2, 2), ELU(alpha=1.0)])
+	>>> model(np.array([[1.0, -1.0]])).shape
+	(1, 2)
+	"""
+
+	def __init__(self, alpha: float = 1.0, name=None):
+		"""Create an ELU activation."""
+		super().__init__(name)
+		self.alpha = float(alpha)
+
+	def forward(self, x, training=True):
+		"""Return the elementwise ELU transform."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		positive = x.data > 0
+		data = np.where(positive, x.data, self.alpha * (np.expm1(x.data)))
+		prime = np.where(positive, 1.0, data + self.alpha)
+		return _gnostic_activation_tensor(x, data, prime)
+
+
+class Softplus(Activation):
+	"""Softplus activation.
+
+	Softplus is a smooth approximation of ReLU and is useful when a strictly
+	positive, differentiable output is desired.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Softplus
+	>>> model = Sequential([Dense(2, 1), Softplus()])
+	>>> model(np.array([[0.0, 0.0]])).shape
+	(1, 1)
+	"""
+
+	def forward(self, x, training=True):
+		"""Return a smooth approximation of ReLU."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		data = np.log1p(np.exp(-np.abs(x.data))) + np.maximum(x.data, 0)
+		prime = 1.0 / (1.0 + np.exp(-np.clip(x.data, -500, 500)))
+		return _gnostic_activation_tensor(x, data, prime)
+
+
+class Swish(Activation):
+	"""Swish activation, defined as ``x * sigmoid(x)``.
+
+	Swish is a smooth, self-gated activation that often performs well as a
+	drop-in alternative to ReLU in deep networks.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Sequential, Swish
+	>>> model = Sequential([Dense(2, 2), Swish()])
+	>>> model(np.array([[0.0, 1.0]])).shape
+	(1, 2)
+	"""
+
+	def forward(self, x, training=True):
+		"""Return the elementwise swish transform."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		sigmoid = 1.0 / (1.0 + np.exp(-np.clip(x.data, -500, 500)))
+		data = x.data * sigmoid
+		prime = sigmoid + x.data * sigmoid * (1.0 - sigmoid)
+		return _gnostic_activation_tensor(x, data, prime)
 
 
 def _gnostic_activation_tensor(x, value, prime):
@@ -89,6 +278,14 @@ class Fidelity(Activation):
 
 	The layer maps inputs to the gnostic fidelity characteristic and keeps the
 	analytic derivative needed by the MAGNET autograd flow.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Fidelity, Sequential
+	>>> model = Sequential([Dense(2, 2), Fidelity()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
 	"""
 	def __init__(self, S: float | str = 1, name=None):
 		"""Create a fidelity activation.
@@ -123,7 +320,20 @@ class Fidelity(Activation):
 
 
 class Infidelity(Activation):
-	"""Gnostic infidelity activation."""
+	"""Gnostic infidelity activation.
+
+	This activation returns the gnostic infidelity characteristic and is useful
+	when the model should emphasize the complementary characteristic to
+	fidelity.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Infidelity, Sequential
+	>>> model = Sequential([Dense(2, 2), Infidelity()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
 
 	def __init__(self, S: float | str = 1, name=None):
 		"""Create an infidelity activation."""
@@ -142,7 +352,19 @@ class Infidelity(Activation):
 
 
 class Irrelevance(Activation):
-	"""Gnostic irrelevance activation (``hi`` characteristic)."""
+	"""Gnostic irrelevance activation (``hi`` characteristic).
+
+	Irrelevance captures the gnostic ``hi`` characteristic and can be used when
+	the model needs a direct measure of irrelevance.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Irrelevance, Sequential
+	>>> model = Sequential([Dense(2, 2), Irrelevance()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
 
 	def __init__(self, S: float | str = 1, name=None):
 		"""Create an irrelevance activation."""
@@ -161,7 +383,19 @@ class Irrelevance(Activation):
 
 
 class Relevance(Activation):
-	"""Gnostic relevance activation (``hj`` characteristic)."""
+	"""Gnostic relevance activation (``hj`` characteristic).
+
+	Relevance captures the gnostic ``hj`` characteristic and is the complement
+	of the irrelevance-focused activation.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Relevance, Sequential
+	>>> model = Sequential([Dense(2, 2), Relevance()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
 
 	def __init__(self, S: float | str = 1, name=None):
 		"""Create a relevance activation."""
@@ -214,8 +448,15 @@ def get_activation(activation):
 	if isinstance(activation, str):
 		registry = {
 			"relu": ReLU(),
+			"step": Step(),
+			"threshold": Step(),
+			"heaviside": Step(),
+			"leakyrelu": LeakyReLU(),
+			"elu": ELU(),
 			"sigmoid": Sigmoid(),
+			"softplus": Softplus(),
 			"tanh": Tanh(),
+			"swish": Swish(),
 			"softmax": Softmax(),
 			"fidelity": Fidelity(),
 			"infidelity": Infidelity(),
