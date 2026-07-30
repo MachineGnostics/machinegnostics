@@ -22,8 +22,8 @@ import numpy as np
 
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 
-from ._gnostic import custom_tensor
-from .tensor import Tensor
+from ..core._gnostic import custom_tensor
+from ..core.tensor import Tensor
 
 
 class Loss:

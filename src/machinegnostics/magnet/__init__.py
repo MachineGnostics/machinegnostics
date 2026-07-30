@@ -15,8 +15,8 @@ Examples
 >>> model.compile(loss=MSE(), optimizer=Adam(lr=0.01))
 """
 
-from .tensor import Tensor
-from .history import History
+from .core import Tensor, History, Callback, EarlyStopping
+from .models import Model, Sequential, GnosticNeuron
 from .initializers import get_initializer, Initializer, Zeros, Ones, RandomNormal, XavierUniform, HeNormal
 from .activations import (
 	get_activation,
@@ -59,11 +59,8 @@ from .losses import (
 	gnostic_characteristic_loss,
 )
 from .optimizers import get_optimizer, Adagrad, SGD, Adam, RMSprop
-from .callbacks import Callback, EarlyStopping
 from .layers import Layer, Dense, iDense, jDense, BatchNorm, GnosticBatchNorm, Flatten
-from .model import Model, Sequential
-from .gn_activations import ActivationFunctions
-from .neuron import GnosticNeuron
+from .activations.gn_activations import ActivationFunctions
 
 __all__ = [
 	"Tensor",

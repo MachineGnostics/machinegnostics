@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import numpy as np
 import logging
-from machinegnostics.magcal.util.logging import get_logger
+from ..utils.logging import get_logger
 
 
 class Layer:

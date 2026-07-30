@@ -19,7 +19,7 @@ Author: Nirmal Parmar
 
 from __future__ import annotations
 
-from ..tensor import Tensor
+from ..core.tensor import Tensor
 from .base import Layer
 
 

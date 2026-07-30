@@ -9,7 +9,7 @@ Author: Nirmal Parmar
 Examples
 --------
 >>> import numpy as np
->>> from machinegnostics.magnet.neuron import GnosticNeuron
+>>> from machinegnostics.magnet.models import GnosticNeuron
 >>> neuron = GnosticNeuron(2, 1, activation="sigmoid")
 >>> neuron(np.array([[0., 1.]])).shape
 (1, 1)
@@ -17,8 +17,8 @@ Examples
 
 from __future__ import annotations
 
-from .activations import get_activation
-from .layers.dense import Dense
+from ..activations import get_activation
+from ..layers.dense import Dense
 from .model import Sequential
 
 

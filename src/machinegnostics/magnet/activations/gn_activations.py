@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .activations import fi, fj, hi, hj
+from . import fi, fj, hi, hj
 
 
 class ActivationFunctions:

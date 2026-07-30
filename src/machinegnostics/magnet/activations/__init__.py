@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from ._gnostic import compute_characteristics, custom_tensor
-from .tensor import Tensor
-from .layers.base import Layer
+from ..core._gnostic import compute_characteristics, custom_tensor
+from ..core.tensor import Tensor
+from ..layers.base import Layer
 
 
 class Activation(Layer):
@@ -469,3 +469,6 @@ def get_activation(activation):
 		except KeyError as exc:
 			raise ValueError(f"Unknown activation: {activation}") from exc
 	raise TypeError(f"Unsupported activation specification: {type(activation)!r}")
+
+
+	from .gn_activations import ActivationFunctions

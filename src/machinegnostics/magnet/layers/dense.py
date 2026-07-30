@@ -22,7 +22,7 @@ Author: Nirmal Parmar
 from __future__ import annotations
 
 from ..initializers import XavierUniform, Zeros, get_initializer
-from ..tensor import Tensor
+from ..core.tensor import Tensor
 from .base import Layer
 
 

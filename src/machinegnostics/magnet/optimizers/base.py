@@ -18,8 +18,8 @@ from typing import Iterable, Union
 
 import numpy as np
 
-from ..tensor import Tensor
-from machinegnostics.magcal.util.logging import get_logger
+from ..core.tensor import Tensor
+from ..utils.logging import get_logger
 
 OptimizerLike = Union[str, "Optimizer"]
 

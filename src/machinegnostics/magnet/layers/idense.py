@@ -20,8 +20,8 @@ Author: Nirmal Parmar
 
 from __future__ import annotations
 
-from .._gnostic import gnostic_weights_i
-from ..tensor import Tensor
+from ..core._gnostic import gnostic_weights_i
+from ..core.tensor import Tensor
 from .dense import Dense
 
 

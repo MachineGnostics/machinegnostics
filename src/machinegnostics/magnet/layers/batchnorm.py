@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .._gnostic import gnostic_weights_i, gnostic_weights_j
-from ..tensor import Tensor
+from ..core._gnostic import gnostic_weights_i, gnostic_weights_j
+from ..core.tensor import Tensor
 from .base import Layer
 
 

@@ -25,10 +25,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from .history import History
-from .losses import get_loss, Loss
-from .optimizers import get_optimizer
-from .tensor import Tensor
+from ..core.history import History
+from ..losses import get_loss, Loss
+from ..optimizers import get_optimizer
+from ..core.tensor import Tensor
 
 
 class Model:

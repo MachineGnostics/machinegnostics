@@ -17,7 +17,7 @@ from typing import Iterable
 
 import numpy as np
 
-from ..tensor import Tensor
+from ..core.tensor import Tensor
 from .base import Optimizer
 
 
