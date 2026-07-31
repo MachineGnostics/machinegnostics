@@ -43,9 +43,14 @@ logger = get_logger(__name__)
 class Loss:
     """Base class for all MAGNET losses.
 
-    Loss objects are lightweight callables that convert predictions and targets
-    into a scalar objective. Subclasses can use the stored ``verbose`` flag and
-    logger to emit progress or debugging information while training.
+    A loss converts model predictions and targets into a single scalar that
+    training tries to minimize. Concrete subclasses implement the actual
+    formula, while this base class provides the shared callable interface and
+    optional logging.
+
+    Use this class as the reference point when reading the rest of the module:
+    every subclass follows the same pattern of taking ``y_pred`` and ``y_true``
+    and returning a scalar tensor or float.
 
     Parameters
     ----------
@@ -54,9 +59,8 @@ class Loss:
 
     Notes
     -----
-    This base class is intentionally minimal. Concrete losses should implement
-    ``forward`` and, when needed, rely on tensor autograd rather than manual
-    backward methods.
+    Subclasses should implement ``forward``. Most MAGNET losses rely on tensor
+    autograd, so ``backward`` usually raises ``NotImplementedError``.
     """
 
     def __init__(self, verbose: bool = False):
@@ -106,13 +110,20 @@ def _prepare_tensors(y_pred, y_true):
 class MSE(Loss):
     """Mean-squared error loss.
 
-    This is the standard objective for regression problems. It measures the
-    average squared distance between the predicted values and the targets.
+    This is the standard choice for regression. It penalizes large prediction
+    errors more strongly than small ones by squaring the residuals:
+
+    .. math::
+
+       	ext{MSE} = \frac{1}{n} \sum_{i=1}^{n} (\hat{y}_i - y_i)^2
+
+    Use it when the target is continuous and you want the model to fit the
+    average numerical value as closely as possible.
 
     Examples
     --------
     >>> import numpy as np
-    >>> from  machinegnostics.magnet import MSE
+    >>> from machinegnostics.magnet import MSE
     >>> round(float(MSE()(np.array([[1.0]]), np.array([[0.0]]))), 3)
     1.0
     """
@@ -133,15 +144,25 @@ class MSE(Loss):
 
 
 class BinaryCrossEntropy(Loss):
-    """Binary cross-entropy loss for sigmoid outputs.
+    """Binary cross-entropy loss for probability outputs.
 
-    Use this loss for binary classification models whose final layer produces
-    probabilities in the open interval $(0, 1)$, typically via ``Sigmoid``.
+    Use this loss for binary classification when the model output represents a
+    probability, usually after a ``Sigmoid`` layer. It rewards confident
+    correct predictions and heavily penalizes confident wrong ones.
+
+    The loss is based on:
+
+    .. math::
+
+       -\frac{1}{n} \sum_{i=1}^{n} \left[y_i \log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)\right]
+
+    In practice, this is the right choice when your labels are 0/1 and you
+    want calibrated probabilities rather than raw scores.
 
     Examples
     --------
     >>> import numpy as np
-    >>> from  machinegnostics.magnet import BinaryCrossEntropy
+    >>> from machinegnostics.magnet import BinaryCrossEntropy
     >>> loss = BinaryCrossEntropy()
     >>> round(float(loss(np.array([[0.9]]), np.array([[1.0]]))), 3)
     0.105
@@ -163,10 +184,14 @@ class BinaryCrossEntropy(Loss):
 
 
 class _BaseGnosticCharc:
-    """Shared helper for gnostic losses based on gnostic characteristics.
+    """Shared helper for the gnostic loss family.
 
-    This helper collects the characteristic-engine calculations that are reused
-    across the gnostic loss family. It is not meant to be instantiated directly.
+    The gnostic losses all start by comparing predictions to targets, then pass
+    that residual through the Machine Gnostics characteristic engine. This base
+    class centralizes those repeated calculations so each concrete loss can
+    focus on its own objective.
+
+    It is an internal helper and is not meant to be instantiated directly.
     """
 
     def __init__(self, S: float | str = 1):
@@ -307,10 +332,14 @@ def _scalar_gnostic_loss(y_pred, value, gradient):
 
 
 class GnosticFidelity(Loss, _BaseGnosticCharc):
-    """Loss that minimizes the mean gnostic fidelity residual term.
+    """Gnostic fidelity loss.
 
-    Use this when you want the optimization objective to focus directly on the
-    fidelity side of the gnostic characteristic decomposition.
+    This loss emphasizes the fidelity side of the gnostic characteristic split.
+    It is useful when you want the model to minimize the residual in a way that
+    follows the gnostic fidelity weighting rather than plain squared error.
+
+    Use it when you want a regression-style objective but with the gnostic
+    characteristic engine shaping the gradient.
     """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
@@ -331,7 +360,16 @@ class GnosticFidelity(Loss, _BaseGnosticCharc):
 
 
 class GnosticInfidelity(Loss, _BaseGnosticCharc):
-    """Loss that emphasizes the gnostic infidelity characteristic."""
+    """Gnostic infidelity loss.
+
+    This is the complementary gnostic loss to :class:`GnosticFidelity`. It
+    emphasizes the infidelity side of the residual structure, which can be
+    useful when you want to penalize deviation through the alternative gnostic
+    characteristic.
+
+    A good mental model is: use this when fidelity-based weighting is not the
+    right inductive bias and you want the complementary residual signal.
+    """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
         Loss.__init__(self, verbose=verbose)
@@ -353,9 +391,14 @@ class GnosticInfidelity(Loss, _BaseGnosticCharc):
         raise NotImplementedError("GnosticInfidelity uses tensor autograd; call loss.backward() instead")
 
 class GnosticRSS(Loss, _BaseGnosticCharc):
-    """
-    Gnostic RSS - Gnostic Relevance Squared Sum Loss
-    Loss that emphasizes the gnostic relevance characteristic.
+    """Gnostic relevance squared-sum loss.
+
+    RSS stands for relevance squared sum. It aggregates the squared relevance
+    characteristic across the batch, so it behaves like a relevance-focused
+    alternative to standard residual penalties.
+
+    Use it when the relevance signal itself is the quantity you want to drive
+    down during training.
     """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
@@ -377,9 +420,14 @@ class GnosticRSS(Loss, _BaseGnosticCharc):
         raise NotImplementedError("GnosticRSS uses tensor autograd; call loss.backward() instead")
 
 class GnosticISS(Loss, _BaseGnosticCharc):
-    """
-    Gnostic ISS - Gnostic Irrelevance Squared Sum Loss
-    Loss that emphasizes the gnostic irrelevance characteristic.
+    """Gnostic irrelevance squared-sum loss.
+
+    ISS stands for irrelevance squared sum. It aggregates the squared
+    irrelevance characteristic across the batch, so the objective is driven by
+    how strongly the model lands in the irrelevance regime.
+
+    Use it when the irrelevance signal is the behavior you want to encourage or
+    suppress explicitly.
     """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
@@ -402,7 +450,15 @@ class GnosticISS(Loss, _BaseGnosticCharc):
 
 
 class GnosticInformation(Loss, _BaseGnosticCharc):
-    """Loss that measures gnostic information content."""
+    """Gnostic information loss.
+
+    This loss converts the residual into a gnostic information quantity and
+    minimizes that value. It is useful when you want the objective to reflect
+    information content rather than raw distance.
+
+    Think of it as an information-shaped regression objective rather than a
+    direct error metric.
+    """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
         Loss.__init__(self, verbose=verbose)
@@ -423,7 +479,14 @@ class GnosticInformation(Loss, _BaseGnosticCharc):
 
 
 class GnosticResidualEntropy(Loss, _BaseGnosticCharc):
-    """Loss based on residual entropy from gnostic characteristics."""
+    """Gnostic residual entropy loss.
+
+    This loss measures residual entropy in the gnostic characteristic space.
+    It is a good choice when you want the model to minimize uncertainty in the
+    residual rather than only minimizing the residual magnitude itself.
+
+    Use it as the entropy-shaped counterpart to the standard regression losses.
+    """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
         Loss.__init__(self, verbose=verbose)
@@ -444,10 +507,15 @@ class GnosticResidualEntropy(Loss, _BaseGnosticCharc):
 
 
 class GnosticMSE(Loss, _BaseGnosticCharc):
-    """Weighted mean-squared error using gnostic weights.
+    """Gnostic weighted mean-squared error.
 
-    This behaves like standard MSE, but each sample is weighted by the gnostic
-    characteristic engine before averaging.
+    This behaves like ordinary MSE, but each sample is weighted using the
+    gnostic characteristic engine before averaging. In effect, the model pays
+    more attention to samples that the characteristic engine considers more
+    important.
+
+    Use it when you still want a familiar squared-error objective, but with the
+    gnostic weighting scheme applied to the batch.
     """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
@@ -470,10 +538,14 @@ class GnosticMSE(Loss, _BaseGnosticCharc):
 
 
 class GnosticBinaryCrossEntropy(Loss, _BaseGnosticCharc):
-    """Weighted binary cross-entropy using gnostic weights.
+    """Gnostic weighted binary cross-entropy.
 
-    This is the gnostic analogue of BCE and is intended for probability outputs
-    in binary classification tasks.
+    This is the gnostic analogue of binary cross-entropy. It keeps the same
+    probability-based classification objective, but weights each sample with the
+    gnostic characteristic engine before averaging.
+
+    Use it for binary classification tasks when you want BCE's probabilistic
+    interpretation and the gnostic weighting scheme at the same time.
     """
 
     def __init__(self, S: float | str = 1, verbose: bool = False):
