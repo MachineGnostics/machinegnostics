@@ -52,6 +52,8 @@ from .losses import (
 	GnosticResidualEntropy,
 	GnosticMSE,
 	GnosticBinaryCrossEntropy,
+    GnosticRSS,
+    GnosticISS,
 	gnostic_weighted_mse,
 	gnostic_weighted_rmse,
 	fidelity_loss,
@@ -128,4 +130,8 @@ __all__ = [
 	"Sequential",
 	"ActivationFunctions",
 	"GnosticNeuron",
+	"GnosticISS",
+    "GnosticRSS",
+    "GnosticProba",
+	"Entropy",
 ]
