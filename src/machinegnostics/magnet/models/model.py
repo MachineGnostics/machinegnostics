@@ -24,6 +24,8 @@ Examples
 from __future__ import annotations
 
 import logging
+from time import perf_counter
+
 import numpy as np
 
 from ..core.history import History
@@ -31,6 +33,18 @@ from ..losses import get_loss, Loss
 from ..optimizers import get_optimizer
 from ..core.tensor import Tensor
 from ..utils.logging import get_logger
+
+
+def _format_progress_bar(current: int, total: int, width: int = 20) -> str:
+	"""Return an ASCII progress bar for training status output."""
+	if total <= 0:
+		return "[--------------------] 0%"
+	current = min(max(current, 0), total)
+	filled = int(round(width * current / total))
+	filled = min(filled, width)
+	bar = "#" * filled + "-" * (width - filled)
+	percent = int(round(100 * current / total))
+	return f"[{bar}] {percent:3d}%"
 
 
 class Model:
@@ -76,7 +90,7 @@ class Model:
 			if getattr(layer, "trainable", True):
 				parameters.extend(list(layer.parameters()))
 		if self.verbose:
-			self.logger.info(f"Collected {len(parameters)} trainable parameters.")
+			self.logger.debug(f"Collected {len(parameters)} trainable parameters.")
 		return parameters
 
 	def add(self, layer):
@@ -128,7 +142,7 @@ class Model:
 		for layer in self.layers:
 			output = layer(output, training=training)
 		if self.verbose:
-			self.logger.info(f"Ran forward pass with output shape {getattr(output, 'shape', None)}.")
+			self.logger.debug(f"Ran forward pass with output shape {getattr(output, 'shape', None)}.")
 		return output
 
 	def predict(self, x, batch_size=None):
@@ -148,7 +162,7 @@ class Model:
 		"""
 		array = np.asarray(x, dtype=np.float64)
 		if self.verbose:
-			self.logger.info(f"Predict called with input shape {array.shape} and batch_size={batch_size}.")
+			self.logger.debug(f"Predict called with input shape {array.shape} and batch_size={batch_size}.")
 		if batch_size is None:
 			return self.forward(array, training=False).data
 		outputs = []
@@ -176,7 +190,7 @@ class Model:
 		array_x = np.asarray(x, dtype=np.float64)
 		array_y = np.asarray(y, dtype=np.float64)
 		if self.verbose:
-			self.logger.info(f"Evaluate called with input shape {array_x.shape} and batch_size={batch_size}.")
+			self.logger.debug(f"Evaluate called with input shape {array_x.shape} and batch_size={batch_size}.")
 		total_loss = 0.0
 		n_batches = 0
 		for index in range(0, len(array_x), batch_size):
@@ -223,8 +237,8 @@ class Model:
 		callback_list = list(callbacks or [])
 		if self.verbose:
 			self.logger.info(
-				f"Fit called with epochs={epochs}, batch_size={batch_size}, "
-				f"validation={validation_data is not None}, shuffle={shuffle}, verbose={self.verbose}."
+				f"Training for {epochs} epochs on {len(array_x)} samples "
+				f"(batch_size={batch_size}, validation={validation_data is not None}, shuffle={shuffle})."
 			)
 		self.stop_training = False
 		self._history = History()
@@ -237,6 +251,7 @@ class Model:
 				callback.on_train_begin({})
 
 		for epoch in range(epochs):
+			epoch_start = perf_counter()
 			for callback in callback_list:
 				if hasattr(callback, "on_epoch_begin"):
 					callback.on_epoch_begin(epoch, {})
@@ -280,13 +295,30 @@ class Model:
 				if hasattr(callback, "on_epoch_end"):
 					callback.on_epoch_end(epoch, logs)
 
+			stopped_now = self.stop_training
+
 			if self.verbose:
-				message = f"Epoch {epoch + 1}/{epochs} - loss: {epoch_loss:.4f}"
+				elapsed = perf_counter() - epoch_start
+				progress = _format_progress_bar(epoch + 1, epochs)
+				message = f"Epoch {epoch + 1}/{epochs} {progress} - {elapsed:.2f}s - loss: {epoch_loss:.4f}"
 				if validation_data is not None:
 					message += f" - val_loss: {logs['val_loss']:.4f}"
+				if stopped_now:
+					message += " - stopped early"
 				self.logger.info(message)
 
 			if self.stop_training:
+				if self.verbose:
+					stopper = next((callback for callback in callback_list if hasattr(callback, "stopped_epoch") and getattr(callback, "stopped_epoch", None) is not None), None)
+					if stopper is not None:
+						stop_message = f"Training stopped early at epoch {stopper.stopped_epoch}/{epochs}"
+						if getattr(stopper, "best_epoch", None) is not None:
+							stop_message += f"; best {stopper.monitor}={stopper.best:.4f} at epoch {stopper.best_epoch}"
+						if getattr(stopper, "stopped_value", None) is not None:
+							stop_message += f"; last {stopper.monitor}={stopper.stopped_value:.4f}"
+						self.logger.info(stop_message)
+					else:
+						self.logger.info(f"Training stopped early at epoch {epoch + 1}/{epochs}.")
 				break
 
 		for callback in callback_list:
@@ -316,7 +348,7 @@ class Model:
 		for param, weight in zip(self.params, weights):
 			param.data = np.asarray(weight, dtype=np.float64).copy()
 		if self.verbose:
-			self.logger.info(f"Updated model weights from {len(self.params)} tensors.")
+			self.logger.debug(f"Updated model weights from {len(self.params)} tensors.")
 
 	def summary(self):
 		"""Print a compact parameter summary for the model.
