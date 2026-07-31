@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 
+from machinegnostics.magnet.activations import hi
 import numpy as np
 
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
@@ -263,6 +264,42 @@ class _BaseGnosticCharc:
             hi = gnostic_charc._hi(q, q1)
         return fi, hi, self.S_local
 
+    def _get_hj(self, y_pred, y_true):
+        """Return the irrelevance characteristic for a prediction residual."""
+        y_diff = np.asarray(y_pred, dtype=np.float64) - np.asarray(y_true, dtype=np.float64)
+        z_y_diff = np.exp(y_diff)
+        gnostic_charc = GnosticsCharacteristics(R=z_y_diff)
+        if isinstance(self.S, str) and self.S == "auto":
+            scale_param = ScaleParam()
+            q, q1 = gnostic_charc._get_q_q1(S=1)
+            fi = gnostic_charc._fi(q, q1)
+            self.S_local = scale_param._gscale_loc(np.mean(fi))
+            q, q1 = gnostic_charc._get_q_q1(S=self.S_local)
+            hj = gnostic_charc._hj(q, q1)
+        else:
+            self.S_local = float(self.S)
+            q, q1 = gnostic_charc._get_q_q1(S=self.S_local)
+            hj = gnostic_charc._hj(q, q1)
+        return hj
+
+    def _get_hi(self, y_pred, y_true):
+        """Return the relevance characteristic for a prediction residual."""
+        y_diff = np.asarray(y_pred, dtype=np.float64) - np.asarray(y_true, dtype=np.float64)
+        z_y_diff = np.exp(y_diff)
+        gnostic_charc = GnosticsCharacteristics(R=z_y_diff)
+        if isinstance(self.S, str) and self.S == "auto":
+            scale_param = ScaleParam()
+            q, q1 = gnostic_charc._get_q_q1(S=1)
+            fi = gnostic_charc._fi(q, q1)
+            self.S_local = scale_param._gscale_loc(np.mean(fi))
+            q, q1 = gnostic_charc._get_q_q1(S=self.S_local)
+            hi = gnostic_charc._hi(q, q1)
+        else:
+            self.S_local = float(self.S)
+            q, q1 = gnostic_charc._get_q_q1(S=self.S_local)
+            hi = gnostic_charc._hi(q, q1)
+        return hi
+
 
 def _scalar_gnostic_loss(y_pred, value, gradient):
     """Wrap a scalar gnostic quantity in a differentiable tensor."""
@@ -314,6 +351,54 @@ class GnosticInfidelity(Loss, _BaseGnosticCharc):
 
     def backward(self):
         raise NotImplementedError("GnosticInfidelity uses tensor autograd; call loss.backward() instead")
+
+class GnosticRSS(Loss, _BaseGnosticCharc):
+    """
+    Gnostic RSS - Gnostic Relevance Squared Sum Loss
+    Loss that emphasizes the gnostic relevance characteristic.
+    """
+
+    def __init__(self, S: float | str = 1, verbose: bool = False):
+        Loss.__init__(self, verbose=verbose)
+        _BaseGnosticCharc.__init__(self, S=S)
+
+    def forward(self, y_pred, y_true):
+        """Compute the relevance-based gnostic loss."""
+        y_pred, y_true = _prepare_tensors(y_pred, y_true)
+        self.y_pred, self.y_true = y_pred, y_true
+        if self.verbose:
+            self.logger.info("Computing gnostic relevance loss for shape %s.", y_pred.data.shape)
+        hi = self._get_hi(y_pred.data, y_true.data)
+        value = np.sum(hi**2)
+        gradient =  (4.0 / self.S_local) * (1 - hi**2) * hi
+        return _scalar_gnostic_loss(y_pred, value, gradient)
+
+    def backward(self):
+        raise NotImplementedError("GnosticRSS uses tensor autograd; call loss.backward() instead")
+
+class GnosticISS(Loss, _BaseGnosticCharc):
+    """
+    Gnostic ISS - Gnostic Irrelevance Squared Sum Loss
+    Loss that emphasizes the gnostic irrelevance characteristic.
+    """
+
+    def __init__(self, S: float | str = 1, verbose: bool = False):
+        Loss.__init__(self, verbose=verbose)
+        _BaseGnosticCharc.__init__(self, S=S)
+
+    def forward(self, y_pred, y_true):
+        """Compute the irrelevance-based gnostic loss."""
+        y_pred, y_true = _prepare_tensors(y_pred, y_true)
+        self.y_pred, self.y_true = y_pred, y_true
+        if self.verbose:
+            self.logger.info("Computing gnostic irrelevance loss for shape %s.", y_pred.data.shape)
+        hj = self._get_hj(y_pred.data, y_true.data)
+        value = np.sum(hj**2)
+        gradient =  -(4.0 / self.S_local) * (1 - hj**2) * hj
+        return _scalar_gnostic_loss(y_pred, value, gradient)
+
+    def backward(self):
+        raise NotImplementedError("GnosticISS uses tensor autograd; call loss.backward() instead")
 
 
 class GnosticInformation(Loss, _BaseGnosticCharc):
@@ -494,6 +579,8 @@ def get_loss(loss):
             "gnosticinfidelity": GnosticInfidelity(),
             "gnosticinformation": GnosticInformation(),
             "gnosticresidualentropy": GnosticResidualEntropy(),
+            "gnosticrss": GnosticRSS(),
+            "gnosticiss": GnosticISS(),
         }
         key = loss.replace("_", "").replace("-", "").lower()
         try:
