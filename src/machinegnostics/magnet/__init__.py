@@ -38,6 +38,8 @@ from .activations import (
 	Infidelity,
 	Irrelevance,
 	Relevance,
+    GnosticProba,
+    Entropy,
 )
 from .losses import (
 	get_loss,
