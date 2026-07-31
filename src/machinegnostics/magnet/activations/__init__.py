@@ -315,7 +315,7 @@ class Fidelity(Activation):
 		self.S_local = info["S_local"]
 		self.fidelity = np.asarray(info["fi"], dtype=np.float64)
 		self.hi = np.asarray(info["hi"], dtype=np.float64)
-		prime = (-2.0 * self.fidelity * self.hi + np.finfo(float).eps) / self.S_local
+		prime = -(2.0 * self.fidelity * self.hi + np.finfo(float).eps) / self.S_local
 		return _gnostic_activation_tensor(x, self.fidelity, prime)
 
 
@@ -347,14 +347,14 @@ class Infidelity(Activation):
 		self.S_local = info["S_local"]
 		self.infidelity = np.asarray(info["fj"], dtype=np.float64)
 		self.hi = np.asarray(info["hi"], dtype=np.float64)
-		prime = (2.0 * self.hi + np.finfo(float).eps) / (self.S_local * (self.infidelity + np.finfo(float).eps))
+		prime = (2 / self.S_local) * self.infidelity * self.hi
 		return _gnostic_activation_tensor(x, self.infidelity, prime)
 
 
 class Irrelevance(Activation):
-	"""Gnostic irrelevance activation (``hi`` characteristic).
+	"""Gnostic irrelevance activation (``hj`` characteristic).
 
-	Irrelevance captures the gnostic ``hi`` characteristic and can be used when
+	Irrelevance captures the gnostic quantifying ``hj`` characteristic and can be used when
 	the model needs a direct measure of irrelevance.
 
 	Examples
@@ -376,16 +376,95 @@ class Irrelevance(Activation):
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		info = compute_characteristics(x.data, scale=self.S)
 		self.S_local = info["S_local"]
-		self.irrelevance = np.asarray(info["hi"], dtype=np.float64)
-		self.fi = np.asarray(info["fi"], dtype=np.float64)
-		prime = (2.0 / self.S_local) * self.fi ** 2
+		self.irrelevance = (np.asarray(info["hj"], dtype=np.float64)) ** 2
+		prime = (4.0 / self.S_local) * (1 - self.irrelevance ** 2) * self.irrelevance
 		return _gnostic_activation_tensor(x, self.irrelevance, prime)
+
+class GnosticProba(Activation):
+	"""Gnostic probability activation.
+
+	This activation returns the gnostic probability characteristic and is useful
+	when the model should emphasize the complementary characteristic to relevance.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, GnosticProba, Sequential
+	>>> model = Sequential([Dense(2, 2), GnosticProba()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
+
+	def __init__(self, S: float | str = 1, 
+			  name=None, 
+			  case:str = "i", # i or j
+			  verbose: bool = False):
+		"""Create a gnostic probability activation."""
+		super().__init__(name, verbose=verbose)
+		self.S = S
+		self.case = case
+
+	def forward(self, x, training=True):
+		"""Return the gnostic probability characteristic for the supplied tensor."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		info = compute_characteristics(x.data, scale=self.S)
+		self.S_local = info["S_local"]
+		self.char = info['characteristics']
+		self.h = np.asarray(info["hi"], dtype=np.float64)
+		self.proba = self.char._idistfun(self.h)
+		prime = - (4 / self.S_local) * (1 - self.proba ** 2) * self.proba
+		return _gnostic_activation_tensor(x, self.proba, prime)
+
+class Entropy(Activation):
+	"""Gnostic entropy activation.
+
+	This activation returns the gnostic entropy characteristic and is useful
+	when the model should emphasize the complementary characteristic to
+	fidelity.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Entropy, Sequential
+	>>> model = Sequential([Dense(2, 2), Entropy()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
+
+	def __init__(self, S: float | str = 1, 
+			  name=None, 
+			  case:str = "i", # i or j
+			  verbose: bool = False):
+		"""Create a gnostic entropy activation."""
+		super().__init__(name, verbose=verbose)
+		self.S = S
+		self.case = case
+
+	def forward(self, x, training=True):
+		"""Return the gnostic entropy characteristic for the supplied tensor."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		info = compute_characteristics(x.data, scale=self.S)
+		self.S_local = info["S_local"]
+		self.char = info['characteristics']
+		if self.case == "i":
+			self.fi = np.asarray(info["fi"], dtype=np.float64)
+			self.hi = np.asarray(info["hi"], dtype=np.float64)
+			self.entropy = self.char._ientropy(self.fi)
+			prime = (2 / self.S_local) * self.fi * self.hi
+		elif self.case == "j":
+			self.fj = np.asarray(info["fj"], dtype=np.float64)
+			self.hi = np.asarray(info["hi"], dtype=np.float64)
+			self.entropy = self.char._jentropy(self.fj)
+			prime = (2 / self.S_local) * self.fj * self.hi
+		else:
+			raise ValueError(f"Invalid case: {self.case}. Must be 'i' or 'j'.")
+		return _gnostic_activation_tensor(x, self.entropy, prime)
 
 
 class Relevance(Activation):
-	"""Gnostic relevance activation (``hj`` characteristic).
+	"""Gnostic relevance activation (``hi`` characteristic).
 
-	Relevance captures the gnostic ``hj`` characteristic and is the complement
+	Relevance captures the gnostic estimating Relevance (``hi``) characteristic and is the complement
 	of the irrelevance-focused activation.
 
 	Examples
@@ -407,9 +486,8 @@ class Relevance(Activation):
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		info = compute_characteristics(x.data, scale=self.S)
 		self.S_local = info["S_local"]
-		self.relevance = np.asarray(info["hj"], dtype=np.float64)
-		self.fi = np.asarray(info["fi"], dtype=np.float64)
-		prime = (2.0 / self.S_local) * self.fi
+		self.relevance = (np.asarray(info["hi"], dtype=np.float64)) ** 2
+		prime = -(4.0 / self.S_local) * (1 - self.relevance ** 2) * self.relevance
 		return _gnostic_activation_tensor(x, self.relevance, prime)
 
 
@@ -425,7 +503,7 @@ def fj(x, S: float | str = 1):
 
 def hi(x, S: float | str = 1):
 	"""Convenience function returning the gnostic irrelevance characteristic."""
-	return np.asarray(compute_characteristics(x, scale=S)["hi"], dtype=np.float64)
+	return np.asarray(compute_characteristics(x, scale=S)["hj"], dtype=np.float64)
 
 
 def hj(x, S: float | str = 1):
@@ -462,6 +540,8 @@ def get_activation(activation, verbose: bool = False):
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
 			"relevance": Relevance,
+			"gnosticproba": GnosticProba,
+			"entropy": Entropy,
 		}
 		key = activation.replace("_", "").replace("-", "").lower()
 		try:
