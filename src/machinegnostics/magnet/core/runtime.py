@@ -12,6 +12,8 @@ numeric precision. The rest of the package reads the active runtime through
 Bird's-eye view
 ---------------
 - ``configure`` selects cpu, mac, cuda, or auto mode.
+- ``configure`` also controls torch thread pools and notebook-safe OpenMP/MKL
+	limits when requested.
 - ``get_runtime`` returns the current device and dtype preferences.
 - ``to_torch`` converts Python and NumPy values into backend tensors.
 - ``to_numpy`` converts backend tensors back into plain NumPy arrays for the
@@ -118,7 +120,17 @@ def friendly_device_name(device: str | torch.device) -> str:
 	return device_text
 
 
-def configure(device: str = "auto", dtype: str = "float32", seed: int | None = None, deterministic: bool = False, mps_fallback: bool = True) -> RuntimeConfig:
+def configure(
+	device: str = "auto",
+	dtype: str = "float32",
+	seed: int | None = 42,
+	deterministic: bool = False,
+	mps_fallback: bool = True,
+	threads: int | None = None,
+	interop_threads: int | None = None,
+	omp_threads: int | None = None,
+	mkl_threads: int | None = None,
+) -> RuntimeConfig:
 	"""Configure the hidden MAGNET backend.
 
 	Use this once near the start of your program to choose where MAGNET runs.
@@ -130,15 +142,25 @@ def configure(device: str = "auto", dtype: str = "float32", seed: int | None = N
 	----------
 	device:
 		Requested execution target. ``"auto"`` picks the best available device.
-		dtype:
+	dtype:
 		Default precision for newly created tensors.
-		seed:
+	seed:
 		Optional reproducibility seed.
-		deterministic:
+	deterministic:
 		Ask torch for deterministic algorithms when available.
-		mps_fallback:
+	mps_fallback:
 			If ``True`` and MPS is selected, enable PyTorch's CPU fallback for
 			unsupported MPS operations.
+	threads:
+		Optional torch intra-op thread count to apply after runtime setup.
+	interop_threads:
+			Optional torch inter-op thread count to apply after runtime setup.
+	omp_threads:
+		Optional OpenMP thread limit. If omitted on Apple Silicon/MPS, MAGNET
+		defaults this to ``1`` to reduce notebook crash risk.
+	mkl_threads:
+		Optional MKL thread limit. If omitted on Apple Silicon/MPS, MAGNET
+		defaults this to ``1`` to reduce notebook crash risk.
 
 	Returns
 	-------
@@ -156,8 +178,20 @@ def configure(device: str = "auto", dtype: str = "float32", seed: int | None = N
 			torch.cuda.manual_seed_all(seed)
 	if mps_fallback and resolved_device.startswith("mps"):
 		os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+		if omp_threads is None:
+			omp_threads = 1
+		if mkl_threads is None:
+			mkl_threads = 1
+	if omp_threads is not None:
+		os.environ["OMP_NUM_THREADS"] = str(int(omp_threads))
+	if mkl_threads is not None:
+		os.environ["MKL_NUM_THREADS"] = str(int(mkl_threads))
 	if deterministic:
 		torch.use_deterministic_algorithms(True, warn_only=True)
+	if threads is not None:
+		torch.set_num_threads(int(threads))
+	if interop_threads is not None:
+		torch.set_num_interop_threads(int(interop_threads))
 	return _ACTIVE_RUNTIME
 
 

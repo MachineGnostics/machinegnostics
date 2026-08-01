@@ -423,6 +423,20 @@ class Model:
 			return "()"
 		return str(tuple(batch_size if dim is None else int(dim) for dim in shape))
 
+	@staticmethod
+	def _format_summary_feature_shape(shape: tuple[int, ...] | None) -> str:
+		"""Format a summary shape without the batch axis."""
+		if shape is None:
+			return "?"
+		if len(shape) == 0:
+			return "()"
+		feature_shape = tuple(int(dim) for dim in shape[1:]) if len(shape) > 1 else tuple(int(dim) for dim in shape)
+		if len(feature_shape) == 0:
+			return "()"
+		if len(feature_shape) == 1:
+			return str(feature_shape[0])
+		return ", ".join(str(dim) for dim in feature_shape)
+
 	def _infer_layer_summary_shape(self, layer: Layer, input_shape: tuple[int, ...] | None) -> tuple[int, ...] | None:
 		"""Infer a layer's output shape without executing backend operations."""
 		params = getattr(layer, "params", {})
@@ -476,34 +490,46 @@ class Model:
 		batch_size:
 			Representative batch size to display in the output table.
 		"""
-		print(f"{'Layer':<20}{'Output Shape':<20}{'Param #':<10}")
-		print("-" * 50)
+		print(f"{'Layer':<20}{'Shape':<38}{'Param #':<10}")
+		print("-" * 68)
 		feature_shape = input_shape if input_shape is not None else self._infer_summary_input_shape()
-		traced_shapes: list[tuple[int, ...] | None] = []
+		traced_input_shapes: list[tuple[int, ...] | None] = []
+		traced_output_shapes: list[tuple[int, ...] | None] = []
 		if feature_shape is not None:
 			try:
 				traced_output = Tensor(np.zeros((batch_size, *feature_shape), dtype=np.float64))
 				for layer in self.layers:
+					traced_input_shapes.append(tuple(int(dim) for dim in traced_output.shape))
 					traced_output = layer(traced_output, training=False)
-					traced_shapes.append(tuple(int(dim) for dim in traced_output.shape))
+					traced_output_shapes.append(tuple(int(dim) for dim in traced_output.shape))
 			except Exception:
-				traced_shapes = []
+				traced_input_shapes = []
+				traced_output_shapes = []
 				current_shape: tuple[int, ...] | None = (batch_size, *feature_shape)
 				for layer in self.layers:
+					traced_input_shapes.append(current_shape)
 					current_shape = self._infer_layer_summary_shape(layer, current_shape)
-					traced_shapes.append(current_shape)
+					traced_output_shapes.append(current_shape)
 		else:
 			current_shape = None
 			for layer in self.layers:
+				traced_input_shapes.append(current_shape)
 				current_shape = self._infer_layer_summary_shape(layer, current_shape)
-				traced_shapes.append(current_shape)
+				traced_output_shapes.append(current_shape)
 
 		total_params = 0
-		for layer, shape in zip(self.layers, traced_shapes):
+		for layer, input_shape, output_shape in zip(self.layers, traced_input_shapes, traced_output_shapes):
 			n_params = sum(param.data.size for param in layer.parameters())
 			total_params += n_params
-			print(f"{layer.name:<20}{self._format_summary_shape(shape, batch_size=batch_size):<20}{n_params:<10}")
-		print("-" * 50)
+			shape_text = (
+				f"({self._format_summary_feature_shape(input_shape)}, {self._format_summary_feature_shape(output_shape)})"
+			)
+			print(
+				f"{layer.name:<20}"
+				f"{shape_text:<38}"
+				f"{n_params:<10}"
+			)
+		print("-" * 68)
 		print(f"Total trainable params: {total_params}")
 		if self.verbose:
 			self.logger.info(f"Printed model summary with {total_params} total parameters.")
