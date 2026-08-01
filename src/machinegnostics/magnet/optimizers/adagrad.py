@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Iterable
 
 import numpy as np
+import torch
 
 from ..core.tensor import Tensor
 from .base import Optimizer
@@ -56,10 +57,14 @@ class Adagrad(Optimizer):
 	def step(self, params: Iterable[Tensor]) -> None:
 		"""Update each parameter tensor using the Adagrad rule."""
 		for param in params:
-			if param.grad is None:
+			if param._tensor.grad is None:
 				continue
 			key = id(param)
-			cache = self._cache.get(key, np.zeros_like(param.data))
-			cache = cache + param.grad ** 2
-			param.data = param.data - self.learning_rate * param.grad / (np.sqrt(cache) + self.epsilon)
-			self._cache[key] = cache
+			cache = self._cache.get(key)
+			if cache is None:
+				cache = torch.zeros_like(param._tensor)
+			grad = param._tensor.grad
+			cache = cache + grad ** 2
+			with torch.no_grad():
+				param._tensor.add_(-self.learning_rate * grad / (torch.sqrt(cache) + self.epsilon))
+			self._cache[key] = cache.detach()

@@ -1,63 +1,44 @@
-"""Shared gnostic helpers for MAGNET (Machine Gnostics Neural Networks).
+"""Shared gnostic helpers for MAGNET.
 
 Developer note
 -------------
-Author: Nirmal Parmar
+Author: Nirmal Parmar, Machine Gnostics
 
-This module centralizes gnostic characteristic calculations used by activations,
-losses, and gnostic-weighted layers inside MAGNET.
+This module keeps the gnostic characteristic math separate from the public
+model API. The characteristic calculations still use NumPy because they are
+domain-specific and already live in the Machine Gnostics ecosystem, but the
+gradient bridge is now torch-based so the rest of MAGNET can train on hidden
+PyTorch tensors.
 
-Examples
---------
->>> import numpy as np
->>> from machinegnostics.magnet._gnostic import gnostic_weights_i
->>> gnostic_weights_i(np.array([[0.1, 0.2], [0.2, 0.3]])).shape
-(2, 2)
+Bird's-eye view
+---------------
+- ``compute_characteristics`` produces the gnostic characteristics in NumPy.
+- ``custom_tensor`` bridges NumPy values back into the torch autograd graph.
+- ``gnostic_weights_i`` and ``gnostic_weights_j`` keep the current weighting
+  semantics used by the gnostic layers.
 """
 
 from __future__ import annotations
 
 import numpy as np
+import torch
 
 from machinegnostics.magcal import GnosticsCharacteristics, ScaleParam
 
-from .tensor import Tensor, unbroadcast
 from ..utils.logging import get_logger
+from .tensor import Tensor, to_numpy
 
 EPS = np.finfo(float).eps
 logger = get_logger(__name__)
 
 
 def as_numpy(value) -> np.ndarray:
-	"""Return a NumPy view for a tensor or array-like input.
-
-	Parameters
-	----------
-	value:
-		Tensor or array-like object.
-
-	Returns
-	-------
-	numpy.ndarray
-		A float64 NumPy array.
-	"""
-	if isinstance(value, Tensor):
-		logger.debug("Converted Tensor to NumPy array with shape %s.", value.data.shape)
-		return value.data
-	logger.debug("Converted array-like value to NumPy array.")
-	return np.asarray(value, dtype=np.float64)
+	"""Return a NumPy view for a tensor or array-like input."""
+	return to_numpy(value)
 
 
 def compute_characteristics(values, scale: float | str = 1.0) -> dict[str, np.ndarray | float]:
-	"""Compute the shared gnostic characteristics for a value tensor.
-
-	Examples
-	--------
-	>>> import numpy as np
-	>>> info = compute_characteristics(np.array([0.1, 0.5, 1.0]))
-	>>> sorted(info.keys())
-	['S_local', 'characteristics', 'fi', 'fj', 'hi', 'hj']
-	"""
+	"""Compute the shared gnostic characteristics for a value tensor."""
 	array = as_numpy(values)
 	logger.debug("Computing gnostic characteristics for array shape %s with scale=%s.", array.shape, scale)
 	z_values = np.exp(array - np.median(array))
@@ -100,22 +81,37 @@ def gnostic_weights_j(values, scale: float | str = 2.0):
 	return inverse / (np.sum(inverse) + EPS)
 
 
-def custom_tensor(data, parents, backward_fn):
-	"""Create a Tensor whose backward pass is defined by a closure."""
-	requires_grad = any(getattr(parent, "requires_grad", False) for parent in parents)
-	logger.debug("Creating custom tensor with %s parents and requires_grad=%s.", len(parents), requires_grad)
-	out = Tensor(data, requires_grad=requires_grad)
-	out._prev = {parent for parent in parents if getattr(parent, "requires_grad", False)}
-	out._backward = lambda: backward_fn(out)
-	return out
+class _GnosticBridge(torch.autograd.Function):
+	@staticmethod
+	def forward(ctx, parent_tensor: torch.Tensor, value_tensor: torch.Tensor, gradient_tensor: torch.Tensor):
+		ctx.save_for_backward(gradient_tensor)
+		return value_tensor
+
+	@staticmethod
+	def backward(ctx, grad_output):
+		(gradient_tensor,) = ctx.saved_tensors
+		return grad_output * gradient_tensor, None, None
+
+
+def _prepare_bridge_tensors(parent: Tensor, data, gradient):
+	value_tensor = torch.as_tensor(np.asarray(data, dtype=np.float64), device=parent._tensor.device, dtype=parent._tensor.dtype)
+	gradient_tensor = torch.as_tensor(np.asarray(gradient, dtype=np.float64), device=parent._tensor.device, dtype=parent._tensor.dtype)
+	return value_tensor, gradient_tensor
+
+
+def custom_tensor(data, parent: Tensor | list[Tensor] | tuple[Tensor, ...], gradient):
+	"""Create a differentiable tensor using a custom gnostic gradient."""
+	if isinstance(parent, (list, tuple)):
+		if len(parent) != 1:
+			raise ValueError("MAGNET gnostic bridge currently supports exactly one parent tensor")
+		parent = parent[0]
+	if not isinstance(parent, Tensor):
+		raise TypeError("parent must be a MAGNET Tensor")
+	value_tensor, gradient_tensor = _prepare_bridge_tensors(parent, data, gradient)
+	bridged = _GnosticBridge.apply(parent._tensor, value_tensor, gradient_tensor)
+	return Tensor.from_torch(bridged)
 
 
 def custom_tensor_from_gradient(data, parent: Tensor, gradient):
-	"""Create a tensor whose gradient is scaled by a fixed factor.
-
-	This is useful for wrapping gnostic scalar outputs where the analytic gradient
-	is known ahead of time.
-	"""
-	gradient = np.asarray(gradient, dtype=np.float64)
-	logger.debug("Creating custom tensor from fixed gradient with shape %s.", gradient.shape)
-	return custom_tensor(data, [parent], lambda out: parent._add_grad(unbroadcast(out.grad * gradient, parent.data.shape) if out.grad is not None else 0.0))
+	"""Create a tensor whose gradient is scaled by a fixed factor."""
+	return custom_tensor(data, parent, gradient)

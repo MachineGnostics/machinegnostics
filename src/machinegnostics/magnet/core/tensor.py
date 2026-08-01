@@ -1,42 +1,44 @@
-"""Autograd tensor primitive for MAGNET (Machine Gnostics Neural Networks).
+"""Torch-backed tensor facade for MAGNET.
 
 Developer note
 -------------
-Author: Nirmal Parmar
+Author: Nirmal Parmar, Machine Gnostics
 
-This tensor is intentionally small and explicit: it supports the arithmetic,
-matrix, and reduction operations needed by the MAGNET layers and losses.
+This class is the only tensor object that MAGNET users should need. It hides
+the torch implementation detail behind the existing MAGNET API, keeps NumPy
+style inspection helpers such as ``data`` and ``grad``, and lets the rest of
+the library keep its current model / layer / loss design.
 
-Examples
---------
->>> import numpy as np
->>> from machinegnostics.magnet.tensor import Tensor
->>> x = Tensor(np.array([[1., 2.]]), requires_grad=True)
->>> w = Tensor(np.array([[3.], [4.]]), requires_grad=True)
->>> y = (x @ w).sum()
->>> y.backward()
->>> x.grad.shape
-(1, 2)
+Bird's-eye view
+---------------
+- public construction still looks like a MAGNET tensor;
+- arithmetic and autograd run on torch internally;
+- ``data`` and ``grad`` remain NumPy-friendly for the user boundary;
+- device selection comes from ``machinegnostics.magnet.configure``.
 """
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any
 
 import numpy as np
+import torch
 
 from ..utils.logging import get_logger
+from .runtime import friendly_device_name, get_torch_device, get_torch_dtype, to_numpy, to_torch
 
 logger = get_logger(__name__)
 
 
-def _ensure_array(value) -> np.ndarray:
-	if isinstance(value, Tensor):
-		return value.data
-	return np.asarray(value, dtype=np.float64)
+def _normalize_axes(axes: tuple[Any, ...]) -> tuple[int, ...]:
+	if len(axes) == 1 and isinstance(axes[0], (tuple, list)):
+		axes = tuple(axes[0])
+	return tuple(int(axis) for axis in axes)
 
 
 def unbroadcast(gradient: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+	"""Reduce a broadcasted gradient back to the original tensor shape."""
+	gradient = np.asarray(gradient)
 	if gradient.shape == shape:
 		return gradient
 	while gradient.ndim > len(shape):
@@ -48,333 +50,227 @@ def unbroadcast(gradient: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
 
 
 class Tensor:
-	"""A NumPy-backed tensor with reverse-mode automatic differentiation.
+	"""A MAGNET tensor with hidden torch autograd support."""
 
-	Parameters
-	----------
-	data:
-		Any array-like object that can be converted to ``numpy.ndarray``.
-	requires_grad:
-		Whether gradients should be tracked for this tensor.
-	name:
-		Optional display name used in debugging and inspection.
-	"""
 	__array_priority__ = 1000
 
-	def __init__(self, data, requires_grad: bool = False, name: str | None = None):
-		"""Create a tensor from raw data.
-
-		Examples
-		--------
-		>>> from machinegnostics.magnet import Tensor
-		>>> Tensor([1, 2, 3]).shape
-		(3,)
-		"""
-		self.data = np.asarray(data, dtype=np.float64)
-		self.requires_grad = requires_grad
+	def __init__(self, data, requires_grad: bool = False, name: str | None = None, device: str | None = None, dtype: str | None = None):
 		self.name = name
-		self.grad: np.ndarray | None = None
-		self._prev: set[Tensor] = set()
-		self._backward: Callable[[], None] = lambda: None
-		logger.debug("Tensor initialized with shape %s and requires_grad=%s.", self.data.shape, self.requires_grad)
+		self._tensor = to_torch(data, requires_grad=requires_grad, device=device, dtype=dtype)
+		logger.debug("Tensor initialized with shape %s on %s.", tuple(self.shape), self.device)
+
+	@classmethod
+	def from_torch(cls, tensor: torch.Tensor, name: str | None = None) -> "Tensor":
+		obj = cls.__new__(cls)
+		obj.name = name
+		obj._tensor = tensor
+		return obj
 
 	@staticmethod
-	def _ensure_tensor(value) -> "Tensor":
-		"""Convert a scalar or array-like object into a ``Tensor``."""
-		return value if isinstance(value, Tensor) else Tensor(value)
+	def _ensure_tensor(value, device: str | None = None, dtype: str | None = None) -> "Tensor":
+		if isinstance(value, Tensor):
+			return value
+		return Tensor(value, device=device, dtype=dtype)
 
-	def _add_grad(self, gradient: np.ndarray) -> None:
-		"""Accumulate a gradient contribution into ``self.grad``."""
+	@property
+	def data(self):
+		return to_numpy(self._tensor)
+
+	@data.setter
+	def data(self, value) -> None:
+		self._tensor = to_torch(value, requires_grad=self.requires_grad, device=str(self._tensor.device), dtype=str(self.dtype).split(".")[-1])
+
+	@property
+	def grad(self):
+		if self._tensor.grad is None:
+			return None
+		return to_numpy(self._tensor.grad)
+
+	@grad.setter
+	def grad(self, value) -> None:
+		if value is None:
+			self._tensor.grad = None
+			return
+		self._tensor.grad = to_torch(value, device=str(self._tensor.device), dtype=str(self.dtype).split(".")[-1])
+
+	@property
+	def requires_grad(self) -> bool:
+		return bool(self._tensor.requires_grad)
+
+	@requires_grad.setter
+	def requires_grad(self, value: bool) -> None:
+		self._tensor.requires_grad_(bool(value))
+
+	@property
+	def shape(self) -> tuple[int, ...]:
+		return tuple(self._tensor.shape)
+
+	@property
+	def ndim(self) -> int:
+		return self._tensor.ndim
+
+	@property
+	def size(self) -> int:
+		return int(self._tensor.numel())
+
+	@property
+	def device(self) -> str:
+		return friendly_device_name(self._tensor.device)
+
+	@property
+	def dtype(self):
+		return self._tensor.dtype
+
+	def _add_grad(self, gradient) -> None:
 		if not self.requires_grad:
 			return
-		gradient = np.asarray(gradient, dtype=np.float64)
-		self.grad = gradient if self.grad is None else self.grad + gradient
-		logger.debug("Accumulated gradient for tensor with shape %s.", self.data.shape)
+		grad_tensor = to_torch(gradient, device=self.device, dtype=str(self.dtype).split(".")[-1])
+		if self._tensor.grad is None:
+			self._tensor.grad = grad_tensor.clone()
+		else:
+			self._tensor.grad = self._tensor.grad + grad_tensor
 
 	def zero_grad(self) -> None:
-		"""Reset the stored gradient to zeros with the same shape as the data."""
-		self.grad = np.zeros_like(self.data)
-		logger.debug("Cleared tensor gradient for shape %s.", self.data.shape)
+		if self.requires_grad:
+			self._tensor.grad = torch.zeros_like(self._tensor)
 
 	def detach(self) -> "Tensor":
-		"""Return a non-tracking copy of the tensor."""
-		logger.debug("Detached tensor with shape %s.", self.data.shape)
-		return Tensor(self.data.copy(), requires_grad=False, name=self.name)
+		return Tensor.from_torch(self._tensor.detach().clone(), name=self.name)
+
+	def clone(self) -> "Tensor":
+		return Tensor.from_torch(self._tensor.clone(), name=self.name)
+
+	def numpy(self) -> np.ndarray:
+		return self.data
+
+	def item(self):
+		return self._tensor.item()
+
+	def to(self, device: str | None = None, dtype: str | None = None) -> "Tensor":
+		return Tensor.from_torch(self._tensor.to(device=get_torch_device(device), dtype=get_torch_dtype(dtype)), name=self.name)
 
 	def backward(self, gradient=None) -> None:
-		"""Backpropagate through the computation graph.
-
-		If the tensor is scalar, the default upstream gradient is 1.0.
-		"""
 		if not self.requires_grad:
 			return
-		logger.debug("Running backward pass for tensor with shape %s.", self.data.shape)
 		if gradient is None:
-			if self.data.size != 1:
+			if self._tensor.numel() != 1:
 				raise ValueError("gradient must be provided for non-scalar tensors")
-			gradient = np.ones_like(self.data)
-		else:
-			gradient = np.asarray(gradient, dtype=np.float64)
+			self._tensor.backward()
+			return
+		self._tensor.backward(to_torch(gradient, device=self.device, dtype=str(self.dtype).split(".")[-1]))
 
-		topo: list[Tensor] = []
-		visited: set[int] = set()
+	def __array__(self, dtype=None):
+		array = self.data
+		return array.astype(dtype) if dtype is not None else array
 
-		def build(node: Tensor) -> None:
-			if id(node) in visited:
-				return
-			visited.add(id(node))
-			for parent in node._prev:
-				build(parent)
-			topo.append(node)
+	def __len__(self):
+		return len(self.data)
 
-		build(self)
-		self.grad = gradient if self.grad is None else self.grad + gradient
-		for node in reversed(topo):
-			node._backward()
+	def __float__(self):
+		return float(self.item())
 
-	def _binary_op(self, other, op, grad_self, grad_other):
-		other = Tensor._ensure_tensor(other)
-		out = Tensor(op(self.data, other.data), requires_grad=self.requires_grad or other.requires_grad)
-		out._prev = {self, other}
+	def __repr__(self):
+		return f"Tensor(shape={self.shape}, device={self.device}, requires_grad={self.requires_grad})"
 
-		def _backward() -> None:
-			if out.grad is None:
-				return
-			if self.requires_grad:
-				self._add_grad(unbroadcast(grad_self(out.grad, self.data, other.data), self.data.shape))
-			if other.requires_grad:
-				other._add_grad(unbroadcast(grad_other(out.grad, self.data, other.data), other.data.shape))
-
-		out._backward = _backward
-		return out
+	def _binary_op(self, other, op):
+		other = self._ensure_tensor(other, device=self.device, dtype=str(self.dtype).split(".")[-1])
+		return Tensor.from_torch(op(self._tensor, other._tensor))
 
 	def __add__(self, other):
-		return self._binary_op(other, np.add, lambda g, x, y: g, lambda g, x, y: g)
+		return self._binary_op(other, torch.add)
 
 	def __radd__(self, other):
 		return self.__add__(other)
 
 	def __sub__(self, other):
-		return self._binary_op(other, np.subtract, lambda g, x, y: g, lambda g, x, y: -g)
+		return self._binary_op(other, torch.sub)
 
 	def __rsub__(self, other):
-		other = Tensor._ensure_tensor(other)
-		return other.__sub__(self)
+		other = self._ensure_tensor(other, device=self.device, dtype=str(self.dtype).split(".")[-1])
+		return Tensor.from_torch(torch.sub(other._tensor, self._tensor))
 
 	def __mul__(self, other):
-		return self._binary_op(other, np.multiply, lambda g, x, y: g * y, lambda g, x, y: g * x)
+		return self._binary_op(other, torch.mul)
 
 	def __rmul__(self, other):
 		return self.__mul__(other)
 
 	def __truediv__(self, other):
-		return self._binary_op(other, np.divide, lambda g, x, y: g / y, lambda g, x, y: -g * x / (y ** 2))
+		return self._binary_op(other, torch.div)
 
 	def __rtruediv__(self, other):
-		other = Tensor._ensure_tensor(other)
-		return other.__truediv__(self)
+		other = self._ensure_tensor(other, device=self.device, dtype=str(self.dtype).split(".")[-1])
+		return Tensor.from_torch(torch.div(other._tensor, self._tensor))
 
 	def __pow__(self, power):
 		if isinstance(power, Tensor):
-			raise TypeError("Tensor powers with Tensor exponents are not supported")
-		out = Tensor(self.data ** power, requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(unbroadcast(out.grad * power * (self.data ** (power - 1)), self.data.shape))
-
-		out._backward = _backward
-		return out
+			return Tensor.from_torch(self._tensor ** power._tensor)
+		return Tensor.from_torch(self._tensor ** power)
 
 	def __neg__(self):
-		out = Tensor(-self.data, requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(-out.grad)
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(-self._tensor)
 
 	def __matmul__(self, other):
-		other = Tensor._ensure_tensor(other)
-		out = Tensor(self.data @ other.data, requires_grad=self.requires_grad or other.requires_grad)
-		out._prev = {self, other}
+		other = self._ensure_tensor(other, device=self.device, dtype=str(self.dtype).split(".")[-1])
+		return Tensor.from_torch(self._tensor @ other._tensor)
 
-		def _backward() -> None:
-			if out.grad is None:
-				return
-			if self.requires_grad:
-				self._add_grad(out.grad @ other.data.T)
-			if other.requires_grad:
-				other._add_grad(self.data.T @ out.grad)
-
-		out._backward = _backward
-		return out
+	def __getitem__(self, item):
+		return Tensor.from_torch(self._tensor.__getitem__(item))
 
 	def sum(self, axis=None, keepdims: bool = False):
-		"""Sum tensor elements with autograd support."""
-		out = Tensor(self.data.sum(axis=axis, keepdims=keepdims), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				gradient = out.grad
-				if axis is None:
-					gradient = np.broadcast_to(gradient, self.data.shape)
-				else:
-					axes = axis if isinstance(axis, tuple) else (axis,)
-					if not keepdims:
-						for ax in sorted(axes):
-							gradient = np.expand_dims(gradient, axis=ax)
-					gradient = np.broadcast_to(gradient, self.data.shape)
-				self._add_grad(gradient)
-
-		out._backward = _backward
-		return out
+		if axis is None:
+			result = self._tensor.sum()
+		else:
+			axes = _normalize_axes(axis if isinstance(axis, tuple) else (axis,))
+			result = self._tensor.sum(dim=axes, keepdim=keepdims)
+		return Tensor.from_torch(result)
 
 	def mean(self, axis=None, keepdims: bool = False):
-		"""Compute the mean with gradient propagation."""
 		if axis is None:
-			count = self.data.size
+			result = self._tensor.mean()
 		else:
-			axes = axis if isinstance(axis, tuple) else (axis,)
-			count = 1
-			for ax in axes:
-				count *= self.data.shape[ax]
-		return self.sum(axis=axis, keepdims=keepdims) / count
+			axes = _normalize_axes(axis if isinstance(axis, tuple) else (axis,))
+			result = self._tensor.mean(dim=axes, keepdim=keepdims)
+		return Tensor.from_torch(result)
 
 	def reshape(self, *shape):
-		"""Return a reshaped view of the tensor for forward passes."""
 		if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
 			shape = tuple(shape[0])
-		out = Tensor(self.data.reshape(*shape), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad.reshape(self.data.shape))
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(self._tensor.reshape(*shape))
 
 	def transpose(self, *axes):
-		"""Transpose the tensor and preserve the backward path."""
 		if not axes:
-			axes = tuple(reversed(range(self.data.ndim)))
-		elif len(axes) == 1 and isinstance(axes[0], (tuple, list)):
-			axes = tuple(axes[0])
-		out = Tensor(np.transpose(self.data, axes=axes), requires_grad=self.requires_grad)
-		out._prev = {self}
-		inverse_axes = np.argsort(axes)
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(np.transpose(out.grad, axes=inverse_axes))
-
-		out._backward = _backward
-		return out
+			axes = tuple(reversed(range(self._tensor.ndim)))
+		axes = _normalize_axes(axes)
+		return Tensor.from_torch(self._tensor.permute(*axes))
 
 	@property
 	def T(self):
 		return self.transpose()
 
 	def exp(self):
-		"""Elementwise exponential."""
-		out = Tensor(np.exp(self.data), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad * out.data)
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(torch.exp(self._tensor))
 
 	def log(self):
-		"""Elementwise natural logarithm."""
-		out = Tensor(np.log(self.data), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad / self.data)
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(torch.log(self._tensor))
 
 	def tanh(self):
-		"""Elementwise hyperbolic tangent."""
-		out = Tensor(np.tanh(self.data), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad * (1.0 - out.data ** 2))
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(torch.tanh(self._tensor))
 
 	def sigmoid(self):
-		"""Elementwise logistic sigmoid."""
-		clipped = np.clip(self.data, -500, 500)
-		data = 1.0 / (1.0 + np.exp(-clipped))
-		out = Tensor(data, requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad * out.data * (1.0 - out.data))
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(torch.sigmoid(self._tensor))
 
 	def relu(self):
-		"""Elementwise rectified linear unit."""
-		out = Tensor(np.maximum(0.0, self.data), requires_grad=self.requires_grad)
-		out._prev = {self}
-
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				self._add_grad(out.grad * (self.data > 0))
-
-		out._backward = _backward
-		return out
+		return Tensor.from_torch(torch.relu(self._tensor))
 
 	def clip(self, min_value, max_value):
-		"""Clamp tensor values into ``[min_value, max_value]``."""
-		out = Tensor(np.clip(self.data, min_value, max_value), requires_grad=self.requires_grad)
-		out._prev = {self}
+		return Tensor.from_torch(torch.clamp(self._tensor, min=min_value, max=max_value))
 
-		def _backward() -> None:
-			if self.requires_grad and out.grad is not None:
-				mask = (self.data >= min_value) & (self.data <= max_value)
-				self._add_grad(out.grad * mask)
+	def sqrt(self):
+		return Tensor.from_torch(torch.sqrt(self._tensor))
 
-		out._backward = _backward
-		return out
-
-	def __array__(self, dtype=None):
-		return np.asarray(self.data, dtype=dtype)
+	def abs(self):
+		return Tensor.from_torch(torch.abs(self._tensor))
 
 	def copy(self):
-		return Tensor(self.data.copy(), requires_grad=self.requires_grad, name=self.name)
-
-	@property
-	def shape(self):
-		return self.data.shape
-
-	@property
-	def ndim(self):
-		return self.data.ndim
-
-	def item(self):
-		return self.data.item()
-
-	def __len__(self):
-		return len(self.data)
-
-	def __repr__(self):
-		return f"Tensor(data={self.data!r}, requires_grad={self.requires_grad}, grad={'set' if self.grad is not None else 'None'})"
+		return Tensor.from_torch(self._tensor.detach().clone(), name=self.name)

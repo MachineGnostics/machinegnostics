@@ -270,7 +270,7 @@ class Swish(Activation):
 
 def _gnostic_activation_tensor(x, value, prime):
 	prime = np.asarray(prime, dtype=np.float64)
-	return custom_tensor(value, [x], lambda out: x._add_grad(out.grad * prime if out.grad is not None else 0.0))
+	return custom_tensor(value, x, prime)
 
 
 class Fidelity(Activation):

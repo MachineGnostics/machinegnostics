@@ -45,6 +45,7 @@ keywords = [
 
 dependencies = [
   "fastapi",
+  "torch",
   "numpy",
   "pandas",
   "pydantic",

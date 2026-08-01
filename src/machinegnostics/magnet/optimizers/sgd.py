@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Iterable
 
 import numpy as np
+import torch
 
 from ..core.tensor import Tensor
 from .base import Optimizer
@@ -56,10 +57,14 @@ class SGD(Optimizer):
 	def step(self, params: Iterable[Tensor]) -> None:
 		"""Update each parameter tensor using SGD with momentum."""
 		for param in params:
-			if param.grad is None:
+			if param._tensor.grad is None:
 				continue
 			key = id(param)
-			velocity = self._velocity.get(key, np.zeros_like(param.data))
-			velocity = self.momentum * velocity - self.learning_rate * param.grad
-			self._velocity[key] = velocity
-			param.data = param.data + velocity
+			velocity = self._velocity.get(key)
+			if velocity is None:
+				velocity = torch.zeros_like(param._tensor)
+			grad = param._tensor.grad
+			with torch.no_grad():
+				velocity = self.momentum * velocity - self.learning_rate * grad
+				param._tensor.add_(velocity)
+			self._velocity[key] = velocity.detach()

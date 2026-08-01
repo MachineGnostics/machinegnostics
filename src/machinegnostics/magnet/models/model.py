@@ -25,14 +25,17 @@ from __future__ import annotations
 
 import logging
 from time import perf_counter
+from typing import Any, Iterable
 
 import numpy as np
 
+from ..core.callbacks import Callback
 from ..core.history import History
 from ..losses import get_loss, Loss
 from ..optimizers import get_optimizer
 from ..core.tensor import Tensor
 from ..utils.logging import get_logger
+from ..layers.base import Layer
 
 
 def _format_progress_bar(current: int, total: int, width: int = 20) -> str:
@@ -55,7 +58,7 @@ class Model:
 	re-implementing the core training flow unless they need custom orchestration.
 	"""
 
-	def __init__(self, layers=None, verbose: bool = False):
+	def __init__(self, layers: Iterable[Layer] | None = None, verbose: bool = False):
 		"""Create a model from an optional list of layers.
 
 		Parameters
@@ -65,9 +68,9 @@ class Model:
 		verbose:
 			If ``True``, enable debug-level logging for the model instance.
 		"""
-		self.layers = list(layers or [])
+		self.layers: list[Layer] = list(layers or [])
 		self.loss_fn: Loss | None = None
-		self.optimizer = None
+		self.optimizer: Any | None = None
 		self._history = History()
 		self.history = self._history
 		self.stop_training = False
@@ -77,7 +80,7 @@ class Model:
 			self.logger.info(f"{self.__class__.__name__} initialized.")
 
 	@property
-	def params(self):
+	def params(self) -> list[Tensor]:
 		"""Return all trainable tensors exposed by the model.
 
 		Returns
@@ -93,7 +96,7 @@ class Model:
 			self.logger.debug(f"Collected {len(parameters)} trainable parameters.")
 		return parameters
 
-	def add(self, layer):
+	def add(self, layer: Layer) -> None:
 		"""Append a new layer to the model.
 
 		Parameters
@@ -105,7 +108,7 @@ class Model:
 		if self.verbose:
 			self.logger.info(f"Added layer {layer.__class__.__name__}.")
 
-	def compile(self, loss, optimizer):
+	def compile(self, loss: Any, optimizer: Any) -> None:
 		"""Attach a loss function and optimizer to the model.
 
 		Parameters
@@ -123,7 +126,7 @@ class Model:
 				f"and optimizer={self.optimizer.__class__.__name__}."
 			)
 
-	def forward(self, x, training=True):
+	def forward(self, x: Any, training: bool = True) -> Tensor:
 		"""Run a forward pass through every layer in the model.
 
 		Parameters
@@ -145,7 +148,15 @@ class Model:
 			self.logger.debug(f"Ran forward pass with output shape {getattr(output, 'shape', None)}.")
 		return output
 
-	def predict(self, x, batch_size=None):
+	def __call__(self, x: Any, training: bool = True) -> Tensor:
+		"""Alias for ``forward`` so models can be used like layers.
+
+		The callable form keeps the user experience close to a normal neural
+		network module while still preserving the MAGNET naming and training flow.
+		"""
+		return self.forward(x, training=training)
+
+	def predict(self, x: Any, batch_size: int | None = None) -> np.ndarray:
 		"""Return model predictions as NumPy arrays.
 
 		Parameters
@@ -170,7 +181,7 @@ class Model:
 			outputs.append(self.forward(array[index : index + batch_size], training=False).data)
 		return np.concatenate(outputs, axis=0)
 
-	def evaluate(self, x, y, batch_size=32):
+	def evaluate(self, x: Any, y: Any, batch_size: int = 32) -> float:
 		"""Evaluate the current model on a full dataset.
 
 		Parameters
@@ -201,7 +212,16 @@ class Model:
 			n_batches += 1
 		return total_loss / max(n_batches, 1)
 
-	def fit(self, x, y, epochs=10, batch_size=32, validation_data=None, shuffle=True, callbacks=None):
+	def fit(
+		self,
+		x: Any,
+		y: Any,
+		epochs: int = 10,
+		batch_size: int = 32,
+		validation_data: tuple[Any, Any] | None = None,
+		shuffle: bool = True,
+		callbacks: Iterable[Callback] | None = None,
+	) -> History:
 		"""Train the model and return the recorded history.
 
 		Parameters
@@ -235,6 +255,8 @@ class Model:
 		array_x = np.asarray(x, dtype=np.float64)
 		array_y = np.asarray(y, dtype=np.float64)
 		callback_list = list(callbacks or [])
+		if self.loss_fn is None or self.optimizer is None:
+			raise RuntimeError("Model must be compiled before calling fit()")
 		if self.verbose:
 			self.logger.info(
 				f"Training for {epochs} epochs on {len(array_x)} samples "
@@ -327,7 +349,7 @@ class Model:
 
 		return self._history
 
-	def get_weights(self):
+	def get_weights(self) -> list[np.ndarray]:
 		"""Return copies of the model parameters as NumPy arrays.
 
 		Returns
@@ -337,7 +359,7 @@ class Model:
 		"""
 		return [param.data.copy() for param in self.params]
 
-	def set_weights(self, weights):
+	def set_weights(self, weights: Iterable[Any]) -> None:
 		"""Load a list of NumPy arrays back into the model parameters.
 
 		Parameters
@@ -350,19 +372,137 @@ class Model:
 		if self.verbose:
 			self.logger.debug(f"Updated model weights from {len(self.params)} tensors.")
 
-	def summary(self):
+	def _infer_summary_input_shape(self) -> tuple[int, ...] | None:
+		"""Infer a feature-shape for summary tracing.
+
+		The returned shape excludes the batch axis. The summary renderer then adds a
+		representative batch size for display so it does not inherit stale training
+		batch dimensions from cached layer inputs.
+		"""
+		if not self.layers:
+			return None
+
+		first_layer = self.layers[0]
+		explicit_shape = getattr(first_layer, "input_shape", None)
+		if explicit_shape is not None:
+			explicit_shape = tuple(explicit_shape)
+			if explicit_shape:
+				if explicit_shape[0] is None:
+					return tuple(int(dim) for dim in explicit_shape[1:])
+				if len(explicit_shape) == 1:
+					return (int(explicit_shape[0]),)
+				return tuple(int(dim) for dim in explicit_shape[1:])
+
+		params = getattr(first_layer, "params", {})
+		for key in ("W", "weight", "kernel", "gamma", "beta"):
+			param = params.get(key)
+			if param is not None and hasattr(param, "shape") and param.shape:
+				if len(param.shape) >= 2:
+					return (int(param.shape[0]),)
+				return (int(param.shape[0]),)
+
+		for param in params.values():
+			if hasattr(param, "shape") and param.shape:
+				if len(param.shape) >= 2:
+					return (int(param.shape[0]),)
+				return (int(param.shape[0]),)
+
+		for attr in ("in_features", "input_dim", "input_size"):
+			value = getattr(first_layer, attr, None)
+			if value is not None:
+				return (int(value),)
+
+		return None
+
+	@staticmethod
+	def _format_summary_shape(shape: tuple[int, ...] | None, batch_size: int = 1) -> str:
+		"""Format a traced tensor shape for the summary table."""
+		if shape is None:
+			return "?"
+		if len(shape) == 0:
+			return "()"
+		return str(tuple(batch_size if dim is None else int(dim) for dim in shape))
+
+	def _infer_layer_summary_shape(self, layer: Layer, input_shape: tuple[int, ...] | None) -> tuple[int, ...] | None:
+		"""Infer a layer's output shape without executing backend operations."""
+		params = getattr(layer, "params", {})
+		layer_name = layer.__class__.__name__
+
+		if "W" in params and hasattr(params["W"], "shape") and len(params["W"].shape) >= 2:
+			batch_dim = None if input_shape is None or len(input_shape) == 0 else input_shape[0]
+			return (batch_dim, int(params["W"].shape[1]))
+
+		if layer_name == "Flatten":
+			if input_shape is None or len(input_shape) < 2:
+				return None
+			return (input_shape[0], int(np.prod(input_shape[1:])))
+
+		if layer_name in {
+			"ReLU",
+			"Sigmoid",
+			"Tanh",
+			"Softmax",
+			"Step",
+			"LeakyReLU",
+			"ELU",
+			"Softplus",
+			"Swish",
+			"Fidelity",
+			"Infidelity",
+			"Irrelevance",
+			"Relevance",
+			"GnosticProba",
+			"Entropy",
+		}:
+			return input_shape
+
+		if {"gamma", "beta"}.issubset(params.keys()):
+			return input_shape
+
+		return input_shape
+
+	def summary(self, input_shape: tuple[int, ...] | None = None, batch_size: int = 1) -> None:
 		"""Print a compact parameter summary for the model.
 
-		The summary lists each layer with its parameter count and a total at the
-		end. It is meant for quick inspection rather than full shape tracing.
+		The summary lists each layer with its output shape and parameter count.
+		It uses a torch-backed dry run when possible, and falls back to metadata
+		shape propagation if the dry run cannot be executed.
+
+		Parameters
+		----------
+		input_shape:
+			Optional feature shape for the model input, excluding the batch axis.
+			If omitted, MAGNET tries to infer it from the first layer.
+		batch_size:
+			Representative batch size to display in the output table.
 		"""
 		print(f"{'Layer':<20}{'Output Shape':<20}{'Param #':<10}")
 		print("-" * 50)
+		feature_shape = input_shape if input_shape is not None else self._infer_summary_input_shape()
+		traced_shapes: list[tuple[int, ...] | None] = []
+		if feature_shape is not None:
+			try:
+				traced_output = Tensor(np.zeros((batch_size, *feature_shape), dtype=np.float64))
+				for layer in self.layers:
+					traced_output = layer(traced_output, training=False)
+					traced_shapes.append(tuple(int(dim) for dim in traced_output.shape))
+			except Exception:
+				traced_shapes = []
+				current_shape: tuple[int, ...] | None = (batch_size, *feature_shape)
+				for layer in self.layers:
+					current_shape = self._infer_layer_summary_shape(layer, current_shape)
+					traced_shapes.append(current_shape)
+		else:
+			current_shape = None
+			for layer in self.layers:
+				current_shape = self._infer_layer_summary_shape(layer, current_shape)
+				traced_shapes.append(current_shape)
+
 		total_params = 0
-		for layer in self.layers:
+		for layer, shape in zip(self.layers, traced_shapes):
 			n_params = sum(param.data.size for param in layer.parameters())
 			total_params += n_params
-			print(f"{layer.name:<20}{'?':<20}{n_params:<10}")
+			print(f"{layer.name:<20}{self._format_summary_shape(shape, batch_size=batch_size):<20}{n_params:<10}")
 		print("-" * 50)
 		print(f"Total trainable params: {total_params}")
 		if self.verbose:

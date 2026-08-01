@@ -328,7 +328,7 @@ class _BaseGnosticCharc:
 
 def _scalar_gnostic_loss(y_pred, value, gradient):
     """Wrap a scalar gnostic quantity in a differentiable tensor."""
-    return custom_tensor(value, [y_pred], lambda out: y_pred._add_grad(out.grad * gradient if out.grad is not None else 0.0))
+    return custom_tensor(value, y_pred, gradient)
 
 
 class GnosticFidelity(Loss, _BaseGnosticCharc):

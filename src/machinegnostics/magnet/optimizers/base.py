@@ -51,8 +51,7 @@ class Optimizer:
 	def zero_grad(self, params: Iterable[Tensor]) -> None:
 		"""Reset gradients on every parameter passed to the optimizer."""
 		for param in params:
-			if param.grad is not None:
-				param.grad = np.zeros_like(param.data)
+			param.zero_grad()
 
 
 def get_optimizer(optimizer: OptimizerLike | None) -> Optimizer:
