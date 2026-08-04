@@ -384,7 +384,7 @@ class GnosticInfidelity(Loss, _BaseGnosticCharc):
         if self.verbose:
             self.logger.info("Computing gnostic infidelity loss for shape %s.", y_pred.data.shape)
         fi, hi, _ = self._get_fihi(y_pred.data, y_true.data)
-        value = np.mean(1.0 / (fi + 1e-21))
+        value = np.mean(1.0 / (fi + np.finfo(float).eps))
         gradient = (2 / self.S_local) * (hi / (fi + np.finfo(float).eps))
         gradient = np.clip(gradient, -1e12, 1e12)
         return _scalar_gnostic_loss(y_pred, value, gradient)
