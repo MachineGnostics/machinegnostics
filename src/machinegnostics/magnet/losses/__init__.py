@@ -353,7 +353,9 @@ class GnosticFidelity(Loss, _BaseGnosticCharc):
         if self.verbose:
             self.logger.info("Computing gnostic fidelity loss for shape %s.", y_pred.data.shape)
         fi, hi, _ = self._get_fihi(y_pred.data, y_true.data)
-        return _scalar_gnostic_loss(y_pred, np.mean(fi), -(2 / self.S_local) * fi * hi)
+        value = np.mean(fi)
+        prime = (2 / self.S_local) * fi * hi
+        return _scalar_gnostic_loss(y_pred, value, prime)
 
     def backward(self):
         raise NotImplementedError("GnosticFidelity uses tensor autograd; call loss.backward() instead")
