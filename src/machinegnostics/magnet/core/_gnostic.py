@@ -37,11 +37,12 @@ def as_numpy(value) -> np.ndarray:
 	return to_numpy(value)
 
 
-def compute_characteristics(values, scale: float | str = 1.0) -> dict[str, np.ndarray | float]:
+def compute_characteristics(values, scale: float | str = 1.0, lel: float = None) -> dict[str, np.ndarray | float]:
 	"""Compute the shared gnostic characteristics for a value tensor."""
 	array = as_numpy(values)
 	logger.debug("Computing gnostic characteristics for array shape %s with scale=%s.", array.shape, scale)
-	z_values = np.exp(array - np.median(array))
+	lel_mode = lel if lel is not None else np.median(array)
+	z_values = np.exp(array - lel_mode)
 	characteristics = GnosticsCharacteristics(R=z_values)
 	if isinstance(scale, str) and scale == "auto":
 		q, q1 = characteristics._get_q_q1(S=1)
@@ -64,21 +65,21 @@ def compute_characteristics(values, scale: float | str = 1.0) -> dict[str, np.nd
 	}
 
 
-def gnostic_weights_i(values, scale: float | str = 2.0):
+def gnostic_weights_i(values, scale: float | str = 2.0, lel: float = None):
 	"""Return normalized estimating weights for MAGNET layers."""
-	info = compute_characteristics(values, scale=scale)
+	info = compute_characteristics(values, scale=scale, lel=lel)
 	fi = np.asarray(info["fi"], dtype=np.float64)
-	weights = fi ** 2
+	weights = fi
 	logger.debug("Computed gnostic i-weights with shape %s.", weights.shape)
-	return weights / (np.sum(weights) + EPS)
+	return weights
 
 
-def gnostic_weights_j(values, scale: float | str = 2.0):
+def gnostic_weights_j(values, scale: float | str = 2.0, lel: float = None):
 	"""Return normalized quantifying weights for MAGNET layers."""
-	weights = gnostic_weights_i(values, scale=scale)
+	weights = gnostic_weights_i(values, scale=scale, lel=lel)
 	inverse = 1.0 / (weights + EPS)
 	logger.debug("Computed gnostic j-weights with shape %s.", inverse.shape)
-	return inverse / (np.sum(inverse) + EPS)
+	return inverse
 
 
 class _GnosticBridge(torch.autograd.Function):

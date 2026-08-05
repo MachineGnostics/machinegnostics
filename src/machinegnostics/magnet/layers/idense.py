@@ -42,7 +42,15 @@ class iDense(Dense):
 	(1, 1)
 	"""
 
-	def __init__(self, in_features, out_features, weight_init=None, bias_init=None, name=None, S: float | str = 2.0, verbose: bool = False):
+	def __init__(self, 
+			  in_features, 
+			  out_features, 
+			  weight_init=None, 
+			  bias_init=None, 
+			  name=None, 
+			  S: float | str = 2.0, 
+			  verbose: bool = False,
+			  lel: float = None):
 		"""Create an input-weighted dense layer.
 
 		Parameters
@@ -61,6 +69,8 @@ class iDense(Dense):
 			Scale parameter for the gnostic weighting calculation.
 		verbose:
 			Enable debug logging for the layer instance.
+		lel:
+			Local Estimate of Location (LEL) - mean, median, or mode of the input distribution. If None, it will be computed as the statistical median from the input data.
 
 		Examples
 		--------
@@ -70,6 +80,7 @@ class iDense(Dense):
 		"""
 		super().__init__(in_features, out_features, weight_init=weight_init, bias_init=bias_init, name=name, verbose=verbose)
 		self.S = S
+		self.lel = lel
 		self.logger.debug("iDense initialized with scale=%s.", S)
 
 	def forward(self, x, training=True):
@@ -80,8 +91,8 @@ class iDense(Dense):
 		then hands the weighted tensor to the standard dense transform.
 		"""
 		x = x if isinstance(x, Tensor) else Tensor(x)
-		weights = gnostic_weights_i(x.data, scale=self.S)
+		weights = gnostic_weights_i(x.data, scale=self.S, lel=self.lel)
 		if weights.shape != x.shape:
 			weights = weights.reshape((1,) * (x.ndim - weights.ndim) + weights.shape)
 		self.logger.debug("Running iDense forward pass with input shape %s.", x.shape)
-		return super().forward(x * Tensor(weights), training=training)
+		return super().forward(Tensor(weights), training=training)
