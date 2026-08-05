@@ -376,8 +376,8 @@ class Irrelevance(Activation):
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		info = compute_characteristics(x.data, scale=self.S)
 		self.S_local = info["S_local"]
-		self.irrelevance = (np.asarray(info["hj"], dtype=np.float64)) ** 2
-		prime = (4.0 / self.S_local) * (1 - self.irrelevance ** 2) * self.irrelevance
+		self.irrelevance = (np.asarray(info["hj"], dtype=np.float64))
+		prime = (2.0 / self.S_local) * (1 - self.irrelevance ** 2)
 		return _gnostic_activation_tensor(x, self.irrelevance, prime)
 
 class GnosticProba(Activation):
@@ -486,8 +486,8 @@ class Relevance(Activation):
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		info = compute_characteristics(x.data, scale=self.S)
 		self.S_local = info["S_local"]
-		self.relevance = (np.asarray(info["hi"], dtype=np.float64)) ** 2
-		prime = -(4.0 / self.S_local) * (1 - self.relevance ** 2) * self.relevance
+		self.relevance = (np.asarray(info["hi"], dtype=np.float64))
+		prime = (2.0 / self.S_local) * (1 - self.relevance ** 2)
 		return _gnostic_activation_tensor(x, self.relevance, prime)
 
 
