@@ -412,7 +412,7 @@ class GnosticProba(Activation):
 		self.char = info['characteristics']
 		self.h = np.asarray(info["hi"], dtype=np.float64)
 		self.proba = self.char._idistfun(self.h)
-		prime = - (4 / self.S_local) * (1 - self.proba ** 2) * self.proba
+		prime = - (4 / self.S_local) * (1 - self.proba) * self.proba
 		return _gnostic_activation_tensor(x, self.proba, prime)
 
 class Entropy(Activation):
@@ -489,6 +489,28 @@ class Relevance(Activation):
 		self.relevance = (np.asarray(info["hi"], dtype=np.float64))
 		prime = (2.0 / self.S_local) * (1 - self.relevance ** 2)
 		return _gnostic_activation_tensor(x, self.relevance, prime)
+
+class Square(Activation):
+	"""Square activation function.
+
+	This activation returns the square of the input tensor and is useful
+	when the model should emphasize the squared values.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, Square, Sequential
+	>>> model = Sequential([Dense(2, 2), Square()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
+
+	def forward(self, x, training=True):
+		"""Return the square of the input tensor."""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		data = np.square(x.data)
+		prime = 2 * x.data
+		return _gnostic_activation_tensor(x, data, prime)
 
 
 def fi(x, S: float | str = 1):

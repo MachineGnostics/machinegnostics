@@ -43,6 +43,7 @@ from .activations import (
 	Relevance,
     GnosticProba,
     Entropy,
+    Square
 )
 from .losses import (
 	get_loss,
