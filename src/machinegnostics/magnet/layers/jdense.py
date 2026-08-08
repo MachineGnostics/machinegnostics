@@ -87,4 +87,4 @@ class jDense(Dense):
 		if weights.shape != x.shape:
 			weights = weights.reshape((1,) * (x.ndim - weights.ndim) + weights.shape)
 		self.logger.debug("Running jDense forward pass with input shape %s.", x.shape)
-		return super().forward(Tensor(weights), training=training)
+		return super().forward(x * Tensor(weights), training=training)
