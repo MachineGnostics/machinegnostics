@@ -69,7 +69,7 @@ def gnostic_weights_i(values, scale: float | str = 2.0, lel: float = None):
 	"""Return normalized estimating weights for MAGNET layers."""
 	info = compute_characteristics(values, scale=scale, lel=lel)
 	fi = np.asarray(info["fi"], dtype=np.float64)
-	weights = fi
+	weights = fi**2 / (np.sum(fi**2) + EPS)
 	logger.debug("Computed gnostic i-weights with shape %s.", weights.shape)
 	return weights
 
