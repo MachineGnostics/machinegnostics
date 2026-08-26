@@ -444,7 +444,7 @@ class GnosticISS(Loss, _BaseGnosticCharc):
             self.logger.info("Computing gnostic irrelevance loss for shape %s.", y_pred.data.shape)
         hj = self._get_hj(y_pred.data, y_true.data)
         value = np.sum(hj**2)
-        gradient =  -(4.0 / self.S_local) * (1 - hj**2) * hj
+        gradient =  (4.0 / self.S_local) * (1 - hj**2) * hj
         return _scalar_gnostic_loss(y_pred, value, gradient)
 
     def backward(self):
