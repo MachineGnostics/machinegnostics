@@ -21,6 +21,8 @@ Author: Nirmal Parmar
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 from ..initializers import XavierUniform, Zeros, get_initializer
 from ..core.tensor import Tensor
 from .base import Layer
@@ -35,9 +37,8 @@ class Dense(Layer):
 
 	Unlike a standalone NumPy implementation, ``Dense`` stores its parameters as
 	``Tensor`` objects so gradients can flow through MAGNET's autograd engine.
-	The layer itself does not implement a manual backward pass because the
-	tensor system already knows how to differentiate matrix multiplication and
-	addition.
+	The layer also exposes a manual ``backward`` hook so you can inspect or
+	override gradient logic when you need custom behavior.
 
 	Typical uses
 	------------
@@ -52,7 +53,8 @@ class Dense(Layer):
 			  weight_init=None, 
 			  bias_init=None, 
 			  name=None, 
-			  verbose: bool = False):
+			  verbose: bool = False,
+			  backward_fn: Callable[["Dense", Any], Any] | None = None):
 		"""Create a dense layer.
 
 		Parameters
@@ -69,6 +71,9 @@ class Dense(Layer):
 			Optional layer name.
 		verbose:
 			Enable debug logging for the layer instance.
+		backward_fn:
+			Optional custom backward callback. If provided, it receives the layer
+			instance and ``grad_output`` and may update ``grads`` however you want.
 
 		Examples
 		--------
@@ -87,6 +92,7 @@ class Dense(Layer):
 		self.params["b"].requires_grad = True
 		self.grads["W"] = None
 		self.grads["b"] = None
+		self.backward_fn = backward_fn
 		self.logger.debug("Dense initialized with in_features=%s, out_features=%s.", in_features, out_features)
 
 	def forward(self, x, training=True):
@@ -115,12 +121,32 @@ class Dense(Layer):
 		return x @ self.params["W"] + self.params["b"]
 
 	def backward(self, grad_output):
-		"""Dense layers use tensor autograd, so manual backward is unused.
+		"""Compute or customize the dense backward pass.
 
-		The ``grad_output`` argument is accepted only to keep the API aligned
-		with non-autograd layers. Calling this method directly is not part of the
-		normal MAGNET workflow; gradients are produced by ``loss.backward()`` on
-		the final scalar loss instead.
+		The default implementation computes the standard affine gradients,
+		stores them on ``self.grads`` and on the underlying tensors, and returns
+		the gradient with respect to the input. If ``backward_fn`` was supplied at
+		construction time, that callback is used instead.
 		"""
-		self.logger.debug("Dense.backward called; autograd handles gradients.")
-		raise NotImplementedError("Dense uses tensor autograd; call loss.backward() instead")
+		if self.backward_fn is not None:
+			self.logger.debug("Dense.backward delegated to custom backward_fn.")
+			return self.backward_fn(self, grad_output)
+
+		if not hasattr(self, "input") or self.input is None:
+			raise RuntimeError("Dense.backward requires a prior forward pass")
+
+		grad_output_tensor = grad_output if isinstance(grad_output, Tensor) else Tensor(grad_output)
+		input_data = self.input.data
+		grad_output_data = grad_output_tensor.data
+		weight_data = self.params["W"].data
+
+		grad_w = input_data.T @ grad_output_data
+		grad_b = grad_output_data.sum(axis=0)
+		grad_input = grad_output_data @ weight_data.T
+
+		self.grads["W"] = grad_w
+		self.grads["b"] = grad_b
+		self.params["W"].grad = grad_w
+		self.params["b"].grad = grad_b
+		self.logger.debug("Dense.backward computed gradients with input shape %s and grad_output shape %s.", self.input.shape, grad_output_tensor.shape)
+		return Tensor(grad_input)
