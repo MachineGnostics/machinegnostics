@@ -48,6 +48,8 @@ def compute_characteristics(values, scale: float | str = 1.0, lel: float = None)
 		q, q1 = characteristics._get_q_q1(S=1)
 		fi_seed = characteristics._fi(q, q1)
 		local_scale = ScaleParam()._gscale_loc(np.mean(fi_seed))
+		# NOTE: minimum scale value in 0.01, too small values can cause numerical instability
+		local_scale = max(local_scale, 0.01)
 	else:
 		local_scale = float(scale)
 	q, q1 = characteristics._get_q_q1(S=local_scale)
