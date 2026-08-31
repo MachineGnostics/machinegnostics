@@ -44,6 +44,7 @@ from .activations import (
     GnosticProba,
     Entropy,
 	FiActivation,
+	FjActivation,
     Square
 )
 from .losses import (
@@ -108,7 +109,6 @@ __all__ = [
 	"Irrelevance",
 	"Relevance",
 	"FiActivation",
-	FjActivation,
 	"FjActivation",
 	"get_loss",
 	"Loss",
