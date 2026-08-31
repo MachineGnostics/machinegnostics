@@ -18,6 +18,7 @@ Examples
 from __future__ import annotations
 
 import numpy as np
+import torch
 
 from ..core._gnostic import compute_characteristics, custom_tensor
 from ..core.tensor import Tensor
@@ -319,6 +320,100 @@ class Fidelity(Activation):
 		return _gnostic_activation_tensor(x, self.fidelity, prime)
 
 
+class FiActivation(Activation):
+	"""Trainable fidelity activation with learnable center and scale.
+
+	FiActivation implements the normalized deviation used by the gnostic
+	FiDense prototype, but as a standalone activation that can be composed with
+	any MAGNET dense layer. It learns a concept center ``z0`` and a bounded
+	scale ``S`` while returning the fidelity response
+	``sech(2 * ((z - z0) / S))``.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, FiActivation, Sequential
+	>>> model = Sequential([Dense(2, 1), FiActivation()])
+	>>> model(np.array([[0.0, 1.0]])).shape
+	(1, 1)
+	"""
+	
+	def __init__(self, z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+		"""Create a trainable fidelity activation.
+		Parameters
+		----------
+		z0_init:
+			Initial value for the concept center. Can be a float, "mean", or "median".
+		S_init:
+			Initial value for the scale parameter.
+		name:
+			Optional layer name.
+		verbose:
+			Enable verbose output during training.
+		"""
+		super().__init__(name, verbose=verbose)
+		self.z0_init = z0_init
+		self.S_init = float(S_init)
+		self._initialized = False
+
+	@staticmethod
+	def _stable_sech(x: torch.Tensor) -> torch.Tensor:
+		abs_x = torch.abs(x)
+		return torch.where(abs_x <= 20.0, 1.0 / torch.cosh(torch.clamp(x, -20.0, 20.0)), 2.0 * torch.exp(-abs_x))
+
+	def _initialize_params(self, x: Tensor) -> None:
+		if x.ndim == 0:
+			feature_shape = ()
+		elif x.ndim == 1:
+			feature_shape = (x.shape[0],)
+		else:
+			feature_shape = tuple(x.shape[1:])
+
+		if self.z0_init == "mean":
+			z0_value = np.mean(x.data, axis=0, keepdims=x.ndim > 1)
+		elif self.z0_init == "median":
+			z0_value = np.median(x.data, axis=0, keepdims=x.ndim > 1)
+		else:
+			z0_value = np.full(feature_shape or (1,), float(self.z0_init), dtype=np.float64)
+
+		s_init = float(np.clip(self.S_init, 1e-4, 1.9999))
+		s_raw_value = np.full(np.shape(z0_value) or (1,), np.log(s_init / (2.0 - s_init)), dtype=np.float64)
+
+		self.params["z0"] = Tensor(z0_value, requires_grad=True)
+		self.params["S_raw"] = Tensor(s_raw_value, requires_grad=True)
+		self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, dtype=np.float64), requires_grad=False)
+		self.grads["z0"] = None
+		self.grads["S_raw"] = None
+		self.grads["S"] = None
+		self._initialized = True
+
+	def forward(self, x, training=True):
+		"""Return the fidelity characteristic for the supplied tensor.
+		
+		Examples
+		--------
+		>>> import numpy as np
+		>>> from machinegnostics.magnet import Dense, FiActivation, Sequential
+		>>> model = Sequential([Dense(2, 1), FiActivation()])
+		>>> model(np.array([[0.0, 1.0]])).shape
+		(1, 1)
+		"""
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		if not self._initialized:
+			self._initialize_params(x)
+
+		z0 = self.params["z0"]._tensor
+		s_raw = self.params["S_raw"]._tensor
+		s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
+		self.params["S"] = Tensor.from_torch(s.detach().clone())
+
+		theta = (x._tensor - z0) / s
+		out = self._stable_sech(2.0 * theta)
+		self.theta = Tensor.from_torch(theta)
+		self.out = Tensor.from_torch(out)
+		return Tensor.from_torch(out)
+
+
 class Infidelity(Activation):
 	"""Gnostic infidelity activation.
 
@@ -559,6 +654,7 @@ def get_activation(activation, verbose: bool = False):
 			"swish": Swish,
 			"softmax": Softmax,
 			"fidelity": Fidelity,
+			"fiactivation": FiActivation,
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
 			"relevance": Relevance,
@@ -573,4 +669,4 @@ def get_activation(activation, verbose: bool = False):
 	raise TypeError(f"Unsupported activation specification: {type(activation)!r}")
 
 
-	from .gn_activations import ActivationFunctions
+from .gn_activations import ActivationFunctions
