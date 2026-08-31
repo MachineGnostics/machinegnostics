@@ -321,12 +321,10 @@ class Fidelity(Activation):
 
 
 class FiActivation(Activation):
-	"""Trainable fidelity activation with learnable center and scale.
+	"""
+	Trainable fidelity activation with learnable center and scale.
 
-	FiActivation implements the normalized deviation used by the gnostic
-	FiDense prototype, but as a standalone activation that can be composed with
-	any MAGNET dense layer. It learns a concept center ``z0`` and a bounded
-	scale ``S`` while returning the fidelity response
+	FiActivation calculates the Fidelity by calculating the normalized deviation. It learns a concept center ``z0`` and a bounded scale ``S`` while returning the fidelity response
 	``sech(2 * ((z - z0) / S))``.
 
 	Examples
@@ -412,6 +410,39 @@ class FiActivation(Activation):
 		self.theta = Tensor.from_torch(theta)
 		self.out = Tensor.from_torch(out)
 		return Tensor.from_torch(out)
+
+
+class FjActivation(Activation):
+	"""
+	Trainable infidelity activation with learnable center and scale.
+
+	FjActivation calculates the Infidelity by calculating the normalized deviation. It learns a concept center ``z0`` and a bounded scale ``S`` while returning the infidelity response
+	``sech(2 * ((z - z0) / S))``.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, FjActivation, Sequential
+	>>> model = Sequential([Dense(2, 1), FjActivation()])
+	>>> model(np.array([[0.0, 1.0]])).shape
+	(1, 1)
+	"""
+
+	def __init__(self, z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+		"""Create a reciprocal fidelity activation."""
+		super().__init__(name, verbose=verbose)
+		self.z0_init = z0_init
+		self.S_init = float(S_init)
+		self._fi_activation = FiActivation(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose)
+
+	def forward(self, x, training=True):
+		"""Return the reciprocal of the fidelity response for the supplied tensor."""
+		fi_value = self._fi_activation(x, training=training)
+		fi_tensor = fi_value._tensor if isinstance(fi_value, Tensor) else Tensor(fi_value)._tensor
+		reciprocal = 1.0 / torch.clamp(fi_tensor, min=torch.finfo(fi_tensor.dtype).eps)
+		self.theta = getattr(self._fi_activation, "theta", None)
+		self.out = Tensor.from_torch(reciprocal)
+		return Tensor.from_torch(reciprocal)
 
 
 class Infidelity(Activation):
@@ -655,6 +686,7 @@ def get_activation(activation, verbose: bool = False):
 			"softmax": Softmax,
 			"fidelity": Fidelity,
 			"fiactivation": FiActivation,
+			"fjactivation": FjActivation,
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
 			"relevance": Relevance,

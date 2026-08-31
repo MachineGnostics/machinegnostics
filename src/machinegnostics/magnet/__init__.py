@@ -108,6 +108,8 @@ __all__ = [
 	"Irrelevance",
 	"Relevance",
 	"FiActivation",
+	FjActivation,
+	"FjActivation",
 	"get_loss",
 	"Loss",
 	"MSE",
