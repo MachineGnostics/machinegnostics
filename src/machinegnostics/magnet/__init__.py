@@ -45,6 +45,8 @@ from .activations import (
     Entropy,
 	FiActivation,
 	FjActivation,
+	HiActivation,
+	HjActivation,
     Square
 )
 from .losses import (
@@ -110,6 +112,8 @@ __all__ = [
 	"Relevance",
 	"FiActivation",
 	"FjActivation",
+	"HiActivation",
+	"HjActivation",
 	"get_loss",
 	"Loss",
 	"MSE",

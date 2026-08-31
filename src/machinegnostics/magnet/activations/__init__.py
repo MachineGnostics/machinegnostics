@@ -322,10 +322,13 @@ class Fidelity(Activation):
 
 class FiActivation(Activation):
 	"""
-	Trainable fidelity activation with learnable center and scale.
+	Fidelity activation with a learnable center and optional fixed scale.
 
-	FiActivation calculates the Fidelity by calculating the normalized deviation. It learns a concept center ``z0`` and a bounded scale ``S`` while returning the fidelity response
-	``sech(2 * ((z - z0) / S))``.
+	FiActivation calculates the Fidelity by calculating the normalized deviation.
+	It learns a concept center ``z0`` and returns the fidelity response
+	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
+	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
+	bounded parameterization.
 
 	Examples
 	--------
@@ -336,14 +339,16 @@ class FiActivation(Activation):
 	(1, 1)
 	"""
 	
-	def __init__(self, z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
 		"""Create a trainable fidelity activation.
 		Parameters
 		----------
 		z0_init:
 			Initial value for the concept center. Can be a float, "mean", or "median".
 		S_init:
-			Initial value for the scale parameter.
+			Initial value for the scale parameter when ``S`` is ``"auto"``.
+		S:
+			Scale value or ``"auto"`` to keep the existing trainable scale.
 		name:
 			Optional layer name.
 		verbose:
@@ -352,6 +357,11 @@ class FiActivation(Activation):
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
 		self.S_init = float(S_init)
+		self.S = S
+		if self.S != "auto":
+			self.S = float(self.S)
+		if self.S != "auto" and not (0.01 <= self.S <= 2.0):
+			raise ValueError("S must be between 0.01 and 2.0 when provided.")
 		self._initialized = False
 
 	@staticmethod
@@ -374,15 +384,17 @@ class FiActivation(Activation):
 		else:
 			z0_value = np.full(feature_shape or (1,), float(self.z0_init), dtype=np.float64)
 
-		s_init = float(np.clip(self.S_init, 1e-4, 1.9999))
-		s_raw_value = np.full(np.shape(z0_value) or (1,), np.log(s_init / (2.0 - s_init)), dtype=np.float64)
-
 		self.params["z0"] = Tensor(z0_value, requires_grad=True)
-		self.params["S_raw"] = Tensor(s_raw_value, requires_grad=True)
-		self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, dtype=np.float64), requires_grad=False)
+		if self.S == "auto":
+			s_init = float(np.clip(self.S_init, 1e-4, 1.9999))
+			s_raw_value = np.full(np.shape(z0_value) or (1,), np.log(s_init / (2.0 - s_init)), dtype=np.float64)
+			self.params["S_raw"] = Tensor(s_raw_value, requires_grad=True)
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, dtype=np.float64), requires_grad=False)
+			self.grads["S_raw"] = None
+			self.grads["S"] = None
+		else:
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), self.S, dtype=np.float64), requires_grad=False)
 		self.grads["z0"] = None
-		self.grads["S_raw"] = None
-		self.grads["S"] = None
 		self._initialized = True
 
 	def forward(self, x, training=True):
@@ -401,9 +413,13 @@ class FiActivation(Activation):
 			self._initialize_params(x)
 
 		z0 = self.params["z0"]._tensor
-		s_raw = self.params["S_raw"]._tensor
-		s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
-		self.params["S"] = Tensor.from_torch(s.detach().clone())
+		if self.S == "auto":
+			s_raw = self.params["S_raw"]._tensor
+			s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
+			self.params["S"]._tensor = s.detach().clone()
+		else:
+			s = self.params["S"]._tensor
+			self.params["S"]._tensor = s.detach().clone()
 
 		theta = (x._tensor - z0) / s
 		out = self._stable_sech(2.0 * theta)
@@ -414,10 +430,13 @@ class FiActivation(Activation):
 
 class FjActivation(Activation):
 	"""
-	Trainable infidelity activation with learnable center and scale.
+	Infidelity activation with a learnable center and optional fixed scale.
 
-	FjActivation calculates the Infidelity by calculating the normalized deviation. It learns a concept center ``z0`` and a bounded scale ``S`` while returning the infidelity response
-	``sech(2 * ((z - z0) / S))``.
+	FjActivation calculates the Infidelity by calculating the normalized deviation.
+	It learns a concept center ``z0`` and returns the infidelity response
+	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
+	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
+	bounded parameterization.
 
 	Examples
 	--------
@@ -428,12 +447,17 @@ class FjActivation(Activation):
 	(1, 1)
 	"""
 
-	def __init__(self, z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
 		"""Create a reciprocal fidelity activation."""
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
 		self.S_init = float(S_init)
-		self._fi_activation = FiActivation(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose)
+		self.S = S
+		if self.S != "auto":
+			self.S = float(self.S)
+		self._fi_activation = FiActivation(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose, S=self.S)
+		self.params = self._fi_activation.params
+		self.grads = self._fi_activation.grads
 
 	def forward(self, x, training=True):
 		"""Return the reciprocal of the fidelity response for the supplied tensor."""
@@ -443,6 +467,117 @@ class FjActivation(Activation):
 		self.theta = getattr(self._fi_activation, "theta", None)
 		self.out = Tensor.from_torch(reciprocal)
 		return Tensor.from_torch(reciprocal)
+
+
+class _CenteredCharacteristicActivation(Activation):
+	"""Shared centered characteristic activation with optional fixed scale."""
+
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+		super().__init__(name, verbose=verbose)
+		self.z0_init = z0_init
+		self.S_init = float(S_init)
+		self.S = S
+		if self.S != "auto":
+			self.S = float(self.S)
+		if self.S != "auto" and not (0.01 <= self.S <= 2.0):
+			raise ValueError("S must be between 0.01 and 2.0 when provided.")
+		self._initialized = False
+
+	def _initialize_params(self, x: Tensor) -> None:
+		if x.ndim == 0:
+			feature_shape = ()
+		elif x.ndim == 1:
+			feature_shape = (x.shape[0],)
+		else:
+			feature_shape = tuple(x.shape[1:])
+
+		if self.z0_init == "mean":
+			z0_value = np.mean(x.data, axis=0, keepdims=x.ndim > 1)
+		elif self.z0_init == "median":
+			z0_value = np.median(x.data, axis=0, keepdims=x.ndim > 1)
+		else:
+			z0_value = np.full(feature_shape or (1,), float(self.z0_init), dtype=np.float64)
+
+		self.params["z0"] = Tensor(z0_value, requires_grad=True)
+		if self.S == "auto":
+			s_init = float(np.clip(self.S_init, 1e-4, 1.9999))
+			s_raw_value = np.full(np.shape(z0_value) or (1,), np.log(s_init / (2.0 - s_init)), dtype=np.float64)
+			self.params["S_raw"] = Tensor(s_raw_value, requires_grad=True)
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, dtype=np.float64), requires_grad=False)
+			self.grads["S_raw"] = None
+			self.grads["S"] = None
+		else:
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), self.S, dtype=np.float64), requires_grad=False)
+		self.grads["z0"] = None
+		self._initialized = True
+
+	def _scale_tensor(self):
+		if self.S == "auto":
+			s_raw = self.params["S_raw"]._tensor
+			s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
+			self.params["S"]._tensor = s.detach().clone()
+			return s
+		s = self.params["S"]._tensor
+		self.params["S"]._tensor = s.detach().clone()
+		return s
+
+	def _transform(self, theta: torch.Tensor) -> torch.Tensor:
+		raise NotImplementedError
+
+	def forward(self, x, training=True):
+		x = x if isinstance(x, Tensor) else Tensor(x)
+		if not self._initialized:
+			self._initialize_params(x)
+
+		z0 = self.params["z0"]._tensor
+		s = self._scale_tensor()
+		theta = (x._tensor - z0) / s
+		out = self._transform(theta)
+		self.theta = Tensor.from_torch(theta)
+		self.out = Tensor.from_torch(out)
+		return Tensor.from_torch(out)
+
+
+class HiActivation(_CenteredCharacteristicActivation):
+	"""Trainable relevance activation inspired by ``hi``.
+
+	This layer learns a concept center ``z0`` and uses a bounded scale ``S`` to
+	produce a centered relevance response. When ``S`` is not supplied, the layer
+	keeps the existing bounded trainable-scale behavior; when ``S`` is provided,
+	it is fixed and only ``z0`` is learned.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, HiActivation, Sequential
+	>>> model = Sequential([Dense(2, 2), HiActivation()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
+
+	def _transform(self, theta: torch.Tensor) -> torch.Tensor:
+		return torch.tanh(2.0 * theta)
+
+
+class HjActivation(_CenteredCharacteristicActivation):
+	"""Trainable irrelevance activation inspired by ``hj``.
+
+	This layer learns a concept center ``z0`` and uses a bounded scale ``S`` to
+	produce a centered irrelevance response. When ``S`` is not supplied, the
+	layer keeps the existing bounded trainable-scale behavior; when ``S`` is
+	provided, it is fixed and only ``z0`` is learned.
+
+	Examples
+	--------
+	>>> import numpy as np
+	>>> from machinegnostics.magnet import Dense, HjActivation, Sequential
+	>>> model = Sequential([Dense(2, 2), HjActivation()])
+	>>> model(np.array([[0.1, 0.2]])).shape
+	(1, 2)
+	"""
+
+	def _transform(self, theta: torch.Tensor) -> torch.Tensor:
+		return torch.sinh(torch.clamp(2.0 * theta, -20.0, 20.0))
 
 
 class Infidelity(Activation):
@@ -687,6 +822,8 @@ def get_activation(activation, verbose: bool = False):
 			"fidelity": Fidelity,
 			"fiactivation": FiActivation,
 			"fjactivation": FjActivation,
+			"hijactivation": HijActivation,
+			"hjactivation": HjActivation,
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
 			"relevance": Relevance,
