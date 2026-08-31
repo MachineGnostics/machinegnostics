@@ -822,7 +822,7 @@ def get_activation(activation, verbose: bool = False):
 			"fidelity": Fidelity,
 			"fiactivation": FiActivation,
 			"fjactivation": FjActivation,
-			"hijactivation": HijActivation,
+			"hiactivation": HiActivation,
 			"hjactivation": HjActivation,
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
