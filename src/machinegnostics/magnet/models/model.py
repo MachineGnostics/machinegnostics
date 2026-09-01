@@ -467,6 +467,11 @@ class Model:
 			"Relevance",
 			"GnosticProba",
 			"Entropy",
+			"BatchNorm",
+			"FiActivation",
+			"FjActivation",
+			"HiActivation",
+			"HjActivation",
 		}:
 			return input_shape
 
@@ -557,7 +562,7 @@ class Sequential(Model):
 
 	Examples
 	--------
-	>>> from machinegnostics.magnet.models import Sequential
+	>>> from machinegnostics.magnet import Sequential
 	>>> isinstance(Sequential(), Model)
 	True
 	"""
