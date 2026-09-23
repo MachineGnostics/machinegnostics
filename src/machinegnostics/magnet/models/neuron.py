@@ -29,7 +29,7 @@ class GnosticNeuron(Dense):
 	activation, making it a compact building block for binary-classification,
 	logic-gate, and gnostic characteristic workflows.
 
-	The default activation is ``"fidelity"``, which makes the neuron behave
+	The default fidelity activation is ``"fiactivation"``, which makes the neuron behave
 	like a gnostic output unit without any extra wiring.
 
 	This class does not add a new training loop or parameter container; it is a
@@ -37,7 +37,7 @@ class GnosticNeuron(Dense):
 	applying the selected activation.
 	"""
 
-	def __init__(self, in_features, out_features=1, activation="fidelity", verbose: bool = False, **kwargs):
+	def __init__(self, in_features, out_features=1, activation="fiactivation", verbose: bool = False, **kwargs):
 		"""Create a gnostic neuron.
 
 		This is a convenience wrapper around ``Dense`` followed by a chosen
