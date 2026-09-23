@@ -339,7 +339,7 @@ class FiActivation(Activation):
 	(1, 1)
 	"""
 	
-	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", S_init: float = 1.0, name=None, verbose: bool = False):
 		"""Create a trainable fidelity activation.
 		Parameters
 		----------
@@ -447,7 +447,7 @@ class FjActivation(Activation):
 	(1, 1)
 	"""
 
-	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", S_init: float = 1.0, name=None, verbose: bool = False):
 		"""Create a reciprocal fidelity activation."""
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
@@ -472,7 +472,7 @@ class FjActivation(Activation):
 class _CenteredCharacteristicActivation(Activation):
 	"""Shared centered characteristic activation with optional fixed scale."""
 
-	def __init__(self, S: float | str = "auto", z0_init: float | str = "mean", S_init: float = 1.0, name=None, verbose: bool = False):
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", S_init: float = 1.0, name=None, verbose: bool = False):
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
 		self.S_init = float(S_init)
