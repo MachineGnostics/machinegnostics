@@ -320,11 +320,11 @@ class Fidelity(Activation):
 		return _gnostic_activation_tensor(x, self.fidelity, prime)
 
 
-class FiActivation(Activation):
+class Fi(Activation):
 	"""
 	Fidelity activation with a learnable center and optional fixed scale.
 
-	FiActivation calculates the Fidelity by calculating the normalized deviation.
+	Fi calculates the Fidelity by calculating the normalized deviation.
 	It learns a concept center ``z0`` and returns the fidelity response
 	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
 	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
@@ -333,8 +333,8 @@ class FiActivation(Activation):
 	Examples
 	--------
 	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, FiActivation, Sequential
-	>>> model = Sequential([Dense(2, 1), FiActivation()])
+	>>> from machinegnostics.magnet import Dense, Fi, Sequential
+	>>> model = Sequential([Dense(2, 1), Fi()])
 	>>> model(np.array([[0.0, 1.0]])).shape
 	(1, 1)
 	"""
@@ -403,8 +403,8 @@ class FiActivation(Activation):
 		Examples
 		--------
 		>>> import numpy as np
-		>>> from machinegnostics.magnet import Dense, FiActivation, Sequential
-		>>> model = Sequential([Dense(2, 1), FiActivation()])
+		>>> from machinegnostics.magnet import Dense, Fi, Sequential
+		>>> model = Sequential([Dense(2, 1), Fi()])
 		>>> model(np.array([[0.0, 1.0]])).shape
 		(1, 1)
 		"""
@@ -428,11 +428,11 @@ class FiActivation(Activation):
 		return Tensor.from_torch(out)
 
 
-class FjActivation(Activation):
+class Fj(Activation):
 	"""
 	Infidelity activation with a learnable center and optional fixed scale.
 
-	FjActivation calculates the Infidelity by calculating the normalized deviation.
+	Fj calculates the Infidelity by calculating the normalized deviation.
 	It learns a concept center ``z0`` and returns the infidelity response
 	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
 	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
@@ -441,8 +441,8 @@ class FjActivation(Activation):
 	Examples
 	--------
 	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, FjActivation, Sequential
-	>>> model = Sequential([Dense(2, 1), FjActivation()])
+	>>> from machinegnostics.magnet import Dense, Fj, Sequential
+	>>> model = Sequential([Dense(2, 1), Fj()])
 	>>> model(np.array([[0.0, 1.0]])).shape
 	(1, 1)
 	"""
@@ -455,7 +455,7 @@ class FjActivation(Activation):
 		self.S = S
 		if self.S != "auto":
 			self.S = float(self.S)
-		self._fi_activation = FiActivation(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose, S=self.S)
+		self._fi_activation = Fi(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose, S=self.S)
 		self.params = self._fi_activation.params
 		self.grads = self._fi_activation.grads
 
@@ -538,7 +538,7 @@ class _CenteredCharacteristicActivation(Activation):
 		return Tensor.from_torch(out)
 
 
-class HiActivation(_CenteredCharacteristicActivation):
+class Hi(_CenteredCharacteristicActivation):
 	"""Trainable relevance activation inspired by ``hi``.
 
 	This layer learns a concept center ``z0`` and uses a bounded scale ``S`` to
@@ -549,8 +549,8 @@ class HiActivation(_CenteredCharacteristicActivation):
 	Examples
 	--------
 	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, HiActivation, Sequential
-	>>> model = Sequential([Dense(2, 2), HiActivation()])
+	>>> from machinegnostics.magnet import Dense, Hi, Sequential
+	>>> model = Sequential([Dense(2, 2), Hi()])
 	>>> model(np.array([[0.1, 0.2]])).shape
 	(1, 2)
 	"""
@@ -559,7 +559,7 @@ class HiActivation(_CenteredCharacteristicActivation):
 		return torch.tanh(2.0 * theta)
 
 
-class HjActivation(_CenteredCharacteristicActivation):
+class Hj(_CenteredCharacteristicActivation):
 	"""Trainable irrelevance activation inspired by ``hj``.
 
 	This layer learns a concept center ``z0`` and uses a bounded scale ``S`` to
@@ -570,8 +570,8 @@ class HjActivation(_CenteredCharacteristicActivation):
 	Examples
 	--------
 	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, HjActivation, Sequential
-	>>> model = Sequential([Dense(2, 2), HjActivation()])
+	>>> from machinegnostics.magnet import Dense, Hj, Sequential
+	>>> model = Sequential([Dense(2, 2), Hj()])
 	>>> model(np.array([[0.1, 0.2]])).shape
 	(1, 2)
 	"""
@@ -820,10 +820,14 @@ def get_activation(activation, verbose: bool = False):
 			"swish": Swish,
 			"softmax": Softmax,
 			"fidelity": Fidelity,
-			"fiactivation": FiActivation,
-			"fjactivation": FjActivation,
-			"hiactivation": HiActivation,
-			"hjactivation": HjActivation,
+			"fi": Fi,
+			"fj": Fj,
+			"hi": Hi,
+			"hj": Hj,
+			"fiactivation": Fi,
+			"fjactivation": Fj,
+			"hiactivation": Hi,
+			"hjactivation": Hj,
 			"infidelity": Infidelity,
 			"irrelevance": Irrelevance,
 			"relevance": Relevance,
@@ -839,3 +843,9 @@ def get_activation(activation, verbose: bool = False):
 
 
 from .gn_activations import ActivationFunctions
+
+# Backward-compatible aliases for the previous public class names.
+FiActivation = Fi
+FjActivation = Fj
+HiActivation = Hi
+HjActivation = Hj

@@ -468,10 +468,10 @@ class Model:
 			"GnosticProba",
 			"Entropy",
 			"BatchNorm",
-			"FiActivation",
-			"FjActivation",
-			"HiActivation",
-			"HjActivation",
+			"Fi",
+			"Fj",
+			"Hi",
+			"Hj",
 		}:
 			return input_shape
 
