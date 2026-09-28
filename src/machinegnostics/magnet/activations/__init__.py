@@ -322,13 +322,10 @@ class Fidelity(Activation):
 
 class Fi(Activation):
 	"""
-	Fidelity activation with a learnable center and optional fixed scale.
+	Gnostic Fidelity (Fi) Activation Layer with Learnable Center and Scale.
 
-	Fi calculates the Fidelity by calculating the normalized deviation.
-	It learns a concept center ``z0`` and returns the fidelity response
-	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
-	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
-	bounded parameterization.
+	This layer implements the gnositc fidelity characteristic. The Fi layer learns a concept center (z0) and maintains a bounded scale parameter (S) to transform inputs into the gnostic
+	fidelity space.
 
 	Examples
 	--------
@@ -339,20 +336,29 @@ class Fi(Activation):
 	(1, 1)
 	"""
 	
-	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", S_init: float = 1.0, name=None, verbose: bool = False):
-		"""Create a trainable fidelity activation.
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", 
+	             S_init: float = 1.0, name=None, verbose: bool = False):
+		"""
+		Create a trainable fidelity activation layer.
+
 		Parameters
 		----------
-		z0_init:
-			Initial value for the concept center. Can be a float, "mean", or "median".
-		S_init:
-			Initial value for the scale parameter when ``S`` is ``"auto"``.
-		S:
-			Scale value or ``"auto"`` to keep the existing trainable scale.
-		name:
-			Optional layer name.
-		verbose:
-			Enable verbose output during training.
+		S : float or "auto"
+			If "auto" (default), S is learned via S_raw parameter
+			If float in [0.01, 2.0], S is fixed and non-trainable
+		z0_init : float, "mean", or "median"
+			Initial concept center:
+			- float: Use this value for all neurons
+			- "mean": Initialize from batch mean (computed in first forward)
+			- "median": Initialize from batch median (computed in first forward)
+		S_init : float
+			Initial value for S when S="auto". Transformed to S_raw via:
+			S_raw = -log(2/S_init - 1)
+			Helps control initialization stability.
+		name : str, optional
+			Layer name for tracking in model
+		verbose : bool
+			Enable debug output during training
 		"""
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
@@ -366,10 +372,39 @@ class Fi(Activation):
 
 	@staticmethod
 	def _stable_sech(x: torch.Tensor) -> torch.Tensor:
+		"""
+		Numerically stable sech function: sech(x) = 1/cosh(x).
+
+		For |x| <= 20: Use direct computation (numerically stable)
+		For |x| > 20:  Use approximation: sech(x) ≈ 2*exp(-|x|)
+		                (cosh(x) ≈ exp(|x|)/2 for large |x|)
+
+		Parameters
+		----------
+		x : torch.Tensor
+			Input values
+
+		Returns
+		-------
+		torch.Tensor
+			Stable sech values, all in (0, 1]
+		"""
 		abs_x = torch.abs(x)
-		return torch.where(abs_x <= 20.0, 1.0 / torch.cosh(torch.clamp(x, -20.0, 20.0)), 2.0 * torch.exp(-abs_x))
+		return torch.where(abs_x <= 20.0, 1.0 / torch.cosh(torch.clamp(x, -20.0, 20.0)), 
+		                   2.0 * torch.exp(-abs_x))
 
 	def _initialize_params(self, x: Tensor) -> None:
+		"""
+		Lazy initialization of learnable parameters from first batch.
+
+		Called on first forward pass to establish parameter shape and values.
+		Handles both 1D (batch size only) and multi-dimensional inputs.
+
+		Parameters
+		----------
+		x : Tensor
+			Input batch with shape (batch_size, ..., feature_dim) or similar
+		"""
 		if x.ndim == 0:
 			feature_shape = ()
 		elif x.ndim == 1:
@@ -377,6 +412,7 @@ class Fi(Activation):
 		else:
 			feature_shape = tuple(x.shape[1:])
 
+		# Initialize z0 (concept center)
 		if self.z0_init == "mean":
 			z0_value = np.mean(x.data, axis=0, keepdims=x.ndim > 1)
 		elif self.z0_init == "median":
@@ -385,58 +421,86 @@ class Fi(Activation):
 			z0_value = np.full(feature_shape or (1,), float(self.z0_init), dtype=np.float64)
 
 		self.params["z0"] = Tensor(z0_value, requires_grad=True)
+		
+		# Initialize S and S_raw (scale parameter)
 		if self.S == "auto":
+			# S_raw is unconstrained; S is the computed bounded version
 			s_init = float(np.clip(self.S_init, 1e-4, 1.9999))
-			s_raw_value = np.full(np.shape(z0_value) or (1,), np.log(s_init / (2.0 - s_init)), dtype=np.float64)
+			
+			# Transform S_init to S_raw via inverse sigmoid:
+			# If S = 2*sigmoid(S_raw), then
+			# S_raw = log((S/2) / (1 - S/2)) = -log(2/S - 1)
+			s_raw_value = np.full(np.shape(z0_value) or (1,), 
+			                      -np.log(2.0 / s_init - 1.0), dtype=np.float64)
+			
 			self.params["S_raw"] = Tensor(s_raw_value, requires_grad=True)
-			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, dtype=np.float64), requires_grad=False)
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), s_init, 
+			                                 dtype=np.float64), requires_grad=False)
 			self.grads["S_raw"] = None
 			self.grads["S"] = None
 		else:
-			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), self.S, dtype=np.float64), requires_grad=False)
+			# S is fixed and non-trainable
+			self.params["S"] = Tensor(np.full(np.shape(z0_value) or (1,), self.S, 
+			                                 dtype=np.float64), requires_grad=False)
+		
 		self.grads["z0"] = None
 		self._initialized = True
 
 	def forward(self, x, training=True):
-		"""Return the fidelity characteristic for the supplied tensor.
-		
-		Examples
-		--------
-		>>> import numpy as np
-		>>> from machinegnostics.magnet import Dense, Fi, Sequential
-		>>> model = Sequential([Dense(2, 1), Fi()])
-		>>> model(np.array([[0.0, 1.0]])).shape
-		(1, 1)
+		"""
+		Forward pass: compute sech(2*theta) with learned center and scale.
+
+		Parameters
+		----------
+		x : Tensor or array-like
+			Input batch
+
+		training : bool
+			If True, apply lazy initialization (if needed)
+
+		Returns
+		-------
+		Tensor
+			Activated output with shape matching input
 		"""
 		x = x if isinstance(x, Tensor) else Tensor(x)
 		if not self._initialized:
 			self._initialize_params(x)
 
 		z0 = self.params["z0"]._tensor
+		
 		if self.S == "auto":
+			# S_raw is the actual learned parameter (unconstrained)
+			# S is derived from it and must remain in the computation graph
 			s_raw = self.params["S_raw"]._tensor
 			s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
-			self.params["S"]._tensor = s.detach().clone()
+			
+			# ⚠️  CRITICAL FIX: Do NOT detach S from the graph!
+			# Original (broken): self.params["S"]._tensor = s.detach().clone()
+			# This breaks gradient flow to S_raw.
+			# Instead, keep S in the computation graph:
+			self.params["S"]._tensor = s  # S remains connected to S_raw
 		else:
 			s = self.params["S"]._tensor
-			self.params["S"]._tensor = s.detach().clone()
 
+		# Compute normalized deviation and activation
 		theta = (x._tensor - z0) / s
 		out = self._stable_sech(2.0 * theta)
+		
+		# Cache for potential later inspection
 		self.theta = Tensor.from_torch(theta)
 		self.out = Tensor.from_torch(out)
+		
 		return Tensor.from_torch(out)
 
 
 class Fj(Activation):
 	"""
-	Infidelity activation with a learnable center and optional fixed scale.
+	Gnostic Infidelity (Fj) Activation Layer with Learnable Center and Scale.
 
-	Fj calculates the Infidelity by calculating the normalized deviation.
-	It learns a concept center ``z0`` and returns the infidelity response
-	``sech(2 * ((z - z0) / S))``. When ``S`` is provided, that scale is used as a
-	fixed non-trainable value. Otherwise ``S`` remains trainable with the existing
-	bounded parameterization.
+	This layer implements the infidelity characteristic: y_out = 1/sech(2*theta)
+	where theta = (y - z0) / S. Fj is the reciprocal of the fidelity characteristic,
+	emphasizing prediction uncertainty or dissimilarity from the center.
 
 	Examples
 	--------
@@ -447,25 +511,63 @@ class Fj(Activation):
 	(1, 1)
 	"""
 
-	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", S_init: float = 1.0, name=None, verbose: bool = False):
-		"""Create a reciprocal fidelity activation."""
+	def __init__(self, S: float | str = "auto", z0_init: float | str = "median", 
+	             S_init: float = 1.0, name=None, verbose: bool = False):
+		"""
+		Create a trainable infidelity activation layer.
+
+		Parameters
+		----------
+		S : float or "auto"
+			Scale parameter: trainable if "auto", fixed if float in [0.01, 2.0]
+		z0_init : float, "mean", or "median"
+			Initial concept center value or strategy
+		S_init : float
+			Initial scale value when S="auto"
+		name : str, optional
+			Layer name for model tracking
+		verbose : bool
+			Enable debug output during training
+		"""
 		super().__init__(name, verbose=verbose)
 		self.z0_init = z0_init
 		self.S_init = float(S_init)
 		self.S = S
 		if self.S != "auto":
 			self.S = float(self.S)
-		self._fi_activation = Fi(z0_init=z0_init, S_init=S_init, name=name, verbose=verbose, S=self.S)
+		self._fi_activation = Fi(z0_init=z0_init, S_init=S_init, name=name, 
+		                         verbose=verbose, S=self.S)
 		self.params = self._fi_activation.params
 		self.grads = self._fi_activation.grads
 
 	def forward(self, x, training=True):
-		"""Return the reciprocal of the fidelity response for the supplied tensor."""
+		"""
+		Forward pass: compute reciprocal fidelity (infidelity).
+
+		Parameters
+		----------
+		x : Tensor or array-like
+			Input batch
+
+		training : bool
+			If True, apply lazy initialization (if needed)
+
+		Returns
+		-------
+		Tensor
+			Infidelity output (reciprocal of fidelity)
+		"""
 		fi_value = self._fi_activation(x, training=training)
 		fi_tensor = fi_value._tensor if isinstance(fi_value, Tensor) else Tensor(fi_value)._tensor
+		
+		# Compute reciprocal: fj = 1 / fi
+		# Clamp fi to avoid division by zero
 		reciprocal = 1.0 / torch.clamp(fi_tensor, min=torch.finfo(fi_tensor.dtype).eps)
+		
+		# Cache for inspection
 		self.theta = getattr(self._fi_activation, "theta", None)
 		self.out = Tensor.from_torch(reciprocal)
+		
 		return Tensor.from_torch(reciprocal)
 
 
@@ -512,13 +614,28 @@ class _CenteredCharacteristicActivation(Activation):
 		self._initialized = True
 
 	def _scale_tensor(self):
+		"""
+		Compute bounded scale parameter S from unconstrained S_raw.
+
+		When S is trainable (S="auto"), computes S = 2*sigmoid(S_raw).
+		Keeps S in the computation graph to enable gradient flow to S_raw.
+
+		Returns
+		-------
+		torch.Tensor
+			Bounded scale value in range [1e-4, 1.9999]
+		"""
 		if self.S == "auto":
 			s_raw = self.params["S_raw"]._tensor
 			s = torch.clamp(2.0 * torch.sigmoid(s_raw), 1e-4, 1.9999)
-			self.params["S"]._tensor = s.detach().clone()
+			
+			# ⚠️  CRITICAL: Do NOT detach S from computation graph!
+			# This allows gradients to flow back to S_raw parameter.
+			self.params["S"]._tensor = s  # Keep s connected to s_raw
 			return s
+		
 		s = self.params["S"]._tensor
-		self.params["S"]._tensor = s.detach().clone()
+		self.params["S"]._tensor = s  # Non-trainable S, no gradient needed
 		return s
 
 	def _transform(self, theta: torch.Tensor) -> torch.Tensor:
