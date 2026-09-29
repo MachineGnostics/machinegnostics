@@ -144,6 +144,8 @@ class Layer:
 		"""
 		self.logger.debug("Collecting layer parameters.")
 		for param in self.params.values():
+			if not getattr(param, "requires_grad", False):
+				continue
 			yield param
 
 	def sync_grads(self):
@@ -174,6 +176,9 @@ class Layer:
 		"""
 		self.logger.debug("Synchronizing parameter gradients.")
 		for key, param in self.params.items():
+			if not getattr(param, "requires_grad", False):
+				self.grads[key] = None
+				continue
 			self.grads[key] = None if param.grad is None else np.asarray(param.grad, dtype=np.float64).copy()
 
 	def get_params_and_grads(self):
@@ -184,6 +189,8 @@ class Layer:
 		"""
 		self.logger.debug("Collecting parameters and gradients.")
 		for key, param in self.params.items():
+			if not getattr(param, "requires_grad", False):
+				continue
 			yield param, None if param.grad is None else np.asarray(param.grad, dtype=np.float64)
 
 	def set_mode(self, training: bool):

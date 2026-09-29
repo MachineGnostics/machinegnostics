@@ -378,15 +378,40 @@ class GnosticInfidelity(Loss, _BaseGnosticCharc):
         _BaseGnosticCharc.__init__(self, S=S)
 
     def forward(self, y_pred, y_true):
-        """Compute the infidelity-based gnostic loss."""
+        """Compute the infidelity-based gnostic loss.
+
+        This mirrors the working NumPy notebook implementation:
+
+        .. math::
+
+            z = (\hat{y} - y) / S
+            q = e^z
+            fi = 2 / (q^2 + q^{-2})
+            L = mean(1 / fi)
+
+        The returned tensor carries a custom gradient for ``y_pred`` so the
+        standard MAGNET autograd flow can still train the model.
+        """
         y_pred, y_true = _prepare_tensors(y_pred, y_true)
         self.y_pred, self.y_true = y_pred, y_true
         if self.verbose:
             self.logger.info("Computing gnostic infidelity loss for shape %s.", y_pred.data.shape)
-        fi, hi, _ = self._get_fihi(y_pred.data, y_true.data)
+
+        residual = np.asarray(y_pred.data, dtype=np.float64) - np.asarray(y_true.data, dtype=np.float64)
+
+        if isinstance(self.S, str) and self.S == "auto":
+            q_seed = np.exp(np.clip(residual, -20.0, 20.0))
+            fi_seed = 2.0 / (q_seed**2 + q_seed**-2)
+            self.S_local = max(ScaleParam()._gscale_loc(np.mean(fi_seed)), 0.01)
+        else:
+            self.S_local = float(self.S)
+
+        z = residual / self.S_local
+        q = np.exp(np.clip(z, -20.0, 20.0))
+        fi = 2.0 / (q**2 + q**-2)
         value = np.mean(1.0 / (fi + np.finfo(float).eps))
-        gradient = (2 / self.S_local) * (hi / (fi + np.finfo(float).eps))
-        gradient = np.clip(gradient, -1e12, 1e12)
+        h = np.tanh(2.0 * z)
+        gradient = ((2.0 / self.S_local) * (h / (fi + np.finfo(float).eps))) / y_pred.data.shape[0]
         return _scalar_gnostic_loss(y_pred, value, gradient)
 
     def backward(self):

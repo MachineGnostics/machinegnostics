@@ -478,8 +478,9 @@ class Fi(Activation):
 			# ⚠️  CRITICAL FIX: Do NOT detach S from the graph!
 			# Original (broken): self.params["S"]._tensor = s.detach().clone()
 			# This breaks gradient flow to S_raw.
-			# Instead, keep S in the computation graph:
-			self.params["S"]._tensor = s  # S remains connected to S_raw
+			# Store only a detached copy for inspection; the live tensor ``s``
+			# still drives the forward computation and gradients to S_raw.
+			self.params["S"]._tensor = s.detach()
 		else:
 			s = self.params["S"]._tensor
 
@@ -631,11 +632,11 @@ class _CenteredCharacteristicActivation(Activation):
 			
 			# ⚠️  CRITICAL: Do NOT detach S from computation graph!
 			# This allows gradients to flow back to S_raw parameter.
-			self.params["S"]._tensor = s  # Keep s connected to s_raw
+			self.params["S"]._tensor = s.detach()  # Keep only the inspected value here
 			return s
 		
 		s = self.params["S"]._tensor
-		self.params["S"]._tensor = s  # Non-trainable S, no gradient needed
+		self.params["S"]._tensor = s.detach()  # Non-trainable S, no gradient needed
 		return s
 
 	def _transform(self, theta: torch.Tensor) -> torch.Tensor:
