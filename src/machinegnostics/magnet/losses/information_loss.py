@@ -47,7 +47,7 @@ class InformationLossFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         fi, p_i, p_active = ctx.saved_tensors
         delta_theta = -fi.square() * (torch.log1p(-p_i) - torch.log(p_i)) * p_active
-        grad_pred = grad_output * delta_theta / (ctx.normalizer * ctx.scale_value)
+        grad_pred = - grad_output * delta_theta / (ctx.normalizer * ctx.scale_value)
         return _clip_gradient(grad_pred), None, None
 
 
