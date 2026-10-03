@@ -136,7 +136,7 @@ class Hj(CenteredGnosticActivation):
         learnable_S: bool = True,
         learnable_z0: bool = True,
         initial_S: float = 1.0,
-        initial_z0: float = 0.0,
+        initial_z0: float | None = None,
         name: str | None = None,
         verbose: bool = False,
     ):

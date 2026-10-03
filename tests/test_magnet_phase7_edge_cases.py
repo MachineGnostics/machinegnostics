@@ -76,8 +76,8 @@ def test_gnostic_activations_clip_infinities_and_preserve_nan_signals() -> None:
     _configure_cpu_runtime()
     inputs = Tensor(np.array([np.nan, -np.inf, 0.0, np.inf], dtype=np.float64))
 
-    fi_values = Fi(learnable_S=False, learnable_z0=False)(inputs).data
-    hi_values = Hi(learnable_S=False, learnable_z0=False)(inputs).data
+    fi_values = Fi(learnable_S=False, learnable_z0=False, initial_z0=0.0)(inputs).data
+    hi_values = Hi(learnable_S=False, learnable_z0=False, initial_z0=0.0)(inputs).data
     fj_values = fj(np.array([np.nan, -np.inf, 0.0, np.inf], dtype=np.float64))
     hj_values = hj(np.array([np.nan, -np.inf, 0.0, np.inf], dtype=np.float64))
     ei_values = ei(np.array([np.nan, -np.inf, 0.0, np.inf], dtype=np.float64), case="i")

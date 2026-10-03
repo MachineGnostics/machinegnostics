@@ -68,9 +68,9 @@ def _build_binary_model(hidden_activation: Type[Activation]) -> Sequential:
     return Sequential(
         [
             Dense(2, 6),
-            hidden_activation(initial_S=1.0),
+            hidden_activation(initial_S=1.0, initial_z0=0.0),
             Dense(6, 1),
-            Fi(initial_S=1.0),
+            Fi(initial_S=1.0, initial_z0=0.0),
         ]
     )
 
@@ -133,7 +133,7 @@ def test_sequential_with_fi_learns_two_moons_pattern() -> None:
     """A Fi-based sequential model should separate a noisy two-moons dataset."""
     _configure_training_runtime()
     features, labels = _make_two_moons()
-    model = Sequential([Dense(2, 8), Fi(initial_S=1.0), Dense(8, 1), Fi(initial_S=1.0)])
+    model = Sequential([Dense(2, 8), Fi(initial_S=1.0, initial_z0=0.0), Dense(8, 1), Fi(initial_S=1.0, initial_z0=0.0)])
     model.compile(loss=MSE(), optimizer=Adam(lr=0.02))
 
     initial_loss = model.evaluate(features, labels)
@@ -160,7 +160,7 @@ def test_all_gnostic_activation_loss_combinations_reduce_objective() -> None:
 
     for activation_type in activation_types:
         for loss_type in loss_types:
-            model = Sequential([Dense(2, 4), activation_type(initial_S=1.0), Dense(4, 1), Fi(initial_S=1.0)])
+            model = Sequential([Dense(2, 4), activation_type(initial_S=1.0), Dense(4, 1), Fi(initial_S=1.0, initial_z0=0.0)])
             model.compile(loss=loss_type(), optimizer=Adam(lr=0.01))
             initial_loss = model.evaluate(XOR_INPUTS, XOR_TARGETS)
             history = model.fit(XOR_INPUTS, XOR_TARGETS, epochs=10, batch_size=4, shuffle=True)
@@ -182,7 +182,7 @@ def test_all_magnet_optimizers_train_a_gnostic_sequential_model() -> None:
     optimizers: tuple[Optimizer, ...] = (SGD(lr=0.05), Adam(lr=0.02), Adagrad(lr=0.05), RMSprop(lr=0.02))
 
     for optimizer in optimizers:
-        model = Sequential([Dense(2, 6), Fi(initial_S=1.0), Dense(6, 1), Fi(initial_S=1.0)])
+        model = Sequential([Dense(2, 6), Fi(initial_S=1.0, initial_z0=0.0), Dense(6, 1), Fi(initial_S=1.0, initial_z0=0.0)])
         model.compile(loss=MSE(), optimizer=optimizer)
         initial_loss = model.evaluate(features, targets)
         history = model.fit(features, targets, epochs=20, batch_size=16, shuffle=True)
