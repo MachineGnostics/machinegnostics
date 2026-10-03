@@ -19,8 +19,22 @@ RuntimeConfig(...)
 """
 
 from .core import Tensor, History, Callback, EarlyStopping, configure, get_runtime, get_torch_device, get_torch_dtype, to_numpy, to_torch, unbroadcast
-from .models import Model, Sequential, GnosticNeuron
-from .initializers import get_initializer, Initializer, Zeros, Ones, RandomNormal, XavierUniform, HeNormal
+from .models import Model, Sequential, GnosticNeuron, get_model
+from .initializers import (
+	get_initializer,
+	Initializer,
+	GlorotUniform,
+	GlorotNormal,
+	HeUniform,
+	HeNormal,
+	Normal,
+	Uniform,
+	Zeros,
+	Ones,
+	RandomNormal,
+	XavierUniform,
+	XavierNormal,
+)
 from .activations import (
 	get_activation,
 	fi,
@@ -93,11 +107,17 @@ __all__ = [
 	"History",
 	"get_initializer",
 	"Initializer",
+	"GlorotUniform",
+	"GlorotNormal",
+	"HeUniform",
+	"HeNormal",
+	"Normal",
+	"Uniform",
 	"Zeros",
 	"Ones",
 	"RandomNormal",
 	"XavierUniform",
-	"HeNormal",
+	"XavierNormal",
 	"get_activation",
 	"fi",
 	"fj",
@@ -157,6 +177,7 @@ __all__ = [
 	"Sequential",
 	"ActivationFunctions",
 	"GnosticNeuron",
+	"get_model",
 	"GnosticISS",
     "GnosticRSS",
     "FidelityLoss",

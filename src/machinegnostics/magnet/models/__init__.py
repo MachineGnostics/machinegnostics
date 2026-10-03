@@ -1,10 +1,8 @@
-"""Model-related MAGNET components.
+"""Model-related MAGNET components."""
 
-This package groups model containers and convenience neuron wrappers so future
-model files can live together in one place.
-"""
-
-from .model import Model, Sequential
+from .base import Model
 from .neuron import GnosticNeuron
+from .registry import get_model
+from .sequential import Sequential
 
-__all__ = ["Model", "Sequential", "GnosticNeuron"]
+__all__ = ["Model", "Sequential", "GnosticNeuron", "get_model"]

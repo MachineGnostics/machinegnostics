@@ -1,25 +1,18 @@
-"""Gnostic neuron convenience layer for MAGNET.
-
-- Typical gnostic neuron supposed to have a single Dense layer with x inputs and 1 output, followed by a gnostic activation (fidelity).
+"""Gnostic neuron convenience model for MAGNET.
 
 Developer note
--------------
+--------------
 Author: Nirmal Parmar
 
-Examples
---------
->>> import numpy as np
->>> from machinegnostics.magnet import GnosticNeuron
->>> neuron = GnosticNeuron(2, 1, activation="sigmoid")
->>> neuron(np.array([[0., 1.]])).shape
-(1, 1)
+``GnosticNeuron`` combines one dense affine transform with one activation.
+Mathematically it computes ``activation(x @ W + b)`` and is useful when a full
+multi-layer container would be overkill.
 """
 
 from __future__ import annotations
 
 from ..activations import get_activation
 from ..layers.dense import Dense
-from .model import Sequential
 
 
 class GnosticNeuron(Dense):
@@ -60,6 +53,7 @@ class GnosticNeuron(Dense):
 		"""
 		super().__init__(in_features, out_features, verbose=verbose, **kwargs)
 		self.activation = get_activation(activation, verbose=verbose)
+		self.activation_name = activation if isinstance(activation, str) else activation.__class__.__name__
 
 	def forward(self, x, training=True):
 		"""Apply the dense transform and then the chosen activation.
