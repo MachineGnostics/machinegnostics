@@ -61,8 +61,7 @@ class ResidualEntropyLoss(Loss):
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale used to normalize prediction errors before the
-        entropy surrogate is evaluated.
+        Scale Parameter to normalize prediction errors before evaluating the residual entropy.
     name : str or None, optional
         Optional display name for MAGNET summaries and debugging.
     verbose : bool, optional

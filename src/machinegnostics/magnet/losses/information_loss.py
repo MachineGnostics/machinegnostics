@@ -64,8 +64,7 @@ class InformationLoss(Loss):
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale used to normalize prediction errors before the
-        information measure is evaluated.
+        Scale Parameter to normalize prediction errors before evaluating information content.
     name : str or None, optional
         Optional display name for summaries and diagnostics.
     verbose : bool, optional

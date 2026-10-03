@@ -50,23 +50,21 @@ class FidelityLossFunction(torch.autograd.Function):
 
 
 class FidelityLoss(Loss):
-    """Maximize gnostic fidelity through the negative mean characteristic.
+    """Maximize gnostic fidelity through the mean characteristic.
 
     ``FidelityLoss`` rewards predictions that align with the target-centered
     concept manifold. For each residual-centered coordinate
     ``θ = (y_pred - y_true) / S``, the loss evaluates the fidelity response
-    ``fi = sech(2θ)`` and minimizes
-    ``L = -mean(fi) = -mean(sech(2θ))``. The objective therefore lives in the
-    interval ``[-1, 0)`` for finite residuals, reaches its optimum of ``-1``
+    ``fi = sech(2θ)`` and maximizes
+    ``L = mean(fi) = mean(sech(2θ))``. The objective therefore lives in the
+    interval ``[0, 1)`` for finite residuals, reaches its optimum of ``1``
     when every prediction lands exactly on the learned concept, and approaches
     ``0`` as fidelity collapses.
 
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale used to normalize prediction errors before
-        measuring fidelity. Larger values widen the notion of concept
-        agreement, while smaller values make the loss reward tight alignment.
+        Scale Parameter to normalize prediction errors before evaluating fidelity.
     name : str or None, optional
         Optional display name for logging and summaries inside MAGNET training
         workflows.
@@ -78,9 +76,7 @@ class FidelityLoss(Loss):
     -----
     Gnostic Concept:
         High fidelity corresponds to strong concept concentration around the
-        target manifold. Minimizing the negative mean fidelity directly rewards
-        confident, centered predictions instead of penalizing them indirectly
-        through ``1 - fi``.
+        target manifold. Maximizing fidelity ensures that predictions remain close to the concept center, promoting strong alignment with the learned gnostic structure.
 
     Examples
     --------
@@ -89,7 +85,7 @@ class FidelityLoss(Loss):
     >>> y_pred = Tensor(np.array([[0.0], [0.0]]), requires_grad=True)
     >>> y_true = Tensor(np.array([[0.0], [0.0]]))
     >>> float(FidelityLoss()(y_pred, y_true))
-    -1.0
+    1.0
     """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):

@@ -58,8 +58,7 @@ class ISSLoss(Loss):
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale used to normalize prediction errors before the
-        inverse-style surrogate is evaluated.
+        Scale Parameter to normalize prediction errors before evaluating the inverse-style surrogate.
     name : str or None, optional
         Optional display name for summaries and diagnostics.
     verbose : bool, optional

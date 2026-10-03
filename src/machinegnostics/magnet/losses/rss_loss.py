@@ -58,8 +58,7 @@ class RSSLoss(Loss):
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale used to normalize prediction errors before the
-        squared surrogate is evaluated.
+        Scale Parameter to normalize prediction errors before evaluating the squared surrogate.
     name : str or None, optional
         Optional display name for summaries and debugging output.
     verbose : bool, optional

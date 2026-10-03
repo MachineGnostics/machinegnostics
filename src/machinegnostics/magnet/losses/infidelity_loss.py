@@ -49,18 +49,14 @@ class InfidelityLossFunction(torch.autograd.Function):
 class InfidelityLoss(Loss):
     """Penalize inverse fidelity so off-concept predictions become expensive.
 
-    ``InfidelityLoss`` minimizes the batch mean of the inverse-fidelity
+    ``InfidelityLoss`` minimizes the batch mean of the infidelity
     characteristic ``fj = cosh(2θ) = 1 / fi`` with
-    ``θ = (y_pred - y_true) / S``. Because ``fj`` is bounded below by ``1`` and
-    grows rapidly as predictions move away from the target manifold, the loss
-    emphasizes poor concept alignment much more aggressively than fidelity-only
-    objectives.
+    ``θ = (y_pred - y_true) / S``. Because ``fj`` is bounded in [1, ∞), the loss emphasizes poor concept alignment much more aggressively than fidelity-only objectives.
 
     Parameters
     ----------
     S : float, optional
-        Fixed residual scale that defines how quickly inverse fidelity grows
-        relative to prediction error.
+        Scale Parameter to normalize prediction errors before evaluating infidelity.
     name : str or None, optional
         Optional display name used by MAGNET summaries and logging.
     verbose : bool, optional
