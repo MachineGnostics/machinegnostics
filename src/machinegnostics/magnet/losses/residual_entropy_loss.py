@@ -49,19 +49,70 @@ class ResidualEntropyLossFunction(torch.autograd.Function):
 
 
 class ResidualEntropyLoss(Loss):
-    """Minimize residual entropy defined as ``mean(fj - fi)``."""
+    """Measure residual entropy from the loss of gnostic fidelity.
+
+    ``ResidualEntropyLoss`` tracks how much information is lost when predictions
+    move away from the concept manifold. In the estimating-fidelity view, the
+    simplest residual-entropy form is ``L = mean(1 - fi)``. MAGNET implements
+    the richer surrogate ``mean(fj - fi)``, combining fidelity loss and
+    inverse-fidelity growth so residual uncertainty grows more sharply as
+    predictions leave the target neighborhood.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale used to normalize prediction errors before the
+        entropy surrogate is evaluated.
+    name : str or None, optional
+        Optional display name for MAGNET summaries and debugging.
+    verbose : bool, optional
+        If ``True``, enable verbose logging for this loss instance.
+
+    Notes
+    -----
+    Gnostic Concept:
+        Residual entropy complements fidelity. High entropy means the model is
+        uncertain or off-concept, while low entropy means predictions remain
+        concentrated near the target manifold.
+
+    Relationship to FidelityLoss:
+        ``FidelityLoss`` rewards high ``fi`` directly; ``ResidualEntropyLoss``
+        instead penalizes the entropy-style complement of fidelity.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import ResidualEntropyLoss, Tensor
+    >>> y_pred = Tensor(np.zeros((2, 1)), requires_grad=True)
+    >>> y_true = Tensor(np.zeros((2, 1)))
+    >>> float(ResidualEntropyLoss()(y_pred, y_true))
+    0.0
+    """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
     def forward(self, y_pred, y_true) -> Tensor:
-        """Return the batch-mean residual-entropy objective.
+        """Return the batch residual-entropy objective.
 
-        Mathematical Notes:
-            The forward pass computes ``mean(cosh(2θ) - sech(2θ))`` with
-            ``θ = (y_pred - y_true) / S``. ``S`` and ``y_true`` are treated as
-            fixed inputs, so the custom backward returns only ``dL/dy_pred``.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values whose residual entropy should be measured.
+        y_true : array-like or Tensor
+            Reference targets defining the concept center.
+
+        Returns
+        -------
+        Tensor
+            Scalar loss equal to ``mean(cosh(2θ) - sech(2θ))`` with
+            ``θ = (y_pred - y_true) / S``.
+
+        Notes
+        -----
+        ``S`` and ``y_true`` are treated as fixed inputs, so the custom
+        backward returns only ``dL/dy_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = ResidualEntropyLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

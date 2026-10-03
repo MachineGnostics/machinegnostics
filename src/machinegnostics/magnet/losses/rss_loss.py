@@ -46,19 +46,68 @@ class RSSLossFunction(torch.autograd.Function):
 
 
 class RSSLoss(Loss):
-    """Penalize the mean squared estimating irrelevance ``hi²``."""
+    """Penalize residual deviation with a bounded gnostic squared surrogate.
+
+    ``RSSLoss`` is MAGNET's residual-squared objective. In classical residual
+    notation the target form is ``L = mean(θ²)`` with
+    ``θ = (y_pred - y_true) / S``. This implementation uses the bounded
+    surrogate ``mean(hi²)`` where ``hi = tanh(2θ)``, preserving the same
+    zero-loss optimum while improving numerical stability for large residuals.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale used to normalize prediction errors before the
+        squared surrogate is evaluated.
+    name : str or None, optional
+        Optional display name for summaries and debugging output.
+    verbose : bool, optional
+        If ``True``, enable verbose loss-level diagnostics.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``RSSLoss`` provides a squared residual penalty that remains aligned
+        with MAGNET's centered-coordinate view of concept learning.
+
+    Comparison to Gnostic Losses:
+        Compared with fidelity or inverse-fidelity losses, RSS behaves more
+        like a conventional regression objective while still using gnostic
+        coordinates internally.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import RSSLoss, Tensor
+    >>> y_pred = Tensor(np.zeros((2, 1)), requires_grad=True)
+    >>> y_true = Tensor(np.zeros((2, 1)))
+    >>> float(RSSLoss()(y_pred, y_true))
+    0.0
+    """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
     def forward(self, y_pred, y_true) -> Tensor:
-        """Return the batch mean of the squared ``hi`` characteristic.
+        """Return the batch residual-squared surrogate.
 
-        Mathematical Notes:
-            The forward pass computes ``mean(tanh²(2(y_pred - y_true)/S))``.
-            ``S`` and ``y_true`` remain fixed, so only ``y_pred`` receives the
-            custom backward gradient.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values whose centered residuals should be penalized.
+        y_true : array-like or Tensor
+            Reference targets defining zero residual.
+
+        Returns
+        -------
+        Tensor
+            Scalar loss equal to ``mean(tanh²(2(y_pred - y_true) / S))``.
+
+        Notes
+        -----
+        The implementation is a bounded surrogate for the classical
+        ``mean(θ²)`` form and only backpropagates through ``y_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = RSSLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

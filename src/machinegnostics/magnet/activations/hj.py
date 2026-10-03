@@ -70,7 +70,64 @@ class HjFunction(torch.autograd.Function):
 
 
 class Hj(CenteredGnosticActivation):
-    """Learnable quantifying irrelevance activation ``sinh(2θ)``."""
+    """Scale directional irrelevance into an unbounded gnostic response.
+
+    ``Hj`` is MAGNET's quantifying irrelevance activation. It evaluates
+    ``hj = sinh(2θ)`` with ``θ = (x - z0) / S``, which is equivalent to
+    ``hj = hi / fi`` before stabilization. This gives an unbounded signed
+    response that preserves direction while amplifying magnitude as the input
+    moves away from the learned concept center.
+
+    Parameters
+    ----------
+    learnable_S : bool, optional
+        If ``True``, optimize the raw scale parameter while keeping the
+        effective scale positive through ``S = 2σ(S_raw)``.
+    learnable_z0 : bool, optional
+        If ``True``, learn the concept center that anchors the directional
+        irrelevance response.
+    initial_S : float, optional
+        Initial positive scale for the centered coordinate.
+    initial_z0 : float, optional
+        Initial concept center for ``θ``.
+    name : str or None, optional
+        Optional display name used in histories and debugging output.
+    verbose : bool, optional
+        If ``True``, enable verbose logging for activation inspection.
+
+    Attributes
+    ----------
+    S : Tensor
+        Stored raw scale parameter used to derive the positive effective scale.
+    z0 : Tensor
+        Learnable center for the directional response.
+    theta : Tensor
+        Most recently computed centered deviation.
+    last_output : Tensor
+        Most recent quantifying irrelevance values.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``Hj`` expresses directional irrelevance with explicit scaling, making
+        off-concept samples grow in magnitude instead of saturating. This can
+        amplify gradients and highlight residual asymmetry.
+
+    Relationship to ``Hi``:
+        ``Hj`` keeps the sign of ``Hi`` but rescales it by inverse fidelity
+        through ``hj = hi / fi``.
+
+    Use Cases:
+        Use ``Hj`` in diagnostic branches that need strong signed separation or
+        gradient amplification for off-concept behavior.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Hj
+    >>> Hj(initial_S=1.0, initial_z0=0.0)(np.array([[-1.0, 0.0, 1.0]])).data.shape
+    (1, 3)
+    """
 
     def __init__(
         self,
@@ -93,10 +150,24 @@ class Hj(CenteredGnosticActivation):
     def forward(self, x, training: bool = True) -> Tensor:
         """Transform inputs into quantifying irrelevance values.
 
-        Mathematical Notes:
-            The layer evaluates ``sinh(2θ)`` and uses the exact derivative
-            ``∂hj/∂θ = 2 cosh(2θ) = 2 fj`` in its custom backward. Learnable
-            scales use the raw-parameter gradient derived from ``S = 2σ(S_raw)``.
+        Parameters
+        ----------
+        x : array-like or Tensor
+            Input features to map into the unbounded signed gnostic response.
+        training : bool, optional
+            Present for compatibility with the MAGNET layer interface.
+
+        Returns
+        -------
+        Tensor
+            Signed response capped to ``[-MAX_MAGNITUDE, MAX_MAGNITUDE]`` for
+            numerical stability.
+
+        Notes
+        -----
+        The layer evaluates ``sinh(2θ)`` and uses the exact derivative
+        ``∂hj/∂θ = 2 cosh(2θ) = 2 fj`` in its custom backward. Learnable
+        scales use the raw-parameter gradient derived from ``S = 2σ(S_raw)``.
         """
         x = self._as_tensor(x)
         output = HjFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)

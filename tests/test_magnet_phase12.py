@@ -1,6 +1,7 @@
 import numpy as np
 
 from machinegnostics.magnet import (
+    Dense,
     Ei,
     Fi,
     Fj,
@@ -14,6 +15,7 @@ from machinegnostics.magnet import (
     RSSLoss,
     SGD,
     Tensor,
+    Sequential,
     get_activation,
     get_loss,
 )
@@ -58,7 +60,7 @@ def test_losses_are_correct_at_perfect_alignment():
     y_pred = Tensor(np.zeros((4, 2)), requires_grad=True)
     y_true = Tensor(np.zeros((4, 2)))
     fidelity = float(FidelityLoss()(y_pred, y_true))
-    assert np.isclose(fidelity, 0.0), f"Expected FidelityLoss=0.0 at perfect alignment, got {fidelity}"
+    assert np.isclose(fidelity, -1.0), f"Expected FidelityLoss=-1.0 at perfect alignment, got {fidelity}"
 
     infidelity = float(InfidelityLoss()(y_pred, y_true))
     assert np.isclose(infidelity, 1.0), f"Expected InfidelityLoss=1.0 at perfect alignment, got {infidelity}"
@@ -66,6 +68,29 @@ def test_losses_are_correct_at_perfect_alignment():
     assert float(RSSLoss()(y_pred, y_true)) == 0.0
     assert float(ISSLoss()(y_pred, y_true)) == 0.0
     assert float(ResidualEntropyLoss()(y_pred, y_true)) == 0.0
+
+
+def test_sequential_fit_tracks_gnostic_scale_and_center_history():
+    model = Sequential([Dense(2, 1), Fi(initial_S=1.25, initial_z0=0.1)])
+    model.compile(loss=FidelityLoss(), optimizer=SGD(lr=0.05))
+    x = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], dtype=np.float64)
+    y = np.array([[0.0], [1.0], [1.0], [0.0]], dtype=np.float64)
+
+    history = model.fit(x, y, epochs=5, batch_size=4, shuffle=False)
+
+    assert "S_history" in history
+    assert "z0_history" in history
+
+    layer_key = next(iter(history["S_history"]["effective"]))
+    effective_history = np.asarray(history["S_history"]["effective"][layer_key], dtype=np.float64)
+    raw_history = np.asarray(history["S_history"]["raw"][layer_key], dtype=np.float64)
+    z0_history = np.asarray(history["z0_history"][layer_key], dtype=np.float64)
+
+    assert effective_history.shape == (5,)
+    assert raw_history.shape == (5,)
+    assert z0_history.shape == (5,)
+    assert np.all(effective_history > 0.0)
+    assert np.all(effective_history < 2.0)
 
 
 def test_information_loss_is_finite_and_backward_safe():

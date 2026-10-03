@@ -10,14 +10,14 @@ from .base import Loss, prepare_tensors
 
 
 class FidelityLossFunction(torch.autograd.Function):
-    """Custom autograd kernel for ``mean(1 - fi)``.
+    """Custom autograd kernel for ``-mean(fi)``.
 
     Mathematical Notes:
         Forward computation
         -------------------
         1. Form the residual-centered coordinate ``θ = (y_pred - y_true) / S``.
         2. Evaluate ``fi = sech(2θ)``.
-        3. Return ``L = mean(1 - fi)``.
+        3. Return ``L = -mean(fi)``.
 
         Backward computation
         --------------------
@@ -39,7 +39,7 @@ class FidelityLossFunction(torch.autograd.Function):
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["fi"], terms["hi"], terms["fi_active"])
-        return torch.mean(terms["estimating_entropy"])
+        return -torch.mean(terms["fi"])
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -50,10 +50,46 @@ class FidelityLossFunction(torch.autograd.Function):
 
 
 class FidelityLoss(Loss):
-    """Minimize estimating entropy via ``mean(1 - fi)``.
+    """Maximize gnostic fidelity through the negative mean characteristic.
 
-    ``FidelityLoss`` reaches its optimum of ``0`` when predictions match the
-    targets exactly and the residual-centered fidelity characteristic is 1.
+    ``FidelityLoss`` rewards predictions that align with the target-centered
+    concept manifold. For each residual-centered coordinate
+    ``θ = (y_pred - y_true) / S``, the loss evaluates the fidelity response
+    ``fi = sech(2θ)`` and minimizes
+    ``L = -mean(fi) = -mean(sech(2θ))``. The objective therefore lives in the
+    interval ``[-1, 0)`` for finite residuals, reaches its optimum of ``-1``
+    when every prediction lands exactly on the learned concept, and approaches
+    ``0`` as fidelity collapses.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale used to normalize prediction errors before
+        measuring fidelity. Larger values widen the notion of concept
+        agreement, while smaller values make the loss reward tight alignment.
+    name : str or None, optional
+        Optional display name for logging and summaries inside MAGNET training
+        workflows.
+    verbose : bool, optional
+        If ``True``, enable verbose loss-level logging for debugging gnostic
+        training behavior.
+
+    Notes
+    -----
+    Gnostic Concept:
+        High fidelity corresponds to strong concept concentration around the
+        target manifold. Minimizing the negative mean fidelity directly rewards
+        confident, centered predictions instead of penalizing them indirectly
+        through ``1 - fi``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import FidelityLoss, Tensor
+    >>> y_pred = Tensor(np.array([[0.0], [0.0]]), requires_grad=True)
+    >>> y_true = Tensor(np.array([[0.0], [0.0]]))
+    >>> float(FidelityLoss()(y_pred, y_true))
+    -1.0
     """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
@@ -61,13 +97,27 @@ class FidelityLoss(Loss):
         self.S = S
 
     def forward(self, y_pred, y_true) -> Tensor:
-        """Return the batch-mean fidelity objective.
+        """Return the negative mean fidelity for a batch of predictions.
 
-        Mathematical Notes:
-            ``y_true`` supplies the fixed center ``z0`` for the loss and never
-            receives gradients. ``S`` is a manual hyperparameter, so the custom
-            backward only returns ``dL/dy_pred`` for
-            ``L = mean(1 - sech(2(y_pred - y_true)/S))``.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values whose residuals will be evaluated against the
+            target-centered gnostic fidelity characteristic.
+        y_true : array-like or Tensor
+            Reference targets that define the concept center for the loss.
+
+        Returns
+        -------
+        Tensor
+            Scalar MAGNET tensor equal to
+            ``-mean(sech(2(y_pred - y_true) / S))``.
+
+        Notes
+        -----
+        ``y_true`` supplies the fixed center ``z0`` for the loss and never
+        receives gradients. ``S`` is a manual hyperparameter, so the custom
+        backward only returns ``dL/dy_pred`` for the negative-fidelity form.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = FidelityLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

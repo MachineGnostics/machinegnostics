@@ -19,6 +19,38 @@ from ..losses import Loss
 from .base import Model
 
 
+class _GnosticParameterTracker(Callback):
+    """Collect epoch-wise ``S`` and ``z0`` values from gnostic layers."""
+
+    def __init__(self) -> None:
+        super().__init__(verbose=False, name="_GnosticParameterTracker")
+        self.S_history: dict[str, dict[str, list[float]]] = {"raw": {}, "effective": {}}
+        self.z0_history: dict[str, list[float]] = {}
+        self._tracked_layers: list[tuple[str, Any]] = []
+
+    def set_model(self, model) -> None:
+        super().set_model(model)
+        self._tracked_layers = []
+        self.S_history = {"raw": {}, "effective": {}}
+        self.z0_history = {}
+        for index, layer in enumerate(model.layers):
+            if not hasattr(layer, "S") or not hasattr(layer, "z0"):
+                continue
+            layer_key = f"{index}:{layer.name}"
+            self._tracked_layers.append((layer_key, layer))
+            self.S_history["raw"][layer_key] = []
+            self.S_history["effective"][layer_key] = []
+            self.z0_history[layer_key] = []
+
+    def on_epoch_end(self, epoch, logs=None):
+        del epoch, logs
+        for layer_key, layer in self._tracked_layers:
+            self.S_history["raw"][layer_key].append(float(np.asarray(layer.S.data).reshape(-1)[0]))
+            self.S_history["effective"][layer_key].append(float(np.asarray(layer.effective_S.data).reshape(-1)[0]))
+            self.z0_history[layer_key].append(float(np.asarray(layer.z0.data).reshape(-1)[0]))
+        return None
+
+
 class Sequential(Model):
     """Apply layers in the order they are provided.
 
@@ -68,17 +100,28 @@ class Sequential(Model):
         Returns
         -------
         History
-            Training history containing recorded loss values.
+            Training history containing recorded loss values. When centered
+            gnostic activations are present, the returned history also includes
+            ``history["S_history"]`` with raw/effective scale trajectories and
+            ``history["z0_history"]`` with learned center trajectories.
         """
-        return super().fit(
+        callback_list = list(callbacks or [])
+        tracker = _GnosticParameterTracker()
+        callback_list.append(tracker)
+
+        history = super().fit(
             x,
             y,
             epochs=epochs,
             batch_size=batch_size,
             validation_data=validation_data,
             shuffle=shuffle,
-            callbacks=callbacks,
+            callbacks=callback_list,
         )
+        if tracker.S_history["raw"]:
+            history["S_history"] = tracker.S_history
+            history["z0_history"] = tracker.z0_history
+        return history
 
     def predict(self, x: Any, batch_size: int | None = None) -> np.ndarray:
         """Run inference and return NumPy predictions.

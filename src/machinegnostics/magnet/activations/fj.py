@@ -71,11 +71,64 @@ class FjFunction(torch.autograd.Function):
 
 
 class Fj(CenteredGnosticActivation):
-    """Learnable complementary fidelity activation ``cosh(2θ)``.
+    """Amplify inverse fidelity relative to a learned concept center.
 
-    ``Fj`` is the reciprocal counterpart to ``Fi`` after numerical
-    clamping. It is useful when the model should amplify deviation from
-    the learned center rather than reward alignment.
+    ``Fj`` is MAGNET's inverse-fidelity activation. It evaluates
+    ``fj = cosh(2θ)`` for ``θ = (x - z0) / S`` and therefore behaves as the
+    reciprocal companion to :class:`Fi` through the identity ``fj = 1 / fi``
+    before numerical clamping. Unlike ``Fi``, which concentrates features
+    around the concept center, ``Fj`` grows as deviation increases and is
+    useful when a model should magnify off-concept behavior.
+
+    Parameters
+    ----------
+    learnable_S : bool, optional
+        If ``True``, optimize the raw scale parameter while enforcing the
+        effective positive scale ``S = 2σ(S_raw)`` during the forward pass.
+    learnable_z0 : bool, optional
+        If ``True``, learn the concept center from which inverse fidelity is
+        measured.
+    initial_S : float, optional
+        Initial positive scale governing how quickly inverse fidelity grows.
+    initial_z0 : float, optional
+        Initial center used to define zero deviation.
+    name : str or None, optional
+        Optional display name for logging and parameter-history plots.
+    verbose : bool, optional
+        If ``True``, enable verbose activation-level diagnostics.
+
+    Attributes
+    ----------
+    S : Tensor
+        Stored raw scale parameter used to derive the effective positive scale.
+    z0 : Tensor
+        Learnable concept center for the inverse-fidelity geometry.
+    theta : Tensor
+        Most recently computed centered coordinate.
+    last_output : Tensor
+        Most recent inverse-fidelity response.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``Fj`` quantifies how strongly an input departs from the target
+        concept. Large values indicate strong off-concept evidence and can be
+        used in loss functions that penalize poor concept alignment.
+
+    Derivative Relationship:
+        ``Fj`` shares the same directional term ``hi`` used by
+        :class:`Hi`, giving ``∂fj/∂θ = 2 fj hi``.
+
+    Use Cases:
+        Use ``Fj`` when training or analysis should emphasize residual growth,
+        anomaly magnitude, or inverse confidence.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Fj
+    >>> Fj(initial_S=1.0, initial_z0=0.0)(np.array([[0.0, 1.0]])).data.shape
+    (1, 2)
     """
 
     def __init__(
@@ -97,12 +150,27 @@ class Fj(CenteredGnosticActivation):
         )
 
     def forward(self, x, training: bool = True) -> Tensor:
-        """Transform inputs into complementary fidelity values.
+        """Transform inputs into inverse-fidelity values.
 
-        Mathematical Notes:
-            ``Fj`` evaluates ``cosh(2θ)`` using the same centered geometry as
-            ``Fi``. Its custom backward propagates ``∂fj/∂θ = 2 fj hi`` and uses
-            the sigmoid-gated scale rule for learnable scales.
+        Parameters
+        ----------
+        x : array-like or Tensor
+            Input features whose deviation from ``z0`` should be amplified.
+        training : bool, optional
+            Present for API compatibility. ``Fj`` uses the same deterministic
+            response in training and inference.
+
+        Returns
+        -------
+        Tensor
+            Inverse-fidelity response in ``[1, MAX_MAGNITUDE]`` after
+            stabilization.
+
+        Notes
+        -----
+        ``Fj`` evaluates ``cosh(2θ)`` using the same centered geometry as
+        ``Fi``. Its custom backward propagates ``∂fj/∂θ = 2 fj hi`` and uses
+        the sigmoid-gated scale rule for learnable scales.
         """
         x = self._as_tensor(x)
         output = FjFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)

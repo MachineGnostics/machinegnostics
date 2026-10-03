@@ -47,7 +47,46 @@ class InfidelityLossFunction(torch.autograd.Function):
 
 
 class InfidelityLoss(Loss):
-    """Penalize inverse fidelity via ``mean(cosh(2θ))``."""
+    """Penalize inverse fidelity so off-concept predictions become expensive.
+
+    ``InfidelityLoss`` minimizes the batch mean of the inverse-fidelity
+    characteristic ``fj = cosh(2θ) = 1 / fi`` with
+    ``θ = (y_pred - y_true) / S``. Because ``fj`` is bounded below by ``1`` and
+    grows rapidly as predictions move away from the target manifold, the loss
+    emphasizes poor concept alignment much more aggressively than fidelity-only
+    objectives.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale that defines how quickly inverse fidelity grows
+        relative to prediction error.
+    name : str or None, optional
+        Optional display name used by MAGNET summaries and logging.
+    verbose : bool, optional
+        If ``True``, enable verbose loss-level diagnostics.
+
+    Notes
+    -----
+    Gnostic Concept:
+        This loss penalizes concept mismatch through ``L = mean(1 / fi)``. Its
+        minimum is ``1`` at perfect alignment and it increases without bound as
+        fidelity collapses.
+
+    Use Cases:
+        Use ``InfidelityLoss`` when training should strongly discourage
+        low-fidelity predictions or when you want a sharper penalty than
+        negative fidelity provides.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import InfidelityLoss, Tensor
+    >>> y_pred = Tensor(np.zeros((2, 1)), requires_grad=True)
+    >>> y_true = Tensor(np.zeros((2, 1)))
+    >>> float(InfidelityLoss()(y_pred, y_true))
+    1.0
+    """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
@@ -56,10 +95,23 @@ class InfidelityLoss(Loss):
     def forward(self, y_pred, y_true) -> Tensor:
         """Return the batch-mean inverse-fidelity objective.
 
-        Mathematical Notes:
-            ``S`` and ``y_true`` are treated as fixed inputs. The custom
-            backward therefore returns only the stable prediction gradient for
-            ``L = mean(cosh(2(y_pred - y_true)/S))``.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values to compare against the target concept manifold.
+        y_true : array-like or Tensor
+            Reference targets defining the concept center for the loss.
+
+        Returns
+        -------
+        Tensor
+            Scalar loss equal to ``mean(cosh(2(y_pred - y_true) / S))``.
+
+        Notes
+        -----
+        ``S`` and ``y_true`` are treated as fixed inputs. The custom backward
+        therefore returns only the stable prediction gradient for the
+        inverse-fidelity objective.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = InfidelityLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

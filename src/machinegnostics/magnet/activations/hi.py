@@ -70,11 +70,65 @@ class HiFunction(torch.autograd.Function):
 
 
 class Hi(CenteredGnosticActivation):
-    """Learnable estimating irrelevance activation ``tanh(2θ)``.
+    """Encode directional irrelevance around a learned gnostic concept center.
 
-    ``Hi`` is the signed complement to ``Fi``. It measures directional
-    deviation from the learned center while preserving a smooth,
-    saturating response that remains bounded between -1 and 1.
+    ``Hi`` is MAGNET's signed irrelevance activation. It uses the same
+    centered coordinate ``θ = (x - z0) / S`` as :class:`Fi`, then evaluates
+    ``hi = tanh(2θ)`` to express whether the input sits below or above the
+    learned concept center. The response is bounded in ``[-1, 1]`` and
+    preserves directional information that is useful for residual modeling and
+    concept-separation tasks.
+
+    Parameters
+    ----------
+    learnable_S : bool, optional
+        If ``True``, optimize the gated scale ``S = 2σ(S_raw)`` so the
+        irrelevance transition width can adapt while remaining positive.
+    learnable_z0 : bool, optional
+        If ``True``, learn the concept center that defines zero irrelevance.
+    initial_S : float, optional
+        Initial transition width for the irrelevance response.
+    initial_z0 : float, optional
+        Initial center at which the directional response crosses zero.
+    name : str or None, optional
+        Optional display name used in histories and debugging output.
+    verbose : bool, optional
+        If ``True``, emit verbose diagnostic logging.
+
+    Attributes
+    ----------
+    S : Tensor
+        Stored raw scale parameter used to derive the effective positive scale.
+    z0 : Tensor
+        Learnable center that anchors the directional response.
+    theta : Tensor
+        Most recently computed centered coordinate.
+    last_output : Tensor
+        Most recent irrelevance activation values.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``Hi`` quantifies how directionally irrelevant a feature is to the
+        target concept. Negative values indicate one side of the concept
+        manifold, positive values indicate the other, and values near zero
+        indicate concept agreement.
+
+    Conservation Identity:
+        Together with :class:`machinegnostics.magnet.activations.fi.Fi`,
+        ``Hi`` satisfies ``fi² + hi² = 1``.
+
+    Use Cases:
+        ``Hi`` is well suited for residual-sensitive hidden layers, directional
+        fault signatures, and complementary feature channels that should retain
+        sign information.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Hi
+    >>> Hi(initial_S=1.0, initial_z0=0.0)(np.array([[-1.0, 0.0, 1.0]])).data.shape
+    (1, 3)
     """
 
     def __init__(
@@ -96,12 +150,26 @@ class Hi(CenteredGnosticActivation):
         )
 
     def forward(self, x, training: bool = True) -> Tensor:
-        """Transform inputs into irrelevance values.
+        """Transform inputs into signed irrelevance values.
 
-        Mathematical Notes:
-            ``Hi`` evaluates ``tanh(2θ)`` with the same centered and optionally
-            sigmoid-gated scale used by the other gnostic activations. Its custom
-            backward uses the exact derivative ``∂hi/∂θ = 2 fi²``.
+        Parameters
+        ----------
+        x : array-like or Tensor
+            Input features to map into the directional gnostic coordinate.
+        training : bool, optional
+            Present for layer API compatibility. The forward rule is identical
+            in training and inference modes.
+
+        Returns
+        -------
+        Tensor
+            Signed irrelevance response bounded to ``[-1, 1]``.
+
+        Notes
+        -----
+        ``Hi`` evaluates ``tanh(2θ)`` with the same centered and optionally
+        sigmoid-gated scale used by the other gnostic activations. Its custom
+        backward uses the exact derivative ``∂hi/∂θ = 2 fi²``.
         """
         x = self._as_tensor(x)
         output = HiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)

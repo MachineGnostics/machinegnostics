@@ -84,13 +84,72 @@ class FiFunction(torch.autograd.Function):
 
 
 class Fi(CenteredGnosticActivation):
-    """Learnable estimating fidelity activation ``sech(2θ)``.
+    """Model concept fidelity with a learnable bell-shaped gnostic response.
 
-    ``Fi`` is the core gnostic fidelity response. It peaks when the input
-    matches the learned center ``z0`` and decays symmetrically as the
-    normalized deviation ``θ = (x - z0) / S`` grows in magnitude. Together
-    with :class:`machinegnostics.magnet.activations.hi.Hi`, the activation
-    satisfies the conservation identity ``fi² + hi² = 1``.
+    ``Fi`` is MAGNET's primary fidelity activation. It maps an input into the
+    centered coordinate ``θ = (x - z0) / S`` and evaluates
+    ``fi = sech(2θ)``, producing a bell-shaped response that peaks at ``1``
+    when the input matches the learned concept center ``z0`` and decays toward
+    ``0`` as the deviation grows. The learnable scale lets the activation tune
+    how tightly it concentrates features around the concept manifold.
+
+    Parameters
+    ----------
+    learnable_S : bool, optional
+        If ``True``, optimize the scale through the gated raw parameter
+        ``S_raw`` with ``S = 2σ(S_raw)`` so the effective scale stays strictly
+        positive during concept learning.
+    learnable_z0 : bool, optional
+        If ``True``, optimize the concept center ``z0`` so the activation can
+        align itself with the feature location that best represents fidelity.
+    initial_S : float, optional
+        Initial positive scale that determines the starting concentration width
+        before training refines the concept neighborhood.
+    initial_z0 : float, optional
+        Initial concept center around which fidelity is measured.
+    name : str or None, optional
+        Optional display name used in summaries, logging, and parameter
+        tracking histories.
+    verbose : bool, optional
+        If ``True``, emit verbose diagnostic logging for activation behavior.
+
+    Attributes
+    ----------
+    S : Tensor
+        Stored raw scale parameter. When the scale is learnable, this tensor is
+        unconstrained and mapped to the effective positive scale in the forward
+        pass.
+    z0 : Tensor
+        Learnable concept center used to translate the input before computing
+        the gnostic coordinate.
+    theta : Tensor
+        Most recently computed normalized deviation, cached for inspection.
+    last_output : Tensor
+        Most recently computed fidelity response.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``Fi`` measures how strongly an input belongs to the target concept.
+        High values mean concentrated feature agreement; low values mean the
+        feature lies outside the learned concept neighborhood.
+
+    Conservation Identity:
+        With :class:`machinegnostics.magnet.activations.hi.Hi`, ``Fi`` obeys
+        the fundamental MAGNET identity ``fi² + hi² = 1``.
+
+    Use Cases:
+        Use ``Fi`` in hidden or output layers when machine-condition concepts
+        should be represented by strong centered fidelity rather than unbounded
+        linear activations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Fi
+    >>> activation = Fi(initial_S=1.0, initial_z0=0.0)
+    >>> activation(np.array([[0.0, 0.5]])).data.shape
+    (1, 2)
     """
 
     def __init__(
@@ -112,14 +171,28 @@ class Fi(CenteredGnosticActivation):
         )
 
     def forward(self, x, training: bool = True) -> Tensor:
-        """Transform inputs into fidelity values.
+        """Transform inputs into estimating fidelity values.
 
-        Mathematical Notes:
-            The layer evaluates ``fi = sech(2θ)`` with ``θ = (x - z0) / S``.
-            If ``S`` is learnable, the stored parameter is a raw unconstrained
-            value mapped to ``S = 2σ(S_raw)`` before the characteristic is
-            evaluated. :class:`FiFunction` implements the exact MAGNET backward
-            rules for ``x``, ``S_raw``, and ``z0``.
+        Parameters
+        ----------
+        x : array-like or Tensor
+            Input features whose centered deviation from ``z0`` should be
+            converted into concept fidelity.
+        training : bool, optional
+            Present for API symmetry with other MAGNET layers. ``Fi`` uses the
+            same deterministic computation in training and inference modes.
+
+        Returns
+        -------
+        Tensor
+            Fidelity response in the interval ``(0, 1]`` for finite inputs.
+
+        Notes
+        -----
+        The layer evaluates ``fi = sech(2θ)`` with ``θ = (x - z0) / S``. If
+        ``S`` is learnable, the stored raw parameter is gated as
+        ``S = 2σ(S_raw)`` before the characteristic is evaluated so the scale
+        stays positive throughout optimization.
         """
         x = self._as_tensor(x)
         output = FiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)

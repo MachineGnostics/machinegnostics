@@ -52,7 +52,45 @@ class InformationLossFunction(torch.autograd.Function):
 
 
 class InformationLoss(Loss):
-    """Minimize binary information induced by the gnostic characteristics."""
+    """Measure information content induced by gnostic concept fidelity.
+
+    ``InformationLoss`` quantifies how much information remains in the
+    prediction residuals after mapping them into MAGNET's gnostic terms. A
+    common Shannon-like fidelity form is ``L = mean(fi log(fi))`` with
+    ``fi = sech(2θ)``. The current implementation uses a stabilized binary
+    entropy proxy derived from ``hi`` so the loss stays well-behaved during
+    optimization while retaining an information-theoretic interpretation.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale used to normalize prediction errors before the
+        information measure is evaluated.
+    name : str or None, optional
+        Optional display name for summaries and diagnostics.
+    verbose : bool, optional
+        If ``True``, enable verbose logging for the loss instance.
+
+    Notes
+    -----
+    Gnostic Concept:
+        Information-style objectives help distinguish between confident
+        low-entropy predictions and ambiguous high-entropy predictions in the
+        concept space learned by MAGNET.
+
+    Use Cases:
+        Use ``InformationLoss`` when you want a smoother information-theoretic
+        signal than direct fidelity or inverse-fidelity penalties provide.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import InformationLoss, Tensor
+    >>> y_pred = Tensor(np.array([[0.1], [0.2]]), requires_grad=True)
+    >>> y_true = Tensor(np.zeros((2, 1)))
+    >>> np.isfinite(float(InformationLoss()(y_pred, y_true)))
+    True
+    """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
@@ -61,10 +99,24 @@ class InformationLoss(Loss):
     def forward(self, y_pred, y_true) -> Tensor:
         """Return the batch-mean information objective.
 
-        Mathematical Notes:
-            ``y_true`` provides the fixed loss center and ``S`` stays manual.
-            The custom backward differentiates the stabilized binary entropy only
-            with respect to ``y_pred``.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values whose residual information should be measured.
+        y_true : array-like or Tensor
+            Reference targets defining the gnostic concept center.
+
+        Returns
+        -------
+        Tensor
+            Scalar information-style loss computed from stabilized gnostic
+            probabilities.
+
+        Notes
+        -----
+        ``y_true`` provides the fixed loss center and ``S`` stays manual. The
+        custom backward differentiates the stabilized information surrogate only
+        with respect to ``y_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = InformationLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

@@ -46,19 +46,69 @@ class ISSLossFunction(torch.autograd.Function):
 
 
 class ISSLoss(Loss):
-    """Penalize the mean squared quantifying irrelevance ``hj²``."""
+    """Penalize inverse-style residual structure with a gnostic magnitude loss.
+
+    ``ISSLoss`` is MAGNET's inverse-squared-style objective. In classical
+    notation the conceptual form is often described as ``L = mean(1 / θ²)``
+    over the centered residual ``θ = (y_pred - y_true) / S``. The MAGNET
+    implementation uses the numerically stable quantifying-irrelevance
+    surrogate ``mean(hj²)`` with ``hj = sinh(2θ)``, which preserves strong
+    off-center penalization without introducing singularities at ``θ = 0``.
+
+    Parameters
+    ----------
+    S : float, optional
+        Fixed residual scale used to normalize prediction errors before the
+        inverse-style surrogate is evaluated.
+    name : str or None, optional
+        Optional display name for summaries and diagnostics.
+    verbose : bool, optional
+        If ``True``, enable verbose logging for loss debugging.
+
+    Notes
+    -----
+    Gnostic Concept:
+        ``ISSLoss`` emphasizes quantifying irrelevance, making it useful when
+        large directional residuals should receive stronger gradients than a
+        bounded fidelity objective would supply.
+
+    Numerical Stability:
+        The gnostic surrogate avoids the singularity that a literal
+        ``1 / θ²`` objective would have at perfect alignment.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import ISSLoss, Tensor
+    >>> y_pred = Tensor(np.zeros((2, 1)), requires_grad=True)
+    >>> y_true = Tensor(np.zeros((2, 1)))
+    >>> float(ISSLoss()(y_pred, y_true))
+    0.0
+    """
 
     def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
     def forward(self, y_pred, y_true) -> Tensor:
-        """Return the batch mean of the squared ``hj`` characteristic.
+        """Return the batch inverse-style residual surrogate.
 
-        Mathematical Notes:
-            ``y_true`` acts as the fixed center and ``S`` is a fixed scale
-            hyperparameter. The custom backward returns only ``dL/dy_pred`` for
-            ``L = mean(sinh²(2(y_pred - y_true)/S))``.
+        Parameters
+        ----------
+        y_pred : array-like or Tensor
+            Predicted values to evaluate in centered residual coordinates.
+        y_true : array-like or Tensor
+            Reference targets defining the residual center.
+
+        Returns
+        -------
+        Tensor
+            Scalar loss equal to ``mean(sinh²(2(y_pred - y_true) / S))``.
+
+        Notes
+        -----
+        ``y_true`` acts as the fixed center and ``S`` is a fixed scale
+        hyperparameter. The custom backward returns only ``dL/dy_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = ISSLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

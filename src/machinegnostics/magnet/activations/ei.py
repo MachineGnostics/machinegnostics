@@ -88,7 +88,69 @@ class EiFunction(torch.autograd.Function):
 
 
 class Ei(CenteredGnosticActivation):
-    """Learnable entropy-like activation derived from gnostic terms."""
+    """Measure gnostic entropy relative to a learned concept center.
+
+    ``Ei`` exposes MAGNET's entropy-style activation family. In estimating mode
+    (``case='i'``) it evaluates ``ei = 1 - fi``, turning high fidelity into
+    low entropy and low fidelity into high entropy. In quantifying mode
+    (``case='j'``) it evaluates ``ei = fj - 1`` to preserve the historical
+    unbounded residual form. The activation therefore links fidelity and
+    information-style measures in one learnable centered layer.
+
+    Parameters
+    ----------
+    learnable_S : bool, optional
+        If ``True``, optimize the gated positive scale ``S = 2σ(S_raw)`` that
+        controls how quickly entropy grows away from the concept center.
+    learnable_z0 : bool, optional
+        If ``True``, learn the concept center relative to which entropy is
+        measured.
+    initial_S : float, optional
+        Initial positive scale for the centered coordinate.
+    initial_z0 : float, optional
+        Initial concept center.
+    case : {'i', 'j'}, optional
+        Entropy variant to compute. ``'i'`` returns ``1 - fi`` and ``'j'``
+        returns ``fj - 1``.
+    name : str or None, optional
+        Optional display name for diagnostics and history plots.
+    verbose : bool, optional
+        If ``True``, enable verbose logging for activation inspection.
+
+    Attributes
+    ----------
+    S : Tensor
+        Stored raw scale parameter used to derive the effective positive scale.
+    z0 : Tensor
+        Learnable center used to define the gnostic coordinate.
+    case : str
+        Active entropy formulation.
+    theta : Tensor
+        Most recently computed centered deviation.
+    last_output : Tensor
+        Most recent entropy-like response.
+
+    Notes
+    -----
+    Gnostic Concept:
+        Estimating-mode ``Ei`` turns fidelity concentration into an entropy
+        measure, so it is useful for information-style objectives and plots.
+
+    Relationship to FidelityLoss:
+        In estimating mode, ``Ei`` matches the ``1 - fi`` quantity often used
+        to visualize residual entropy alongside fidelity-driven losses.
+
+    Use Cases:
+        Use ``Ei`` when monitoring information growth, building entropy-aware
+        features, or comparing fidelity and residual uncertainty directly.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Ei
+    >>> Ei(case='i', initial_S=1.0)(np.array([[0.0, 1.0]])).data.shape
+    (1, 2)
+    """
 
     def __init__(
         self,
@@ -115,12 +177,25 @@ class Ei(CenteredGnosticActivation):
     def forward(self, x, training: bool = True) -> Tensor:
         """Transform inputs into the selected entropy-like response.
 
-        Mathematical Notes:
-            Case ``'i'`` implements ``ei = 1 - fi`` with derivative
-            ``∂ei/∂θ = 2 fi hi``. Case ``'j'`` preserves the existing
-            quantifying form ``ei = fj - 1`` with derivative
-            ``∂ei/∂θ = 2 fj hi``. Both use the same sigmoid-gated scale and exact
-            centered-coordinate backward rules.
+        Parameters
+        ----------
+        x : array-like or Tensor
+            Input features to map into the selected entropy characteristic.
+        training : bool, optional
+            Present for compatibility with the MAGNET layer interface.
+
+        Returns
+        -------
+        Tensor
+            Estimating-mode output in ``[0, 1)`` or quantifying-mode output in
+            ``[0, MAX_MAGNITUDE]`` after stabilization.
+
+        Notes
+        -----
+        Case ``'i'`` implements ``ei = 1 - fi`` with derivative
+        ``∂ei/∂θ = 2 fi hi``. Case ``'j'`` preserves the quantifying form
+        ``ei = fj - 1`` with derivative ``∂ei/∂θ = 2 fj hi``. Both use the
+        same sigmoid-gated scale and exact centered-coordinate backward rules.
         """
         x = self._as_tensor(x)
         output = EiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S, self.case)
