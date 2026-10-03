@@ -35,7 +35,7 @@ class RSSLossFunction(torch.autograd.Function):
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["hi"], terms["fi"], terms["clip_mask"])
-        return torch.mean(terms["hi"] ** 2)
+        return torch.sum(terms["hi"] ** 2)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -46,13 +46,14 @@ class RSSLossFunction(torch.autograd.Function):
 
 
 class RSSLoss(Loss):
-    """Penalize residual deviation with a bounded gnostic squared surrogate.
+    """Relevance Squared Sum (RSS) loss for MAGNET.
 
-    ``RSSLoss`` is MAGNET's residual-squared objective. In classical residual
-    notation the target form is ``L = mean(θ²)`` with
-    ``θ = (y_pred - y_true) / S``. This implementation uses the bounded
-    surrogate ``mean(hi²)`` where ``hi = tanh(2θ)``, preserving the same
-    zero-loss optimum while improving numerical stability for large residuals.
+    ``RSSLoss`` is MAGNET's relevance-based objective that measures how much
+    of the residual is relevant within the gnostic concept space. The
+    conceptual form is ``L = mean(θ²)`` with ``θ = (y_pred - y_true) / S``.
+    This implementation uses the bounded surrogate ``mean(hi²)`` where
+    ``hi = tanh(2θ)``, preserving the same zero-loss optimum while improving
+    numerical stability for large residuals.
 
     Parameters
     ----------

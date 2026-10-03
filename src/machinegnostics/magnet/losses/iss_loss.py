@@ -35,7 +35,7 @@ class ISSLossFunction(torch.autograd.Function):
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["hj"], terms["fj"], terms["hj_active"])
-        return torch.mean(terms["hj"] ** 2)
+        return torch.sum(terms["hj"] ** 2)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -46,14 +46,14 @@ class ISSLossFunction(torch.autograd.Function):
 
 
 class ISSLoss(Loss):
-    """Penalize inverse-style residual structure with a gnostic magnitude loss.
+    """Invariance Squared Sum (ISS) loss for MAGNET.
 
-    ``ISSLoss`` is MAGNET's inverse-squared-style objective. In classical
-    notation the conceptual form is often described as ``L = mean(1 / θ²)``
-    over the centered residual ``θ = (y_pred - y_true) / S``. The MAGNET
-    implementation uses the numerically stable quantifying-irrelevance
-    surrogate ``mean(hj²)`` with ``hj = sinh(2θ)``, which preserves strong
-    off-center penalization without introducing singularities at ``θ = 0``.
+    ``ISSLoss`` is MAGNET's invariance-based objective that quantifies how
+    much residual remains invariant under the gnostic transformation. The
+    conceptual form emphasizes quantifying irrelevance through the surrogate
+    ``mean(hj²)`` with ``hj = sinh(2θ)`` where ``θ = (y_pred - y_true) / S``
+    is the centered residual. This numerically stable formulation preserves
+    strong off-center penalization without introducing singularities.
 
     Parameters
     ----------
