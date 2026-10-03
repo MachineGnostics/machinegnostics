@@ -1,4 +1,4 @@
-"""All-zero weight initializer."""
+"""Zero initializer for MAGNET."""
 
 from __future__ import annotations
 
@@ -8,14 +8,9 @@ from .base import Initializer, normalize_shape
 
 
 class Zeros(Initializer):
-    """Return arrays filled with zeros.
-
-    Zero initialization is commonly used for bias vectors because it starts
-    offsets from a neutral value. It is generally not suitable for full weight
-    matrices because identical parameters receive identical gradients.
-    """
+    """Return arrays filled with zeros."""
 
     def __call__(self, shape) -> np.ndarray:
-        """Return a zero-filled array with the requested shape."""
+        """Return a zero-filled array."""
         normalized = normalize_shape(shape)
         return np.zeros(normalized, dtype=self.dtype)

@@ -358,17 +358,13 @@ class Model:
 			"ELU",
 			"Softplus",
 			"Swish",
-			"Fidelity",
-			"Infidelity",
-			"Irrelevance",
-			"Relevance",
-			"GnosticProba",
-			"Entropy",
+			"Square",
 			"BatchNorm",
 			"Fi",
 			"Fj",
 			"Hi",
 			"Hj",
+			"Ei",
 		}:
 			return input_shape
 

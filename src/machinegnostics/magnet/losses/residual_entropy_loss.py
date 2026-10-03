@@ -17,7 +17,8 @@ class ResidualEntropyLoss(Loss):
         self.S = S
 
     def forward(self, y_pred, y_true) -> Tensor:
+        """Return the batch-mean residual-entropy objective."""
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         terms = compute_terms(y_pred._tensor - y_true._tensor, scale=self.S)
-        loss = torch.mean(terms["fj"] - terms["fi"])
+        loss = torch.mean(terms['fj'] - terms['fi'])
         return Tensor.from_torch(loss)
