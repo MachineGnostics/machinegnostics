@@ -39,7 +39,7 @@ class FidelityLossFunction(torch.autograd.Function):
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["fi"], terms["hi"], terms["fi_active"])
-        return -torch.mean(terms["fi"])
+        return torch.mean(terms["fi"])
 
     @staticmethod
     def backward(ctx, grad_output):
