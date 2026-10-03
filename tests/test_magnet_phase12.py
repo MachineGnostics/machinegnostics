@@ -70,6 +70,26 @@ def test_losses_are_correct_at_perfect_alignment():
     assert float(ResidualEntropyLoss()(y_pred, y_true)) == 0.0
 
 
+def test_gnostic_losses_support_auto_scale_and_backward():
+    y_true = Tensor(np.array([[0.0], [1.0], [1.0], [0.0]]))
+    loss_types = (
+        FidelityLoss,
+        InfidelityLoss,
+        RSSLoss,
+        ISSLoss,
+        ResidualEntropyLoss,
+        InformationLoss,
+    )
+
+    for loss_type in loss_types:
+        y_pred = Tensor(np.array([[0.2], [0.8], [1.2], [-0.1]]), requires_grad=True)
+        loss = loss_type()(y_pred, y_true)
+        assert np.isfinite(float(loss)), loss_type.__name__
+        loss.backward()
+        assert y_pred.grad is not None, loss_type.__name__
+        assert np.all(np.isfinite(y_pred.grad)), loss_type.__name__
+
+
 def test_sequential_fit_tracks_gnostic_scale_and_center_history():
     model = Sequential([Dense(2, 1), Fi(initial_S=1.25, initial_z0=0.1)])
     model.compile(loss=FidelityLoss(), optimizer=SGD(lr=0.05))

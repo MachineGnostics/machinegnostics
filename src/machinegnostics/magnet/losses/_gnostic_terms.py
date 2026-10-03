@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 
 EPS = 1e-6
 MAX_ABS_TWO_THETA = 30.0
 MAX_MAGNITUDE = 1e6
 MAX_GRADIENT = 1e6
+MAX_GNOSTIC_SCALE = 2.0
+MIN_GNOSTIC_SCALE = 1e-2
 
 
 def _clip_gradient(gradient: torch.Tensor) -> torch.Tensor:
@@ -53,3 +56,30 @@ def compute_terms(diff: torch.Tensor, scale: float = 1.0) -> dict[str, torch.Ten
         "p_active": (clip_mask & (p_raw > EPS) & (p_raw < 1.0 - EPS)).to(dtype=diff.dtype),
         "information": -(p_i * torch.log(p_i) + (1.0 - p_i) * torch.log(1.0 - p_i)),
     }
+
+
+def resolve_gnostic_scale(diff: torch.Tensor, scale: float | str = "auto") -> float:
+    """Resolve a user scale or derive one from the current batch."""
+    if isinstance(scale, str):
+        if scale != "auto":
+            raise ValueError("scale must be a real number or the string 'auto'")
+        from machinegnostics.magcal import ScaleParam
+
+        preliminary = compute_terms(diff, scale=1.0)
+        fi_mean = float(preliminary["fi"].mean().item())
+        resolved = float(ScaleParam()._gscale_loc(fi_mean))
+        if not np.isfinite(resolved):
+            raise ValueError("auto scale resolution produced a non-finite value")
+        return float(min(max(abs(resolved), MIN_GNOSTIC_SCALE), MAX_GNOSTIC_SCALE))
+
+    resolved = float(scale)
+    if not np.isfinite(resolved):
+        raise ValueError("scale must be finite")
+    if resolved <= 0.0 or resolved > MAX_GNOSTIC_SCALE:
+        raise ValueError("scale must be in the range (0, 2]")
+    return resolved
+
+
+def compute_gnostic_terms(diff: torch.Tensor, scale: float | str = "auto") -> dict[str, torch.Tensor]:
+    """Compute stable gnostic terms after resolving the effective scale."""
+    return compute_terms(diff, scale=resolve_gnostic_scale(diff, scale))

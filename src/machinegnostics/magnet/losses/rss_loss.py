@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 from ..core.tensor import Tensor
-from ._gnostic_terms import _clip_gradient, compute_terms
+from ._gnostic_terms import _clip_gradient, compute_gnostic_terms
 from .base import Loss, prepare_tensors
 
 
@@ -31,7 +31,7 @@ class RSSLossFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, y_pred, y_true, scale):
-        terms = compute_terms(y_pred - y_true, scale=scale)
+        terms = compute_gnostic_terms(y_pred - y_true, scale=scale)
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["hi"], terms["fi"], terms["clip_mask"])
@@ -57,8 +57,10 @@ class RSSLoss(Loss):
 
     Parameters
     ----------
-    S : float, optional
-        Scale Parameter to normalize prediction errors before evaluating the squared surrogate.
+    S : float or str, optional
+        Scale parameter to normalize prediction errors before evaluating the
+        squared surrogate. Use ``"auto"`` to derive a local scale from the
+        current batch via ``ScaleParam``.
     name : str or None, optional
         Optional display name for summaries and debugging output.
     verbose : bool, optional
@@ -85,7 +87,7 @@ class RSSLoss(Loss):
     0.0
     """
 
-    def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
+    def __init__(self, S: float | str = "auto", name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
@@ -107,7 +109,9 @@ class RSSLoss(Loss):
         Notes
         -----
         The implementation is a bounded surrogate for the classical
-        ``mean(θ²)`` form and only backpropagates through ``y_pred``.
+        ``mean(θ²)`` form. ``S`` may be numeric or ``"auto"``, in which case
+        a batch-local scale is derived before evaluating the surrogate. The
+        backward path only backpropagates through ``y_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = RSSLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)

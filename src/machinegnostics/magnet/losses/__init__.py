@@ -111,27 +111,27 @@ class BinaryCrossEntropy(Loss):
         return -(y_true * clipped.log() + (1.0 - y_true) * (1.0 - clipped).log()).mean()
 
 
-def fidelity_loss(y_pred, y_true, S: float = 1.0):
+def fidelity_loss(y_pred, y_true, S: float | str = "auto"):
     """Compute fidelity loss with the dedicated autograd-based class."""
     return FidelityLoss(S=S)(y_pred, y_true)
 
 
-def infidelity_loss(y_pred, y_true, S: float = 1.0):
+def infidelity_loss(y_pred, y_true, S: float | str = "auto"):
     """Compute infidelity loss with the dedicated autograd-based class."""
     return InfidelityLoss(S=S)(y_pred, y_true)
 
 
-def irrelevance_loss(y_pred, y_true, S: float = 1.0):
+def irrelevance_loss(y_pred, y_true, S: float | str = "auto"):
     """Compute residual-entropy loss for legacy helper workflows."""
     return ResidualEntropyLoss(S=S)(y_pred, y_true)
 
 
-def relevance_loss(y_pred, y_true, S: float = 1.0):
+def relevance_loss(y_pred, y_true, S: float | str = "auto"):
     """Compute information loss for legacy helper workflows."""
     return InformationLoss(S=S)(y_pred, y_true)
 
 
-def gnostic_characteristic_loss(y_pred, y_true, S: float = 1.0):
+def gnostic_characteristic_loss(y_pred, y_true, S: float | str = "auto"):
     """Alias residual-entropy loss for compatibility with older helpers."""
     return ResidualEntropyLoss(S=S)(y_pred, y_true)
 

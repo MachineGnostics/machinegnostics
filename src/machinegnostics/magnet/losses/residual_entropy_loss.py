@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 from ..core.tensor import Tensor
-from ._gnostic_terms import _clip_gradient, compute_terms
+from ._gnostic_terms import _clip_gradient, compute_gnostic_terms
 from .base import Loss, prepare_tensors
 
 
@@ -33,7 +33,7 @@ class ResidualEntropyLossFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, y_pred, y_true, scale):
-        terms = compute_terms(y_pred - y_true, scale=scale)
+        terms = compute_gnostic_terms(y_pred - y_true, scale=scale)
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         active = terms["fi_active"] * terms["fj_active"]
@@ -60,8 +60,10 @@ class ResidualEntropyLoss(Loss):
 
     Parameters
     ----------
-    S : float, optional
-        Scale Parameter to normalize prediction errors before evaluating the residual entropy.
+    S : float or str, optional
+        Scale parameter to normalize prediction errors before evaluating the
+        residual entropy. Use ``"auto"`` to derive a local scale from the
+        current batch via ``ScaleParam``.
     name : str or None, optional
         Optional display name for MAGNET summaries and debugging.
     verbose : bool, optional
@@ -88,7 +90,7 @@ class ResidualEntropyLoss(Loss):
     0.0
     """
 
-    def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
+    def __init__(self, S: float | str = "auto", name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
@@ -110,7 +112,8 @@ class ResidualEntropyLoss(Loss):
 
         Notes
         -----
-        ``S`` and ``y_true`` are treated as fixed inputs, so the custom
+        ``S`` may be numeric or ``"auto"``. In auto mode, a batch-local scale
+        is derived before evaluating the entropy surrogate. The custom
         backward returns only ``dL/dy_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)

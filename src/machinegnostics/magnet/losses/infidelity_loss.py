@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 from ..core.tensor import Tensor
-from ._gnostic_terms import _clip_gradient, compute_terms
+from ._gnostic_terms import _clip_gradient, compute_gnostic_terms
 from .base import Loss, prepare_tensors
 
 
@@ -32,7 +32,7 @@ class InfidelityLossFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, y_pred, y_true, scale):
-        terms = compute_terms(y_pred - y_true, scale=scale)
+        terms = compute_gnostic_terms(y_pred - y_true, scale=scale)
         ctx.scale_value = float(terms["scale"].item())
         ctx.normalizer = max(y_pred.numel(), 1)
         ctx.save_for_backward(terms["fj"], terms["hi"], terms["fj_active"])
@@ -55,8 +55,10 @@ class InfidelityLoss(Loss):
 
     Parameters
     ----------
-    S : float, optional
-        Scale Parameter to normalize prediction errors before evaluating infidelity.
+    S : float or str, optional
+        Scale parameter to normalize prediction errors before evaluating
+        infidelity. Use ``"auto"`` to derive a local scale from the current
+        batch via ``ScaleParam``.
     name : str or None, optional
         Optional display name used by MAGNET summaries and logging.
     verbose : bool, optional
@@ -84,7 +86,7 @@ class InfidelityLoss(Loss):
     1.0
     """
 
-    def __init__(self, S: float = 1.0, name: str | None = None, verbose: bool = False):
+    def __init__(self, S: float | str = "auto", name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
 
@@ -105,9 +107,10 @@ class InfidelityLoss(Loss):
 
         Notes
         -----
-        ``S`` and ``y_true`` are treated as fixed inputs. The custom backward
-        therefore returns only the stable prediction gradient for the
-        inverse-fidelity objective.
+        ``S`` may be numeric or ``"auto"``. When auto scale is enabled, the
+        loss derives a local batch scale before evaluating the inverse-fidelity
+        objective. The custom backward therefore returns only the stable
+        prediction gradient.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
         loss = InfidelityLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)
