@@ -171,6 +171,9 @@ class Hi(CenteredGnosticActivation):
         sigmoid-gated scale used by the other gnostic activations. Its custom
         backward uses the exact derivative ``∂hi/∂θ = 2 fi²``.
         """
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         output = HiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
         with torch.no_grad():

@@ -105,8 +105,10 @@ class Fi(CenteredGnosticActivation):
     initial_S : float, optional
         Initial positive scale that determines the starting concentration width
         before training refines the concept neighborhood.
-    initial_z0 : float, optional
-        Initial concept center around which fidelity is measured.
+    initial_z0 : float or None, optional
+        Initial concept center around which fidelity is measured. If ``None``,
+        z0 is initialized to the median of input values on the first forward
+        pass, providing a data-driven starting point.
     name : str or None, optional
         Optional display name used in summaries, logging, and parameter
         tracking histories.
@@ -194,6 +196,9 @@ class Fi(CenteredGnosticActivation):
         ``S = 2σ(S_raw)`` before the characteristic is evaluated so the scale
         stays positive throughout optimization.
         """
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         output = FiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
         with torch.no_grad():

@@ -107,8 +107,10 @@ class Ei(CenteredGnosticActivation):
         measured.
     initial_S : float, optional
         Initial positive scale for the centered coordinate.
-    initial_z0 : float, optional
-        Initial concept center.
+    initial_z0 : float or None, optional
+        Initial concept center around which the gnostic response is measured. If ``None``,
+        z0 is initialized to the median of input values on the first forward pass,
+        providing a data-driven starting point.
     case : {'i', 'j'}, optional
         Entropy variant to compute. ``'i'`` returns ``1 - fi`` and ``'j'``
         returns ``fj - 1``.
@@ -197,6 +199,9 @@ class Ei(CenteredGnosticActivation):
         ``ei = fj - 1`` with derivative ``∂ei/∂θ = 2 fj hi``. Both use the
         same sigmoid-gated scale and exact centered-coordinate backward rules.
         """
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         output = EiFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S, self.case)
         with torch.no_grad():

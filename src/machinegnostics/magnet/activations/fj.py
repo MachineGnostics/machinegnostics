@@ -172,6 +172,9 @@ class Fj(CenteredGnosticActivation):
         ``Fi``. Its custom backward propagates ``∂fj/∂θ = 2 fj hi`` and uses
         the sigmoid-gated scale rule for learnable scales.
         """
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         output = FjFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
         with torch.no_grad():

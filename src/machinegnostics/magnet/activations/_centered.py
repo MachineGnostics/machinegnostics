@@ -62,6 +62,9 @@ class CenteredGnosticActivation(Activation):
     the effective positive scale used in the forward pass via
     ``S = 2σ(S_raw)``. Fixed scales bypass the sigmoid gate and use their value
     directly.
+
+    When ``initial_z0=None``, the concept center is initialized to the median
+    of the input data on the first forward pass.
     """
 
     def __init__(
@@ -70,7 +73,7 @@ class CenteredGnosticActivation(Activation):
         learnable_S: bool = True,
         learnable_z0: bool = True,
         initial_S: float = 1.0,
-        initial_z0: float = 0.0,
+        initial_z0: float | None = None,
         name: str | None = None,
         verbose: bool = False,
     ):
@@ -80,13 +83,19 @@ class CenteredGnosticActivation(Activation):
 
         self.learnable_S = learnable_S
         self.learnable_z0 = learnable_z0
+        self.verbose = verbose
+        self._initial_z0_user = initial_z0
+        self._z0_initialized = initial_z0 is not None
+
+        # Initialize z0 with user value or placeholder (will be computed from data)
+        z0_value = initial_z0 if initial_z0 is not None else 0.0
         self.S = Tensor(
             _initial_scale_parameter(initial_S, learnable_S),
             requires_grad=learnable_S,
             name=f"{self.name}_S" if self.name else f"{self.__class__.__name__}_S",
         )
         self.z0 = Tensor(
-            np.array([initial_z0], dtype=np.float64),
+            np.array([z0_value], dtype=np.float64),
             requires_grad=learnable_z0,
             name=f"{self.name}_z0" if self.name else f"{self.__class__.__name__}_z0",
         )
@@ -94,6 +103,19 @@ class CenteredGnosticActivation(Activation):
         self.params["z0"] = self.z0
         self.grads["S"] = None
         self.grads["z0"] = None
+
+    def _initialize_z0_from_data(self, x):
+        """Initialize z0 to the median of input data if not yet initialized."""
+        if self._z0_initialized:
+            return
+
+        array = np.asarray(x, dtype=np.float64)
+        if array.size > 0:
+            median_val = float(np.median(array))
+            self.z0.data = np.array([median_val], dtype=np.float64)
+            self._z0_initialized = True
+            if self.verbose:
+                print(f"  {self.name}.z0 initialized to median={median_val:.6f}")
 
     def _as_tensor(self, x) -> Tensor:
         return x if isinstance(x, Tensor) else Tensor(x)
@@ -103,6 +125,9 @@ class CenteredGnosticActivation(Activation):
         return Tensor.from_torch(_effective_scale(self.S._tensor, self.learnable_S).detach(), name=f"{self.name}_effective_S")
 
     def _theta(self, x) -> tuple[Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         scale, theta, two_theta, active = _theta_components(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
         self.theta = Tensor.from_torch(theta.detach())

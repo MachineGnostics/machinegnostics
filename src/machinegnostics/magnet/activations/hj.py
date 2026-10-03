@@ -88,8 +88,10 @@ class Hj(CenteredGnosticActivation):
         irrelevance response.
     initial_S : float, optional
         Initial positive scale for the centered coordinate.
-    initial_z0 : float, optional
-        Initial concept center for ``θ``.
+    initial_z0 : float or None, optional
+        Initial concept center around which the gnostic response is measured. If ``None``,
+        z0 is initialized to the median of input values on the first forward pass,
+        providing a data-driven starting point.
     name : str or None, optional
         Optional display name used in histories and debugging output.
     verbose : bool, optional
@@ -169,6 +171,9 @@ class Hj(CenteredGnosticActivation):
         ``∂hj/∂θ = 2 cosh(2θ) = 2 fj`` in its custom backward. Learnable
         scales use the raw-parameter gradient derived from ``S = 2σ(S_raw)``.
         """
+        # Initialize z0 from data on first forward pass if not user-provided
+        self._initialize_z0_from_data(x)
+        
         x = self._as_tensor(x)
         output = HjFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
         with torch.no_grad():
