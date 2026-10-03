@@ -114,10 +114,6 @@ class Hi(CenteredGnosticActivation):
         manifold, positive values indicate the other, and values near zero
         indicate concept agreement.
 
-    Conservation Identity:
-        Together with :class:`machinegnostics.magnet.activations.fi.Fi`,
-        ``Hi`` satisfies ``fi² + hi² = 1``.
-
     Use Cases:
         ``Hi`` is well suited for residual-sensitive hidden layers, directional
         fault signatures, and complementary feature channels that should retain

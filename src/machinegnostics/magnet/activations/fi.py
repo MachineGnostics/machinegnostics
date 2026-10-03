@@ -136,10 +136,6 @@ class Fi(CenteredGnosticActivation):
         High values mean concentrated feature agreement; low values mean the
         feature lies outside the learned concept neighborhood.
 
-    Conservation Identity:
-        With :class:`machinegnostics.magnet.activations.hi.Hi`, ``Fi`` obeys
-        the fundamental MAGNET identity ``fi² + hi² = 1``.
-
     Use Cases:
         Use ``Fi`` in hidden or output layers when machine-condition concepts
         should be represented by strong centered fidelity rather than unbounded
