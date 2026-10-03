@@ -274,50 +274,50 @@ def _gnostic_activation_tensor(x, value, prime):
 	return custom_tensor(value, x, prime)
 
 
-class Fidelity(Activation):
-	"""Gnostic fidelity activation.
+# class Fidelity(Activation): # NOTE depricated
+# 	"""Gnostic fidelity activation.
 
-	The layer maps inputs to the gnostic fidelity characteristic and keeps the
-	analytic derivative needed by the MAGNET autograd flow.
+# 	The layer maps inputs to the gnostic fidelity characteristic and keeps the
+# 	analytic derivative needed by the MAGNET autograd flow.
 
-	Examples
-	--------
-	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, Fidelity, Sequential
-	>>> model = Sequential([Dense(2, 2), Fidelity()])
-	>>> model(np.array([[0.1, 0.2]])).shape
-	(1, 2)
-	"""
-	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
-		"""Create a fidelity activation.
+# 	Examples
+# 	--------
+# 	>>> import numpy as np
+# 	>>> from machinegnostics.magnet import Dense, Fidelity, Sequential
+# 	>>> model = Sequential([Dense(2, 2), Fidelity()])
+# 	>>> model(np.array([[0.1, 0.2]])).shape
+# 	(1, 2)
+# 	"""
+# 	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
+# 		"""Create a fidelity activation.
 
-		Parameters
-		----------
-		S:
-			Scale parameter used by the gnostic characteristic engine.
-		name:
-			Optional layer name.
-		"""
-		super().__init__(name, verbose=verbose)
-		self.S = S
+# 		Parameters
+# 		----------
+# 		S:
+# 			Scale parameter used by the gnostic characteristic engine.
+# 		name:
+# 			Optional layer name.
+# 		"""
+# 		super().__init__(name, verbose=verbose)
+# 		self.S = S
 
-	def forward(self, x, training=True):
-		"""Return the fidelity characteristic for the supplied tensor.
+# 	def forward(self, x, training=True):
+# 		"""Return the fidelity characteristic for the supplied tensor.
 
-		Examples
-		--------
-		>>> import numpy as np
-		>>> layer = Fidelity()
-		>>> layer(np.array([0.1, 0.2])).shape
-		(2,)
-		"""
-		x = x if isinstance(x, Tensor) else Tensor(x)
-		info = compute_characteristics(x.data, scale=self.S)
-		self.S_local = info["S_local"]
-		self.fidelity = np.asarray(info["fi"], dtype=np.float64)
-		self.hi = np.asarray(info["hi"], dtype=np.float64)
-		prime = -(2.0 * self.fidelity * self.hi + np.finfo(float).eps) / self.S_local
-		return _gnostic_activation_tensor(x, self.fidelity, prime)
+# 		Examples
+# 		--------
+# 		>>> import numpy as np
+# 		>>> layer = Fidelity()
+# 		>>> layer(np.array([0.1, 0.2])).shape
+# 		(2,)
+# 		"""
+# 		x = x if isinstance(x, Tensor) else Tensor(x)
+# 		info = compute_characteristics(x.data, scale=self.S)
+# 		self.S_local = info["S_local"]
+# 		self.fidelity = np.asarray(info["fi"], dtype=np.float64)
+# 		self.hi = np.asarray(info["hi"], dtype=np.float64)
+# 		prime = -(2.0 * self.fidelity * self.hi + np.finfo(float).eps) / self.S_local
+# 		return _gnostic_activation_tensor(x, self.fidelity, prime)
 
 
 class Fi(Activation):
@@ -390,8 +390,7 @@ class Fi(Activation):
 			Stable sech values, all in (0, 1]
 		"""
 		abs_x = torch.abs(x)
-		return torch.where(abs_x <= 20.0, 1.0 / torch.cosh(torch.clamp(x, -20.0, 20.0)), 
-		                   2.0 * torch.exp(-abs_x))
+		return torch.where(abs_x <= 20.0, 1.0 / torch.cosh(torch.clamp(x, -20.0, 20.0)), 2.0 * torch.exp(-abs_x))
 
 	def _initialize_params(self, x: Tensor) -> None:
 		"""
@@ -698,66 +697,66 @@ class Hj(_CenteredCharacteristicActivation):
 		return torch.sinh(torch.clamp(2.0 * theta, -20.0, 20.0))
 
 
-class Infidelity(Activation):
-	"""Gnostic infidelity activation.
+# class Infidelity(Activation): # NOTE deprecated
+# 	"""Gnostic infidelity activation.
 
-	This activation returns the gnostic infidelity characteristic and is useful
-	when the model should emphasize the complementary characteristic to
-	fidelity.
+# 	This activation returns the gnostic infidelity characteristic and is useful
+# 	when the model should emphasize the complementary characteristic to
+# 	fidelity.
 
-	Examples
-	--------
-	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, Infidelity, Sequential
-	>>> model = Sequential([Dense(2, 2), Infidelity()])
-	>>> model(np.array([[0.1, 0.2]])).shape
-	(1, 2)
-	"""
+# 	Examples
+# 	--------
+# 	>>> import numpy as np
+# 	>>> from machinegnostics.magnet import Dense, Infidelity, Sequential
+# 	>>> model = Sequential([Dense(2, 2), Infidelity()])
+# 	>>> model(np.array([[0.1, 0.2]])).shape
+# 	(1, 2)
+# 	"""
 
-	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
-		"""Create an infidelity activation."""
-		super().__init__(name, verbose=verbose)
-		self.S = S
+# 	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
+# 		"""Create an infidelity activation."""
+# 		super().__init__(name, verbose=verbose)
+# 		self.S = S
 
-	def forward(self, x, training=True):
-		"""Return the infidelity characteristic for the supplied tensor."""
-		x = x if isinstance(x, Tensor) else Tensor(x)
-		info = compute_characteristics(x.data, scale=self.S)
-		self.S_local = info["S_local"]
-		self.infidelity = np.asarray(info["fj"], dtype=np.float64)
-		self.hi = np.asarray(info["hi"], dtype=np.float64)
-		prime = (2 / self.S_local) * self.infidelity * self.hi
-		return _gnostic_activation_tensor(x, self.infidelity, prime)
+# 	def forward(self, x, training=True):
+# 		"""Return the infidelity characteristic for the supplied tensor."""
+# 		x = x if isinstance(x, Tensor) else Tensor(x)
+# 		info = compute_characteristics(x.data, scale=self.S)
+# 		self.S_local = info["S_local"]
+# 		self.infidelity = np.asarray(info["fj"], dtype=np.float64)
+# 		self.hi = np.asarray(info["hi"], dtype=np.float64)
+# 		prime = (2 / self.S_local) * self.infidelity * self.hi
+# 		return _gnostic_activation_tensor(x, self.infidelity, prime)
 
 
-class Irrelevance(Activation):
-	"""Gnostic irrelevance activation (``hj`` characteristic).
+# class Irrelevance(Activation): # NOTE deprecated
+# 	"""Gnostic irrelevance activation (``hj`` characteristic).
 
-	Irrelevance captures the gnostic quantifying ``hj`` characteristic and can be used when
-	the model needs a direct measure of irrelevance.
+# 	Irrelevance captures the gnostic quantifying ``hj`` characteristic and can be used when
+# 	the model needs a direct measure of irrelevance.
 
-	Examples
-	--------
-	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, Irrelevance, Sequential
-	>>> model = Sequential([Dense(2, 2), Irrelevance()])
-	>>> model(np.array([[0.1, 0.2]])).shape
-	(1, 2)
-	"""
+# 	Examples
+# 	--------
+# 	>>> import numpy as np
+# 	>>> from machinegnostics.magnet import Dense, Irrelevance, Sequential
+# 	>>> model = Sequential([Dense(2, 2), Irrelevance()])
+# 	>>> model(np.array([[0.1, 0.2]])).shape
+# 	(1, 2)
+# 	"""
 
-	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
-		"""Create an irrelevance activation."""
-		super().__init__(name, verbose=verbose)
-		self.S = S
+# 	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
+# 		"""Create an irrelevance activation."""
+# 		super().__init__(name, verbose=verbose)
+# 		self.S = S
 
-	def forward(self, x, training=True):
-		"""Return the irrelevance characteristic for the supplied tensor."""
-		x = x if isinstance(x, Tensor) else Tensor(x)
-		info = compute_characteristics(x.data, scale=self.S)
-		self.S_local = info["S_local"]
-		self.irrelevance = (np.asarray(info["hj"], dtype=np.float64))
-		prime = (2.0 / self.S_local) * (1 - self.irrelevance ** 2)
-		return _gnostic_activation_tensor(x, self.irrelevance, prime)
+# 	def forward(self, x, training=True):
+# 		"""Return the irrelevance characteristic for the supplied tensor."""
+# 		x = x if isinstance(x, Tensor) else Tensor(x)
+# 		info = compute_characteristics(x.data, scale=self.S)
+# 		self.S_local = info["S_local"]
+# 		self.irrelevance = (np.asarray(info["hj"], dtype=np.float64))
+# 		prime = (2.0 / self.S_local) * (1 - self.irrelevance ** 2)
+# 		return _gnostic_activation_tensor(x, self.irrelevance, prime)
 
 class GnosticProba(Activation):
 	"""Gnostic probability activation.
@@ -840,34 +839,34 @@ class Entropy(Activation):
 		return _gnostic_activation_tensor(x, self.entropy, prime)
 
 
-class Relevance(Activation):
-	"""Gnostic relevance activation (``hi`` characteristic).
+# class Relevance(Activation): # NOTE deprecated
+# 	"""Gnostic relevance activation (``hi`` characteristic).
 
-	Relevance captures the gnostic estimating Relevance (``hi``) characteristic and is the complement
-	of the irrelevance-focused activation.
+# 	Relevance captures the gnostic estimating Relevance (``hi``) characteristic and is the complement
+# 	of the irrelevance-focused activation.
 
-	Examples
-	--------
-	>>> import numpy as np
-	>>> from machinegnostics.magnet import Dense, Relevance, Sequential
-	>>> model = Sequential([Dense(2, 2), Relevance()])
-	>>> model(np.array([[0.1, 0.2]])).shape
-	(1, 2)
-	"""
+# 	Examples
+# 	--------
+# 	>>> import numpy as np
+# 	>>> from machinegnostics.magnet import Dense, Relevance, Sequential
+# 	>>> model = Sequential([Dense(2, 2), Relevance()])
+# 	>>> model(np.array([[0.1, 0.2]])).shape
+# 	(1, 2)
+# 	"""
 
-	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
-		"""Create a relevance activation."""
-		super().__init__(name, verbose=verbose)
-		self.S = S
+# 	def __init__(self, S: float | str = 1, name=None, verbose: bool = False):
+# 		"""Create a relevance activation."""
+# 		super().__init__(name, verbose=verbose)
+# 		self.S = S
 
-	def forward(self, x, training=True):
-		"""Return the relevance characteristic for the supplied tensor."""
-		x = x if isinstance(x, Tensor) else Tensor(x)
-		info = compute_characteristics(x.data, scale=self.S)
-		self.S_local = info["S_local"]
-		self.relevance = (np.asarray(info["hi"], dtype=np.float64))
-		prime = (2.0 / self.S_local) * (1 - self.relevance ** 2)
-		return _gnostic_activation_tensor(x, self.relevance, prime)
+# 	def forward(self, x, training=True):
+# 		"""Return the relevance characteristic for the supplied tensor."""
+# 		x = x if isinstance(x, Tensor) else Tensor(x)
+# 		info = compute_characteristics(x.data, scale=self.S)
+# 		self.S_local = info["S_local"]
+# 		self.relevance = (np.asarray(info["hi"], dtype=np.float64))
+# 		prime = (2.0 / self.S_local) * (1 - self.relevance ** 2)
+# 		return _gnostic_activation_tensor(x, self.relevance, prime)
 
 class Square(Activation):
 	"""Square activation function.
@@ -904,7 +903,7 @@ def fj(x, S: float | str = 1):
 
 def hi(x, S: float | str = 1):
 	"""Convenience function returning the gnostic irrelevance characteristic."""
-	return np.asarray(compute_characteristics(x, scale=S)["hj"], dtype=np.float64)
+	return np.asarray(compute_characteristics(x, scale=S)["hi"], dtype=np.float64)
 
 
 def hj(x, S: float | str = 1):
@@ -937,7 +936,7 @@ def get_activation(activation, verbose: bool = False):
 			"tanh": Tanh,
 			"swish": Swish,
 			"softmax": Softmax,
-			"fidelity": Fidelity,
+			# "fidelity": Fidelity,
 			"fi": Fi,
 			"fj": Fj,
 			"hi": Hi,
@@ -946,11 +945,12 @@ def get_activation(activation, verbose: bool = False):
 			"fjactivation": Fj,
 			"hiactivation": Hi,
 			"hjactivation": Hj,
-			"infidelity": Infidelity,
-			"irrelevance": Irrelevance,
-			"relevance": Relevance,
+			# "infidelity": Infidelity,
+			# "irrelevance": Irrelevance,
+			# "relevance": Relevance,
 			"gnosticproba": GnosticProba,
 			"entropy": Entropy,
+			"ei": Ei,
 		}
 		key = activation.replace("_", "").replace("-", "").lower()
 		try:
@@ -967,3 +967,17 @@ FiActivation = Fi
 FjActivation = Fj
 HiActivation = Hi
 HjActivation = Hj
+from .fi import Fi, fi
+from .fj import Fj, fj
+from .hi import Hi, hi
+from .hj import Hj, hj
+from .ei import Ei, ei
+
+Entropy = Ei
+
+EiActivation = Ei
+
+Fidelity = Fi
+Infidelity = Fj
+Irrelevance = Hi
+Relevance = Hj

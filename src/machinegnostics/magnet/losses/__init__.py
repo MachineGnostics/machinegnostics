@@ -665,7 +665,7 @@ def get_loss(loss):
     """
     if loss is None:
         return MSE()
-    if isinstance(loss, Loss):
+    if isinstance(loss, Loss) or (hasattr(loss, "forward") and hasattr(loss, "__call__")):
         return loss
     if isinstance(loss, str):
         registry = {
@@ -680,6 +680,18 @@ def get_loss(loss):
             "gnosticresidualentropy": GnosticResidualEntropy(),
             "gnosticrss": GnosticRSS(),
             "gnosticiss": GnosticISS(),
+            "fidelity": FidelityLoss(),
+            "fidelityloss": FidelityLoss(),
+            "infidelity": InfidelityLoss(),
+            "infidelityloss": InfidelityLoss(),
+            "rss": RSSLoss(),
+            "rssloss": RSSLoss(),
+            "iss": ISSLoss(),
+            "issloss": ISSLoss(),
+            "residualentropy": ResidualEntropyLoss(),
+            "residualentropyloss": ResidualEntropyLoss(),
+            "information": InformationLoss(),
+            "informationloss": InformationLoss(),
         }
         key = loss.replace("_", "").replace("-", "").lower()
         try:
@@ -687,3 +699,32 @@ def get_loss(loss):
         except KeyError as exc:
             raise ValueError(f"Unknown loss: {loss}") from exc
     raise TypeError(f"Unsupported loss specification: {type(loss)!r}")
+
+from .fidelity_loss import FidelityLoss
+from .infidelity_loss import InfidelityLoss
+from .rss_loss import RSSLoss
+from .iss_loss import ISSLoss
+from .residual_entropy_loss import ResidualEntropyLoss
+from .information_loss import InformationLoss
+
+GnosticFidelity = FidelityLoss
+GnosticInfidelity = InfidelityLoss
+GnosticRSS = RSSLoss
+GnosticISS = ISSLoss
+GnosticResidualEntropy = ResidualEntropyLoss
+GnosticInformation = InformationLoss
+
+def fidelity_loss(y_pred, y_true, S: float | str = 1):
+    return FidelityLoss(S=S)(y_pred, y_true)
+
+def infidelity_loss(y_pred, y_true, S: float | str = 1):
+    return InfidelityLoss(S=S)(y_pred, y_true)
+
+def irrelevance_loss(y_pred, y_true, S: float | str = 1):
+    return ResidualEntropyLoss(S=S)(y_pred, y_true)
+
+def relevance_loss(y_pred, y_true, S: float | str = 1):
+    return InformationLoss(S=S)(y_pred, y_true)
+
+def gnostic_characteristic_loss(y_pred, y_true, S: float | str = 1):
+    return ResidualEntropyLoss(S=S)(y_pred, y_true)
