@@ -78,19 +78,17 @@ def test_sequential_fit_tracks_gnostic_scale_and_center_history():
 
     history = model.fit(x, y, epochs=5, batch_size=4, shuffle=False)
 
-    assert "S_history" in history
-    assert "z0_history" in history
+    assert "S" in history
+    assert "z0" in history
 
-    layer_key = next(iter(history["S_history"]["effective"]))
-    effective_history = np.asarray(history["S_history"]["effective"][layer_key], dtype=np.float64)
-    raw_history = np.asarray(history["S_history"]["raw"][layer_key], dtype=np.float64)
-    z0_history = np.asarray(history["z0_history"][layer_key], dtype=np.float64)
+    layer_key = next(iter(history["S"]))
+    s_history = np.asarray(history["S"][layer_key], dtype=np.float64)
+    z0_history = np.asarray(history["z0"][layer_key], dtype=np.float64)
 
-    assert effective_history.shape == (5,)
-    assert raw_history.shape == (5,)
+    assert s_history.shape == (5,)
     assert z0_history.shape == (5,)
-    assert np.all(effective_history > 0.0)
-    assert np.all(effective_history < 2.0)
+    assert np.all(s_history > 0.0)
+    assert np.all(s_history < 2.0)
 
 
 def test_information_loss_is_finite_and_backward_safe():
