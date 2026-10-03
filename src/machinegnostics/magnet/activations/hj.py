@@ -11,7 +11,7 @@ import numpy as np
 import torch
 
 from ..core.tensor import Tensor
-from ._centered import CenteredGnosticActivation, EPS, MAX_MAGNITUDE
+from ._centered import EPS, MAX_MAGNITUDE, CenteredGnosticActivation, _effective_scale, _scalar_parameter_gradient, _theta_components
 
 
 def hj(x, S: float = 1.0, z0: float = 0.0) -> np.ndarray:
@@ -20,6 +20,53 @@ def hj(x, S: float = 1.0, z0: float = 0.0) -> np.ndarray:
     theta = (array - z0) / max(abs(float(S)), EPS)
     two_theta = np.clip(2.0 * theta, -30.0, 30.0)
     return np.clip(np.sinh(two_theta), -MAX_MAGNITUDE, MAX_MAGNITUDE)
+
+
+class HjFunction(torch.autograd.Function):
+    """Custom autograd kernel for ``hj = sinh(2θ)``.
+
+    Mathematical Notes:
+        Forward computation
+        -------------------
+        ``θ = (x - z0) / S`` and ``hj = sinh(2θ) = hi / fi``.
+
+        Backward computation
+        --------------------
+        Since ``∂sinh(2θ)/∂θ = 2 cosh(2θ)``, ``∂hj/∂θ = 2 fj``.
+        The resulting ``δθ = grad_output * 2 fj`` is propagated with the same
+        MAGNET centered-coordinate rules used by the other gnostic activations.
+
+        Numerical stability
+        -------------------
+        The forward path clips ``2θ`` and caps ``hj`` by ``MAX_MAGNITUDE``. The
+        manual backward zeros any saturated branch so the derivative remains
+        consistent with the stabilized forward pass.
+    """
+
+    @staticmethod
+    def forward(ctx, x, scale_parameter, z0, learnable_S):
+        scale, theta, two_theta, active = _theta_components(x, scale_parameter, z0, learnable_S)
+        fj = torch.cosh(two_theta)
+        hj_raw = torch.sinh(two_theta)
+        output = torch.clamp(hj_raw, min=-MAX_MAGNITUDE, max=MAX_MAGNITUDE)
+        hj_active = active * (torch.abs(hj_raw) < MAX_MAGNITUDE).to(dtype=x.dtype)
+        ctx.learnable_S = learnable_S
+        ctx.save_for_backward(theta, scale, fj, hj_active, scale_parameter, z0)
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        theta, scale, fj, hj_active, scale_parameter, z0 = ctx.saved_tensors
+        delta_theta = grad_output * (2.0 * fj) * hj_active
+        grad_x = delta_theta / scale
+        grad_scale = None
+        if ctx.needs_input_grad[1]:
+            gate = 1.0 - scale / 2.0 if ctx.learnable_S else -1.0 / scale
+            grad_scale = _scalar_parameter_gradient(-(gate * delta_theta * theta), scale_parameter)
+        grad_z0 = None
+        if ctx.needs_input_grad[2]:
+            grad_z0 = _scalar_parameter_gradient(-(delta_theta / scale), z0)
+        return grad_x, grad_scale, grad_z0, None
 
 
 class Hj(CenteredGnosticActivation):
@@ -34,7 +81,6 @@ class Hj(CenteredGnosticActivation):
         name: str | None = None,
         verbose: bool = False,
     ):
-        """Initialize the Hj activation layer."""
         super().__init__(
             learnable_S=learnable_S,
             learnable_z0=learnable_z0,
@@ -47,20 +93,16 @@ class Hj(CenteredGnosticActivation):
     def forward(self, x, training: bool = True) -> Tensor:
         """Transform inputs into quantifying irrelevance values.
 
-        Parameters
-        ----------
-        x : Tensor or array-like
-            Input values or residuals to transform.
-        training : bool, optional
-            Compatibility flag for the MAGNET layer API.
-
-        Returns
-        -------
-        Tensor
-            Tensor with the same shape as ``x`` containing the clipped
-            ``sinh(2θ)`` response.
+        Mathematical Notes:
+            The layer evaluates ``sinh(2θ)`` and uses the exact derivative
+            ``∂hj/∂θ = 2 cosh(2θ) = 2 fj`` in its custom backward. Learnable
+            scales use the raw-parameter gradient derived from ``S = 2σ(S_raw)``.
         """
-        x, _, two_theta = self._theta(x)
-        output = torch.clamp(torch.sinh(two_theta), min=-MAX_MAGNITUDE, max=MAX_MAGNITUDE)
+        x = self._as_tensor(x)
+        output = HjFunction.apply(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
+        with torch.no_grad():
+            scale = _effective_scale(self.S._tensor, self.learnable_S)
+            theta = (x._tensor - self.z0._tensor) / scale
+        self.theta = Tensor.from_torch(theta.detach())
         self.last_output = Tensor.from_torch(output)
         return Tensor.from_torch(output)

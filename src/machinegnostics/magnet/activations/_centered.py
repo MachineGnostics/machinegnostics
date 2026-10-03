@@ -13,8 +13,56 @@ MAX_ABS_TWO_THETA = 30.0
 MAX_MAGNITUDE = 1e6
 
 
+def _safe_scale_value(S: float) -> float:
+    scale = abs(float(S))
+    if scale < EPS:
+        scale = EPS
+    return scale
+
+
+def _initial_scale_parameter(initial_S: float, learnable_S: bool) -> np.ndarray:
+    scale = _safe_scale_value(initial_S)
+    if not learnable_S:
+        return np.array([scale], dtype=np.float64)
+
+    bounded = min(max(scale / 2.0, EPS), 1.0 - EPS)
+    raw = np.log(bounded) - np.log1p(-bounded)
+    return np.array([raw], dtype=np.float64)
+
+
+def _effective_scale(scale_parameter: torch.Tensor, learnable_S: bool) -> torch.Tensor:
+    if learnable_S:
+        scale = 2.0 * torch.sigmoid(scale_parameter)
+        return torch.clamp(scale, min=EPS, max=2.0 - EPS)
+    return torch.clamp(torch.abs(scale_parameter), min=EPS)
+
+
+def _theta_components(
+    x_tensor: torch.Tensor,
+    scale_parameter: torch.Tensor,
+    z0_tensor: torch.Tensor,
+    learnable_S: bool,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    scale = _effective_scale(scale_parameter, learnable_S)
+    theta = (x_tensor - z0_tensor) / scale
+    two_theta_raw = 2.0 * theta
+    two_theta = torch.clamp(two_theta_raw, min=-MAX_ABS_TWO_THETA, max=MAX_ABS_TWO_THETA)
+    active = (torch.abs(two_theta_raw) < MAX_ABS_TWO_THETA).to(dtype=x_tensor.dtype)
+    return scale, theta, two_theta, active
+
+
+def _scalar_parameter_gradient(value: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+    return value.sum().reshape(reference.shape)
+
+
 class CenteredGnosticActivation(Activation):
-    """Activation with learnable center ``z0`` and positive scale ``S``."""
+    """Activation with learnable center ``z0`` and positive scale ``S``.
+
+    Learnable scales are stored as an unconstrained raw parameter and mapped to
+    the effective positive scale used in the forward pass via
+    ``S = 2σ(S_raw)``. Fixed scales bypass the sigmoid gate and use their value
+    directly.
+    """
 
     def __init__(
         self,
@@ -33,7 +81,7 @@ class CenteredGnosticActivation(Activation):
         self.learnable_S = learnable_S
         self.learnable_z0 = learnable_z0
         self.S = Tensor(
-            np.array([initial_S], dtype=np.float64),
+            _initial_scale_parameter(initial_S, learnable_S),
             requires_grad=learnable_S,
             name=f"{self.name}_S" if self.name else f"{self.__class__.__name__}_S",
         )
@@ -50,18 +98,12 @@ class CenteredGnosticActivation(Activation):
     def _as_tensor(self, x) -> Tensor:
         return x if isinstance(x, Tensor) else Tensor(x)
 
-    def _theta(self, x) -> tuple[Tensor, torch.Tensor, torch.Tensor]:
+    @property
+    def effective_S(self) -> Tensor:
+        return Tensor.from_torch(_effective_scale(self.S._tensor, self.learnable_S).detach(), name=f"{self.name}_effective_S")
+
+    def _theta(self, x) -> tuple[Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self._as_tensor(x)
-        x_tensor = x._tensor
-        scale = torch.clamp(torch.abs(self.S._tensor), min=EPS)
-        theta = (x_tensor - self.z0._tensor) / scale
-        two_theta = torch.clamp(2.0 * theta, min=-MAX_ABS_TWO_THETA, max=MAX_ABS_TWO_THETA)
-        self.theta = Tensor.from_torch(theta)
-        return x, theta, two_theta
-
-
-def _safe_scale_value(S: float) -> float:
-    scale = abs(float(S))
-    if scale < EPS:
-        scale = EPS
-    return scale
+        scale, theta, two_theta, active = _theta_components(x._tensor, self.S._tensor, self.z0._tensor, self.learnable_S)
+        self.theta = Tensor.from_torch(theta.detach())
+        return x, scale, theta, two_theta, active

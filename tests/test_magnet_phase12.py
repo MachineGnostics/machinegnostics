@@ -57,16 +57,12 @@ def test_entropy_activation_is_stable_for_large_inputs():
 def test_losses_are_correct_at_perfect_alignment():
     y_pred = Tensor(np.zeros((4, 2)), requires_grad=True)
     y_true = Tensor(np.zeros((4, 2)))
-    # At perfect alignment: residual = 0, so fi = sech(0) = 1.0
-    # FidelityLoss: L = -mean(fi) = -mean(1.0) = -1.0 (best case)
     fidelity = float(FidelityLoss()(y_pred, y_true))
-    assert np.isclose(fidelity, -1.0), f"Expected FidelityLoss=-1.0 at perfect alignment, got {fidelity}"
-    
-    # InfidelityLoss: L = mean(1/fi) = mean(1/1) = 1.0 (best case)
+    assert np.isclose(fidelity, 0.0), f"Expected FidelityLoss=0.0 at perfect alignment, got {fidelity}"
+
     infidelity = float(InfidelityLoss()(y_pred, y_true))
     assert np.isclose(infidelity, 1.0), f"Expected InfidelityLoss=1.0 at perfect alignment, got {infidelity}"
-    
-    # Other losses should be minimal at perfect alignment
+
     assert float(RSSLoss()(y_pred, y_true)) == 0.0
     assert float(ISSLoss()(y_pred, y_true)) == 0.0
     assert float(ResidualEntropyLoss()(y_pred, y_true)) == 0.0
