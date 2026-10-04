@@ -169,7 +169,8 @@ def configure(
 	"""
 	global _ACTIVE_RUNTIME
 	resolved_device = _resolve_requested_device(device)
-	resolved_dtype = dtype.lower()
+	resolved_dtype = (dtype or _ACTIVE_RUNTIME.dtype).strip().lower()
+	_resolve_dtype(resolved_dtype)
 	_ACTIVE_RUNTIME = replace(RuntimeConfig(device=resolved_device, dtype=resolved_dtype, seed=seed, deterministic=deterministic))
 	if seed is not None:
 		np.random.seed(seed)

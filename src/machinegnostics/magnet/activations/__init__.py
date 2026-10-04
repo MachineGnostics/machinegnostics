@@ -904,7 +904,7 @@ def fj(x, S: float | str = 1):
 
 def hi(x, S: float | str = 1):
 	"""Convenience function returning the gnostic irrelevance characteristic."""
-	return np.asarray(compute_characteristics(x, scale=S)["hj"], dtype=np.float64)
+	return np.asarray(compute_characteristics(x, scale=S)["hi"], dtype=np.float64)
 
 
 def hj(x, S: float | str = 1):

@@ -16,7 +16,7 @@ Examples
 >>> model.compile(loss=MSE(), optimizer=Adam(lr=0.01))
 >>> X = np.array([[0., 0.], [1., 1.]])
 >>> y = np.array([[0.], [1.]])
->>> history = model.fit(X, y, epochs=2, batch_size=2, verbose=False)
+>>> history = model.fit(X, y, epochs=2, batch_size=2)
 >>> list(history.keys())
 ['loss']
 """
