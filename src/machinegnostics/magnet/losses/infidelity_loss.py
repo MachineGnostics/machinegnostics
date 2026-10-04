@@ -86,7 +86,7 @@ class InfidelityLoss(Loss):
     1.0
     """
 
-    def __init__(self, S: float | str = "auto", name: str | None = None, verbose: bool = False):
+    def __init__(self, S: float | str = 1, name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
         self.S_local = S
