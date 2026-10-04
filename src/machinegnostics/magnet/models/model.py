@@ -248,7 +248,7 @@ class Model:
 
 		Examples
 		--------
-		>>> model = Sequential([Dense(2, 1), Sigmoid()], verbose=True)
+		>>> model = Sequential([Dense(2, 1), Sigmoid()])
 		>>> history = model.fit(X, y, epochs=10, batch_size=4)
 		>>> history["loss"][-1]
 		"""
@@ -461,12 +461,8 @@ class Model:
 			"ELU",
 			"Softplus",
 			"Swish",
-			"Fidelity",
-			"Infidelity",
-			"Irrelevance",
-			"Relevance",
+			"Ei",
 			"GnosticProba",
-			"Entropy",
 			"BatchNorm",
 			"Fi",
 			"Fj",
@@ -538,32 +534,3 @@ class Model:
 		print(f"Total trainable params: {total_params}")
 		if self.verbose:
 			self.logger.info(f"Printed model summary with {total_params} total parameters.")
-
-
-class Sequential(Model):
-	"""Sequential model container for MAGNET layers.
-
-	This class is a thin semantic wrapper around ``Model`` for layer-by-layer
-	network definitions. It does not add new training behavior; instead, it
-	provides a clear place for future sequential-style model subclasses while
-	keeping the inherited ``Model`` API intact.
-
-	Inherited methods
-	-----------------
-	- ``add``
-	- ``compile``
-	- ``forward``
-	- ``predict``
-	- ``evaluate``
-	- ``fit``
-	- ``get_weights``
-	- ``set_weights``
-	- ``summary``
-
-	Examples
-	--------
-	>>> from machinegnostics.magnet import Sequential
-	>>> isinstance(Sequential(), Model)
-	True
-	"""
-	pass
