@@ -90,6 +90,28 @@ def test_gnostic_losses_support_auto_scale_and_backward():
         assert np.all(np.isfinite(y_pred.grad)), loss_type.__name__
 
 
+def test_gnostic_losses_store_effective_scale_for_auto():
+    y_true = Tensor(np.array([[0.0], [1.0], [1.0], [0.0]]))
+    loss_types = (
+        FidelityLoss,
+        InfidelityLoss,
+        RSSLoss,
+        ISSLoss,
+        ResidualEntropyLoss,
+        InformationLoss,
+    )
+
+    for loss_type in loss_types:
+        y_pred = Tensor(np.array([[0.2], [0.8], [1.2], [-0.1]]), requires_grad=True)
+        loss_fn = loss_type(S="auto")
+        loss = loss_fn(y_pred, y_true)
+        assert np.isfinite(float(loss)), loss_type.__name__
+        assert isinstance(loss_fn.S_local, float), loss_type.__name__
+        assert np.isfinite(loss_fn.S_local), loss_type.__name__
+        assert 1e-2 <= loss_fn.S_local <= 2.0, loss_type.__name__
+        assert loss_fn.S == "auto", loss_type.__name__
+
+
 def test_sequential_fit_tracks_gnostic_scale_and_center_history():
     model = Sequential([Dense(2, 1), Fi(initial_S=1.25, initial_z0=0.1)])
     model.compile(loss=FidelityLoss(), optimizer=SGD(lr=0.05))

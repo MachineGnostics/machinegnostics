@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 from ..core.tensor import Tensor
-from ._gnostic_terms import _clip_gradient, compute_gnostic_terms
+from ._gnostic_terms import _clip_gradient, compute_gnostic_terms, resolve_gnostic_scale
 from .base import Loss, prepare_tensors
 
 
@@ -93,6 +93,7 @@ class ResidualEntropyLoss(Loss):
     def __init__(self, S: float | str = "auto", name: str | None = None, verbose: bool = False):
         super().__init__(name=name, verbose=verbose)
         self.S = S
+        self.S_local = S
 
     def forward(self, y_pred, y_true) -> Tensor:
         """Return the batch residual-entropy objective.
@@ -117,5 +118,6 @@ class ResidualEntropyLoss(Loss):
         backward returns only ``dL/dy_pred``.
         """
         y_pred, y_true = prepare_tensors(y_pred, y_true)
-        loss = ResidualEntropyLossFunction.apply(y_pred._tensor, y_true._tensor, self.S)
+        self.S_local = resolve_gnostic_scale(y_pred._tensor - y_true._tensor, self.S)
+        loss = ResidualEntropyLossFunction.apply(y_pred._tensor, y_true._tensor, self.S_local)
         return Tensor.from_torch(loss)
