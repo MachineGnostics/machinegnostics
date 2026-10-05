@@ -1,4 +1,13 @@
-"""Information loss for MAGNET."""
+"""Information loss for MAGNET.
+
+This module implements the information loss used in MAGNET, which measures the
+information content of prediction residuals relative to the target-centered
+concept manifold. The loss provides a custom autograd function for efficient
+gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 

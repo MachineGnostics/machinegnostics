@@ -1,4 +1,10 @@
-"""Residual-entropy loss for MAGNET."""
+"""Residual-entropy loss for MAGNET.
+
+This module implements the residual-entropy loss used in MAGNET, which measures how much information is lost when predictions deviate from the target-centered concept manifold. The loss provides a custom autograd function for efficient gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 

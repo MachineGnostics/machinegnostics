@@ -1,4 +1,10 @@
-"""RSS loss for MAGNET."""
+"""RSS loss for MAGNET.
+
+This module implements the Relevance Squared Sum (RSS) loss used in MAGNET, which measures how much of the prediction residual is relevant within the gnostic concept space. The loss provides a custom autograd function for efficient gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 
@@ -49,9 +55,7 @@ class RSSLoss(Loss):
     """Relevance Squared Sum (RSS) loss for MAGNET.
 
     ``RSSLoss`` is MAGNET's relevance-based objective that measures how much
-    of the residual is relevant within the gnostic concept space. The
-    conceptual form is ``L = mean(θ²)`` with ``θ = (y_pred - y_true) / S``.
-    This implementation uses the bounded surrogate ``mean(hi²)`` where
+    of the residual is relevant within the gnostic concept space. This implementation uses the bounded surrogate ``mean(hi²)`` where
     ``hi = tanh(2θ)``, preserving the same zero-loss optimum while improving
     numerical stability for large residuals.
 

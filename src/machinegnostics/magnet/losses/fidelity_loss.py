@@ -1,4 +1,13 @@
-"""Fidelity loss for MAGNET."""
+"""Fidelity loss for MAGNET.
+
+This module implements the fidelity loss used in MAGNET, which measures how well
+predictions align with the target-centered concept manifold. The loss is designed
+to reward high-fidelity predictions and provides a custom autograd function for
+efficient gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 
@@ -56,7 +65,7 @@ class FidelityLoss(Loss):
     concept manifold. For each residual-centered coordinate
     ``θ = (y_pred - y_true) / S``, the loss evaluates the fidelity response
     ``fi = sech(2θ)`` and maximizes
-    ``L = mean(fi) = mean(sech(2θ))``. The objective therefore lives in the
+    ``L = mean(fi)``. The objective therefore lives in the
     interval ``[0, 1)`` for finite residuals, reaches its optimum of ``1``
     when every prediction lands exactly on the learned concept, and approaches
     ``0`` as fidelity collapses.

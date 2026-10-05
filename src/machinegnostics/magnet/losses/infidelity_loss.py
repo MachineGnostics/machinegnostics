@@ -1,4 +1,13 @@
-"""Infidelity loss for MAGNET."""
+"""Infidelity loss for MAGNET.
+
+This module implements the infidelity loss used in MAGNET, which penalizes
+predictions that deviate from the target-centered concept manifold. The loss
+emphasizes poor concept alignment and provides a custom autograd function for
+efficient gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 
@@ -50,7 +59,7 @@ class InfidelityLoss(Loss):
     """Penalize inverse fidelity so off-concept predictions become expensive.
 
     ``InfidelityLoss`` minimizes the batch mean of the infidelity
-    characteristic ``fj = cosh(2θ) = 1 / fi`` with
+    characteristic ``fj = cosh(2θ)`` with
     ``θ = (y_pred - y_true) / S``. Because ``fj`` is bounded in [1, ∞), the loss emphasizes poor concept alignment much more aggressively than fidelity-only objectives.
 
     Parameters
@@ -67,7 +76,7 @@ class InfidelityLoss(Loss):
     Notes
     -----
     Gnostic Concept:
-        This loss penalizes concept mismatch through ``L = mean(1 / fi)``. Its
+        This loss penalizes concept mismatch through ``L = mean(fj)``. Its
         minimum is ``1`` at perfect alignment and it increases without bound as
         fidelity collapses.
 

@@ -1,4 +1,9 @@
-"""ISS loss for MAGNET."""
+"""ISS loss for MAGNET.
+This module implements the Invariance Squared Sum (ISS) loss used in MAGNET, which measures how much of the prediction residual remains invariant under the gnostic transformation. The loss provides a custom autograd function for efficient gradient computation.
+
+Author: Nirmal Parmar
+MAGNET (Machine Gnostics Neural Networks) framework.
+"""
 
 from __future__ import annotations
 
