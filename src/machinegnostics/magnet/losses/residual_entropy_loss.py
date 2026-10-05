@@ -58,9 +58,8 @@ class ResidualEntropyLoss(Loss):
     """Measure residual entropy from the loss of gnostic fidelity.
 
     ``ResidualEntropyLoss`` tracks how much information is lost when predictions
-    move away from the concept manifold. In the estimating-fidelity view, the
-    simplest residual-entropy form is ``L = mean(1 - fi)``. MAGNET implements
-    the richer surrogate ``mean(fj - fi)``, combining fidelity loss and
+    move away from the concept manifold. MAGNET implements
+    the residual entropy by ``mean(fj - fi)``, combining fidelity loss and
     inverse-fidelity growth so residual uncertainty grows more sharply as
     predictions leave the target neighborhood.
 
