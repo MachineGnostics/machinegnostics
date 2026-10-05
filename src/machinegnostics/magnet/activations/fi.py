@@ -4,6 +4,9 @@ This module contains the dedicated implementation of the estimating
 fidelity characteristic used by MAGNET's gnostic activation family.
 ``Fi`` learns a center ``z0`` and, optionally, a scale ``S`` so the
 activation can adapt to the residual geometry seen during training.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET) Implementation
 """
 
 from __future__ import annotations

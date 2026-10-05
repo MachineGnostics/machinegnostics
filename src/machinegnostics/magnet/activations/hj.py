@@ -3,6 +3,9 @@
 This module contains the dedicated implementation of MAGNET's
 quantifying irrelevance characteristic. ``Hj`` complements ``Hi`` by
 producing an unbounded signed response that grows with deviation.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET) Implementation
 """
 
 from __future__ import annotations

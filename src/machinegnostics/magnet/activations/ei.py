@@ -3,6 +3,9 @@
 This module contains the dedicated implementation of MAGNET's
 entropy-like activation. ``Ei`` can operate in an estimating mode based
 on ``Fi`` or a quantifying mode based on ``Fj``.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET) Implementation
 """
 
 from __future__ import annotations
@@ -100,8 +103,7 @@ class Ei(CenteredGnosticActivation):
     Parameters
     ----------
     learnable_S : bool, optional
-        If ``True``, optimize the gated positive scale ``S = 2σ(S_raw)`` that
-        controls how quickly entropy grows away from the concept center.
+        If ``True``, optimize the positive scale ``S`` that controls how quickly entropy grows away from the concept center.
     learnable_z0 : bool, optional
         If ``True``, learn the concept center relative to which entropy is
         measured.

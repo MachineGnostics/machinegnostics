@@ -1,9 +1,12 @@
 """Hi activation for MAGNET.
 
 This module contains the dedicated implementation of MAGNET's estimating
-irrelevance characteristic. ``Hi`` shares the same learnable center and
+relevance characteristic. ``Hi`` shares the same learnable center and
 scale structure as ``Fi`` but maps residual geometry into a signed,
 bounded response.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET) Implementation
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from ._centered import EPS, CenteredGnosticActivation, _effective_scale, _scalar
 
 
 def hi(x, S: float = 1.0, z0: float = 0.0) -> np.ndarray:
-    """Evaluate the estimating irrelevance characteristic ``tanh(2θ)``."""
+    """Evaluate the estimating relevance characteristic ``tanh(2θ)``."""
     array = np.asarray(x, dtype=np.float64)
     theta = (array - z0) / max(abs(float(S)), EPS)
     return np.tanh(np.clip(2.0 * theta, -30.0, 30.0))
@@ -70,9 +73,9 @@ class HiFunction(torch.autograd.Function):
 
 
 class Hi(CenteredGnosticActivation):
-    """Encode directional irrelevance around a learned gnostic concept center.
+    """Encode directional relevance around a learned gnostic concept center.
 
-    ``Hi`` is MAGNET's signed irrelevance activation. It uses the same
+    ``Hi`` is MAGNET's signed relevance activation. It uses the same
     centered coordinate ``θ = (x - z0) / S`` as :class:`Fi`, then evaluates
     ``hi = tanh(2θ)`` to express whether the input sits below or above the
     learned concept center. The response is bounded in ``[-1, 1]`` and
@@ -104,12 +107,12 @@ class Hi(CenteredGnosticActivation):
     theta : Tensor
         Most recently computed centered coordinate.
     last_output : Tensor
-        Most recent irrelevance activation values.
+        Most recent relevance activation values.
 
     Notes
     -----
     Gnostic Concept:
-        ``Hi`` quantifies how directionally irrelevant a feature is to the
+        ``Hi`` quantifies how directionally relevant a feature is to the
         target concept. Negative values indicate one side of the concept
         manifold, positive values indicate the other, and values near zero
         indicate concept agreement.
@@ -146,7 +149,7 @@ class Hi(CenteredGnosticActivation):
         )
 
     def forward(self, x, training: bool = True) -> Tensor:
-        """Transform inputs into signed irrelevance values.
+        """Transform inputs into signed relevance values.
 
         Parameters
         ----------
@@ -159,13 +162,8 @@ class Hi(CenteredGnosticActivation):
         Returns
         -------
         Tensor
-            Signed irrelevance response bounded to ``[-1, 1]``.
+            Signed relevance response bounded to ``[-1, 1]``.
 
-        Notes
-        -----
-        ``Hi`` evaluates ``tanh(2θ)`` with the same centered and optionally
-        sigmoid-gated scale used by the other gnostic activations. Its custom
-        backward uses the exact derivative ``∂hi/∂θ = 2 fi²``.
         """
         # Initialize z0 from data on first forward pass if not user-provided
         self._initialize_z0_from_data(x)

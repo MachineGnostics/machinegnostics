@@ -3,6 +3,9 @@
 This module contains the dedicated implementation of MAGNET's
 complementary fidelity characteristic. ``Fj`` mirrors ``Fi`` while
 expanding large deviations rather than suppressing them.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET) Implementation
 """
 
 from __future__ import annotations
