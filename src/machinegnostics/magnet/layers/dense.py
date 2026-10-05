@@ -4,6 +4,9 @@
 its parameters as MAGNET tensors backed by torch. This keeps the public
 API familiar while allowing gradients to flow automatically through the
 hidden autograd backend.
+
+Author: Nirmal Parmar
+Machine Gnostics (MAGNET)
 """
 
 from __future__ import annotations
@@ -25,6 +28,73 @@ class Dense(Layer):
     layer output is ``x @ W + b``. The class supports both the current
     initializer API and older compatibility aliases, which makes it a
     stable building block across the MAGNET refactor.
+
+    Parameters
+    ----------
+    in_features : int
+        Number of input features.
+    out_features : int
+        Number of output features.
+    weight_init : callable or None, optional
+        Initializer for the weight matrix.
+    bias_init : callable or None, optional
+        Initializer for the bias vector.
+    name : str or None, optional
+        Name of the layer.
+    verbose : bool, optional
+        If ``True``, enable verbose logging.
+    backward_fn : callable or None, optional
+        Custom backward function for the layer.
+    n_in : int or None, optional
+        Alias for ``in_features``.
+    n_out : int or None, optional
+        Alias for ``out_features``.
+    use_bias : bool, optional
+        Whether to include a bias term.
+    kernel_initializer : callable or None, optional
+        Alias for ``weight_init``.
+    bias_initializer : callable or None, optional
+        Alias for ``bias_init``.
+
+    Attributes
+    ----------
+    in_features : int
+        Number of input features.
+    out_features : int
+        Number of output features.
+    n_in : int
+        Alias for ``in_features``.
+    n_out : int
+        Alias for ``out_features``.
+    use_bias : bool
+        Whether the layer includes a bias term.
+    trainable : bool
+        Whether the layer's parameters are trainable.
+    params : dict
+        Dictionary storing the layer's parameters as MAGNET tensors.
+    grads : dict
+        Dictionary storing the gradients of the layer's parameters.
+    W : Tensor
+        Weight matrix.
+    b : Tensor or None
+        Bias vector if ``use_bias`` is ``True``, else ``None``.
+    backward_fn : callable or None
+        Custom backward function for the layer.
+
+    Notes
+    -----
+    The ``Dense`` layer performs a standard affine transformation on the last input axis.
+    It is a fundamental building block for constructing fully connected neural networks
+    within the MAGNET framework. The layer supports both explicit initializers and
+    backward function customization for advanced use cases.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from machinegnostics.magnet import Dense
+    >>> Dense(in_features=3, out_features=2)(np.array([[1.0, 2.0, 3.0]])).data.shape
+    (1, 2)
+
     """
 
     def __init__(
@@ -43,7 +113,49 @@ class Dense(Layer):
         kernel_initializer=None,
         bias_initializer=None,
     ):
-        """Initialize a dense layer and its trainable parameters."""
+        """Initialize a dense layer and its trainable parameters.
+
+        Parameters
+        ----------
+        in_features : int
+            Number of input features.
+        out_features : int
+            Number of output features.
+        weight_init : callable or None, optional
+            Initializer for the weight matrix.
+        bias_init : callable or None, optional
+            Initializer for the bias vector.
+        name : str or None, optional
+            Name of the layer.
+        verbose : bool, optional
+            If ``True``, enable verbose logging.
+        backward_fn : callable or None, optional
+            Custom backward function for the layer.
+        n_in : int or None, optional
+            Alias for ``in_features``.
+        n_out : int or None, optional
+            Alias for ``out_features``.
+        use_bias : bool, optional
+            Whether the layer includes a bias term.
+        kernel_initializer : callable or None, optional
+            Alias for ``weight_init``.
+        bias_initializer : callable or None, optional
+            Alias for ``bias_init``.
+
+        Notes
+        -----
+        The ``Dense`` layer performs a standard affine transformation on the last input axis.
+        It is a fundamental building block for constructing fully connected neural networks
+        within the MAGNET framework. The layer supports both explicit initializers and
+        backward function customization for advanced use cases.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from machinegnostics.magnet import Dense
+        >>> Dense(in_features=3, out_features=2)(np.array([[1.0, 2.0, 3.0]])).data.shape
+        (1, 2)
+        """
         super().__init__(name, verbose=verbose)
         in_features = in_features if in_features is not None else n_in
         out_features = out_features if out_features is not None else n_out

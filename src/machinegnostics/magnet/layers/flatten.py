@@ -31,6 +31,20 @@ class Flatten(Layer):
 	single feature axis. It is the standard bridge between structured inputs and
 	fully connected layers.
 
+	Parameters
+	----------
+	x : Tensor
+		Input tensor with shape ``(batch, d1, d2, ...)``.
+	
+	Attributes
+	----------
+	input_shape : tuple
+		Shape of the input tensor before flattening.
+	
+	Notes
+	-----
+	The ``Flatten`` layer does not have trainable parameters. It only reshapes the input tensor while preserving the batch dimension.
+
 	Typical uses
 	------------
 	- image tensors before a dense classifier;
