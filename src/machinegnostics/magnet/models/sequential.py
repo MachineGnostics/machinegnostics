@@ -4,6 +4,9 @@
 the training, evaluation, and parameter-management behavior from
 :class:`machinegnostics.magnet.models.base.Model` while presenting the
 familiar stack-of-layers workflow common in neural-network libraries.
+
+Author: Nirmal Parmar
+Machine Gnostics
 """
 
 from __future__ import annotations
@@ -56,6 +59,27 @@ class Sequential(Model):
     output becomes the next layer's input, which makes the class ideal
     for dense feed-forward networks, compact gnostic pipelines, and
     introductory examples.
+
+    Parameters
+    ----------
+    layers: iterable of Layer, optional
+        Ordered collection of layers to include in the sequential model.
+    verbose: bool, optional
+        Enable debug logging for the model and its layers.
+    
+    Notes
+    -----
+    The ``Sequential`` model does not introduce new parameters beyond those in its constituent layers.
+    It is primarily a convenience container for stacking layers in a linear order.
+
+    Examples
+    --------
+    >>> from machinegnostics.magnet import Sequential, Dense
+    >>> model = Sequential(layers=[Dense(2, 3), Dense(3, 1)])
+    >>> model.layers
+    [Dense(in_features=2, out_features=3), Dense(in_features=3, out_features=1)]
+
+
     """
 
     def __init__(self, layers: Iterable[Layer] | None = None, verbose: bool = False):
@@ -93,15 +117,21 @@ class Sequential(Model):
         shuffle : bool, optional
             Whether to shuffle the training data before each epoch.
         callbacks : iterable of Callback, optional
-            Callback hooks invoked during training.
-
+            Callback hooks invoked during training. Typically includes instances of ``_GnosticParameterTracker`` or custom callbacks.
+ 
         Returns
         -------
         History
             Training history containing:
             - ``history["loss"]`` - training loss per epoch
-            - ``history["S"]`` - effective scale parameter per layer per epoch
+            - ``history["S"]`` - scale parameter per layer per epoch
             - ``history["z0"]`` - concept center per layer per epoch
+
+        Examples
+        --------
+        >>> from machinegnostics.magnet import Sequential, Dense
+        >>> model = Sequential(layers=[Dense(2, 3), Dense(3, 1)])
+        >>> model.fit(np.random.rand(10, 2), np.random.rand(10, 1), epochs=1)
         """
         callback_list = list(callbacks or [])
         tracker = _GnosticParameterTracker()
