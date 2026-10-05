@@ -29,6 +29,21 @@ class Adagrad(Optimizer):
 	its squared gradients, which can be helpful when features have very
 	different scales.
 
+	Parameters
+	----------
+	learning_rate : float
+		Step size used for updates.
+	epsilon : float
+		Small constant that prevents division by zero.
+	lr : float, optional
+		Alias for ``learning_rate``.
+	verbose : bool, optional
+		Enable debug logging for the optimizer instance.
+
+	Notes
+	-----
+	Adagrad is particularly effective for sparse data and scenarios where some parameters require more frequent updates than others. However, its learning rate monotonically decreases, which may lead to premature convergence in some cases.
+
 	Examples
 	--------
 	>>> from machinegnostics.magnet import Adagrad
@@ -49,13 +64,33 @@ class Adagrad(Optimizer):
 			Alias for ``learning_rate``.
 		verbose:
 			Enable debug logging for the optimizer instance.
+		
+		Notes
+		-----
+		Adagrad is particularly effective for sparse data and scenarios where some parameters require more frequent updates than others. However, its learning rate monotonically decreases, which may lead to premature convergence in some cases.
+
+		Examples
+		--------
+		>>> from machinegnostics.magnet import Adagrad
+		>>> optimizer = Adagrad(lr=0.01)
 		"""
 		super().__init__(learning_rate=learning_rate, lr=lr, verbose=verbose)
 		self.epsilon = epsilon
 		self._cache = {}
 
 	def step(self, params: Iterable[Tensor]) -> None:
-		"""Update each parameter tensor using the Adagrad rule."""
+		"""Update each parameter tensor using the Adagrad rule.
+
+		Parameters
+		----------
+		params : iterable of Tensor
+			Parameter tensors to be updated.
+
+		Returns
+		-------
+		None
+			
+		"""
 		for param in params:
 			if param._tensor.grad is None:
 				continue

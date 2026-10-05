@@ -11,7 +11,51 @@ from .base import Optimizer
 
 
 class Adam(Optimizer):
-    """Adam optimizer with automatic scaling for MAGNET special parameters."""
+    """Adam optimizer with automatic scaling for MAGNET special parameters.
+    
+    Parameters
+    ----------
+    learning_rate : float
+        Step size used for updates.
+    beta1 : float
+        Exponential decay rate for the first moment estimates.
+    beta2 : float
+        Exponential decay rate for the second moment estimates.
+    epsilon : float
+        Small constant that prevents division by zero.
+    lr : float, optional
+        Alias for ``learning_rate``.
+    gradient_scale_factor : float, optional
+        Factor to scale the gradients for MAGNET special parameters.
+    verbose : bool, optional
+        Enable debug logging for the optimizer instance.
+
+    Attributes
+    ----------
+    beta1 : float
+        Exponential decay rate for the first moment estimates.
+    beta2 : float
+        Exponential decay rate for the second moment estimates.
+    epsilon : float
+        Small constant that prevents division by zero.
+    _m : dict
+        Dictionary storing the first moment estimates for each parameter.
+    _v : dict
+        Dictionary storing the second moment estimates for each parameter.
+    _t : int
+        Time step counter.
+
+    Notes
+    -----
+    The Adam optimizer combines the advantages of both AdaGrad and RMSProp and is well-suited for problems with large datasets and high-dimensional parameter spaces.
+    It maintains per-parameter learning rates that are adapted based on the first and second moments of the gradients.
+
+    Examples
+    --------
+    >>> from machinegnostics.magnet import Adam
+    >>> optimizer = Adam(learning_rate=0.001)
+    >>> optimizer.step(params)  # where `params` is an iterable of Tensor objects
+    """
 
     def __init__(
         self,
@@ -23,6 +67,36 @@ class Adam(Optimizer):
         gradient_scale_factor: float = 1.0,
         verbose: bool = False,
     ):
+        """Create an Adam optimizer.
+
+        Parameters
+        ----------
+        learning_rate:
+            Step size used for updates.
+        beta1:
+            Exponential decay rate for the first moment estimates.
+        beta2:
+            Exponential decay rate for the second moment estimates.
+        epsilon:
+            Small constant that prevents division by zero.
+        lr:
+            Alias for ``learning_rate``.
+        gradient_scale_factor:
+            Factor to scale the gradients for MAGNET special parameters.
+        verbose:
+            Enable debug logging for the optimizer instance.
+
+        Notes
+        -----
+        The Adam optimizer combines the advantages of both AdaGrad and RMSProp and is well-suited for problems with large datasets and high-dimensional parameter spaces.
+        It maintains per-parameter learning rates that are adapted based on the first and second moments of the gradients.
+
+        Examples
+        --------
+        >>> from machinegnostics.magnet import Adam
+        >>> optimizer = Adam(learning_rate=0.001)
+        >>> optimizer.step(params)  # where `params` is an iterable of Tensor objects
+        """
         super().__init__(
             learning_rate=learning_rate,
             lr=lr,
@@ -37,6 +111,17 @@ class Adam(Optimizer):
         self._t = 0
 
     def step(self, params: Iterable[Tensor]) -> None:
+        """Update each parameter tensor using the Adam rule.
+
+        Parameters
+        ----------
+        params : iterable of Tensor
+            Parameter tensors to be updated.
+
+        Returns
+        -------
+        None
+        """
         self._t += 1
         for param in params:
             if param._tensor.grad is None:

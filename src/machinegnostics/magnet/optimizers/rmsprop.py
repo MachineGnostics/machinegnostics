@@ -28,6 +28,33 @@ class RMSprop(Optimizer):
 	RMSprop keeps a running average of gradient magnitudes so the effective
 	step size stays stable across parameters.
 
+	Parameters
+	----------
+	learning_rate : float
+		Step size used for updates.
+	rho : float
+		Decay factor for the moving average of squared gradients.
+	epsilon : float
+		Small constant that prevents division by zero.
+	lr : float, optional
+		Alias for ``learning_rate``.
+	verbose : bool, optional
+		Enable debug logging for the optimizer instance.
+	
+	Attributes
+	----------
+	rho : float
+		Decay factor for the moving average of squared gradients.
+	epsilon : float
+		Small constant that prevents division by zero.
+	_cache : dict
+		Dictionary storing the moving average of squared gradients for each parameter.
+
+    Notes
+    -----
+    RMSprop is an adaptive learning rate method designed to maintain a stable step size by keeping a running average of squared gradients.
+    It is particularly effective for non-stationary objectives and online learning scenarios.
+
 	Examples
 	--------
 	>>> from machinegnostics.magnet import RMSprop
@@ -50,6 +77,17 @@ class RMSprop(Optimizer):
 			Alias for ``learning_rate``.
 		verbose:
 			Enable debug logging for the optimizer instance.
+
+		Notes
+		-----
+		RMSprop is an adaptive learning rate method designed to maintain a stable step size by keeping a running average of squared gradients.
+		It is particularly effective for non-stationary objectives and online learning scenarios.
+
+		Examples
+		--------
+		>>> from machinegnostics.magnet import RMSprop
+		>>> optimizer = RMSprop(lr=0.001)
+		>>> optimizer.step(params)  # where `params` is an iterable of Tensor objects
 		"""
 		super().__init__(learning_rate=learning_rate, lr=lr, verbose=verbose)
 		self.rho = rho
@@ -57,7 +95,17 @@ class RMSprop(Optimizer):
 		self._cache = {}
 
 	def step(self, params: Iterable[Tensor]) -> None:
-		"""Update each parameter tensor using RMSprop."""
+		"""Update each parameter tensor using RMSprop.
+		
+		Parameters
+		----------
+		params : iterable of Tensor
+			Parameter tensors to be updated.
+
+		Returns
+		-------
+		None
+		"""
 		for param in params:
 			if param._tensor.grad is None:
 				continue
