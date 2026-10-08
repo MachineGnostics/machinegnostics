@@ -1,104 +1,106 @@
-
 # Machine Gnostics Architecture
 
 !!! abstract "Overview"
-    This diagram presents the conceptual architecture of the **Machine Gnostics** paradigm. Unlike traditional machine learning rooted in statistical theory, this new approach is built on the foundation of **Mathematical Gnostics (MG)**—a finite, deterministic, and physically inspired framework.
+    **Machine Gnostics** is a deterministic, non-statistical framework for data analysis and machine learning. Unlike traditional approaches rooted in probability theory, it is built on **Mathematical Gnostics (MG)** — a finite, physically inspired algebra that treats each data point as a real event with individual importance and uncertainty.
 
-**High-level Architecture Diagram:**
-<div align="center">
+---
+
+## System Architecture
+
+The diagram below shows how data flows through the Machine Gnostics system — from raw input through the Mathematical Gnostics foundation, into the MAGCAL computational engine, and out through the domain modules.
+
 ```mermaid
 flowchart TD
-    DATA["INPUT"]
-    USER["OUTPUT"]
-    subgraph MG_SYS["Machine Gnostics Architecture"]
-        IFACE1["Machine Gnostics Interface"]
-        MGTheory["Mathematical Gnostics"]
-        MAGCAL["MAGCAL"]
-        Models["Models"]
-        Metrics["Metrics"]
-        Magnet["Magnet"]
-        MLFlow["mlflow Integration"]
-        IFACE2["Machine Gnostics Interface"]
+    INPUT(["Data Input"]):::io
+
+    subgraph FOUNDATION["  Mathematical Gnostics Foundation  "]
+        direction TB
+        MG["Mathematical Gnostics\n─────────────────────\nRiemannian Geometry · Bi-Algebra\nEinsteinian Relativity · Thermodynamics"]:::foundation
     end
-    DATA --> IFACE1
-    IFACE1 --> MGTheory
-    MGTheory --> MAGCAL
-    MAGCAL --> Models
-    MAGCAL --> Metrics
-    MAGCAL --> Magnet
-    Models <--> Metrics
-    Metrics <--> Magnet
-    Models --> MLFlow
-    Metrics --> MLFlow
-    Magnet --> MLFlow
-    MLFlow --> IFACE2
-    IFACE2 --> USER
+
+    subgraph ENGINE["  MAGCAL Engine  "]
+        direction TB
+        MAGCAL["MAGCAL\n─────────────────────\nDeterministic Gnostic Calculations\nRobust · Outlier-Resilient · Finite"]:::engine
+    end
+
+    subgraph DOMAINS["  Domain Modules  "]
+        direction LR
+        DA["Data Analysis\n──────────\nGDF · Cluster\nInterval · Tests"]:::domain
+        ML["Machine Learning\n──────────\nRegression\nClassification\nClustering"]:::domain
+        MET["Metrics\n──────────\nClassical\nGnostic"]:::domain
+        MAGNET["MAGNET\n──────────\nDeep Learning\nNeural Networks"]:::domain
+    end
+
+    subgraph INTEGRATION["  Integration  "]
+        direction TB
+        MLFLOW["MLflow\n─────────────────────\nExperiment Tracking · Model Registry\nReproducibility · Deployment"]:::integration
+    end
+
+    OUTPUT(["Results & Models"]):::io
+
+    INPUT --> MG
+    MG --> MAGCAL
+    MAGCAL --> DA
+    MAGCAL --> ML
+    MAGCAL --> MET
+    MAGCAL --> MAGNET
+    DA --> MLFLOW
+    ML --> MLFLOW
+    MET --> MLFLOW
+    MAGNET --> MLFLOW
+    MLFLOW --> OUTPUT
+
+    classDef io fill:#00897b,stroke:#004d40,color:#ffffff,font-weight:bold,rx:20
+    classDef foundation fill:#00695c,stroke:#004d40,color:#e0f2f1,font-weight:bold
+    classDef engine fill:#00796b,stroke:#004d40,color:#e0f2f1,font-weight:bold
+    classDef domain fill:#26a69a,stroke:#00695c,color:#ffffff,font-weight:bold
+    classDef integration fill:#00897b,stroke:#004d40,color:#e0f2f1,font-weight:bold
 ```
-</div>
-
-**Glossary:**
-
-MAGCAL
-:   Mathematical Gnostics Calculations and Data Analysis Models
-
-Models
-:   Machine Learning Models
-
-Magnet
-:   Machine Gnostics Neural Networks
-
-Metrics
-:   Machine Gnostics and Statistical Metrics
 
 ---
 
 ## Components
 
-!!! quote "1. DATA"
+!!! quote "1. Data"
     The foundation of Machine Gnostics is **DATA**, interpreted differently from statistical frameworks:
 
     - Each data point is a **real event** with **individual importance and uncertainty**.
-    - No reliance on large sample assumptions or population-level abstractions.
-    - Adheres to the principle: _“Let the data speak for themselves.”_
+    - No reliance on large-sample assumptions or population-level abstractions.
+    - Adheres to the principle: _"Let the data speak for themselves."_
 
 !!! quote "2. Mathematical Gnostics"
-    This is the **theoretical base** of the system. It replaces the assumptions of probability with deterministic modeling:
+    The **theoretical base** of the system. Replaces probabilistic assumptions with deterministic modeling:
 
-    - Uses **Riemannian geometry**, **Einsteinian relativity**, **vector bi-algebra**, and **thermodynamics**.
+    - Built on **Riemannian geometry**, **Einsteinian relativity**, **vector bi-algebra**, and **thermodynamics**.
     - Models uncertainty at the level of **individual events**, not populations.
-    - Establishes a **finite theory** for **finite data**, with robust treatment of variability.
+    - Establishes a **finite theory for finite data** with robust treatment of variability.
 
-!!! quote "3. MAGCAL (Mathematical Gnostics Calculations)"
-    MAGCAL is the computational engine that enables gnostic inference:
+!!! quote "3. MAGCAL"
+    The computational engine that enables gnostic inference:
 
     - Performs **deterministic, non-statistical** calculations.
     - Enables **robust modeling** using gnostic algebra and error geometry.
     - Resilient to outliers, corrupted data, and distributional shifts.
 
-!!! quote "4. Models | Metrics | Magnet"
-    This layer maps to familiar components of ML pipelines but with MG-specific logic:
+!!! quote "4. Domain Modules"
+    The four functional domains powered by MAGCAL:
 
-    - **Models:** Developed on the principles of Mathematical Gnostics.
-    - **Metrics:** Evaluate using **gnostic loss functions** and **event-level error propagation**.
-    - **Magnet:** A novel neural architecture based on **Mathematical Gnostics**
+    - **Data Analysis:** Gnostic distribution functions, cluster/interval analysis, gnostic data tests.
+    - **Machine Learning:** Regression, classification, clustering, and forecasting models built on MG principles.
+    - **Metrics:** Classical statistics-based metrics alongside gnostic algebra metrics (`fi`, `fj`, `hi`, `hj`, `ei`).
+    - **MAGNET:** A PyTorch-backed neural network framework with gnostic activations, losses, and layers.
 
-!!! quote "5. mlflow Integration"
-    Despite its theoretical novelty, Machine Gnostics fits smoothly into modern ML workflows:
+!!! quote "5. Integration"
+    Machine Gnostics fits into modern ML workflows without friction:
 
-    - **mlflow** provides tracking, model registry, and reproducibility.
-    - Ensures that experiments and deployments align with standard ML practices.
-
-!!! quote "6. Machine Gnostics (Integration Layer)"
-    This layer unifies all components into a working system:
-
-    - **MAGCAL** is a Mathematical Gnostics based engine.
-    - Functions as a **complete ML framework** based on a deterministic, finite, and algebraic paradigm.
-    - Enables seamless data-to-model pipelines rooted in the principles of Mathematical Gnostics.
+    - **MLflow** provides experiment tracking, model registry, and reproducibility.
+    - Deployments align with standard ML engineering practices.
 
 ---
 
 ## Summary
-!!! info "Quick Understanding"
+
+!!! info "Machine Gnostics vs. Traditional ML"
 
     | Traditional ML (Statistics)        | Machine Gnostics                         |
     |------------------------------------|------------------------------------------|
@@ -110,8 +112,22 @@ Metrics
 
 ---
 
-## [References](../ref/references.md)
+**Glossary**
 
-> Machine Gnostics is not just an alternative—it is a **new foundation** for AI, capable of **rational, robust, and interpretable** data modeling.
+MAGCAL
+:   Mathematical Gnostics Calculations and Data Analysis Models
+
+MAGNET
+:   Machine Gnostics Neural Networks — deep learning built on MG algebra with a PyTorch backend
+
+Metrics
+:   Classical statistical metrics and gnostic algebra metrics for model evaluation
+
+MG
+:   Mathematical Gnostics — the theoretical foundation
 
 ---
+
+## [References](../ref/references.md)
+
+> Machine Gnostics is not just an alternative — it is a **new foundation** for AI, capable of **rational, robust, and interpretable** data modeling.
