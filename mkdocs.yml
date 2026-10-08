@@ -76,7 +76,7 @@ nav:
     - Tutorials Library: tutorials/tutorials.md
   # data analysis vertical
   - Data Analysis:
-    - Models: da/da_models.md
+    - Overview: da/da_models.md
     - Distributions Functions:
       - EGDF: da/egdf.md
       - ELDF: da/eldf.md
@@ -106,7 +106,7 @@ nav:
       - Starwars Data: datasets/starwars_data.md
   # machine learning vertical
   - Machine Learning:
-    - Models: models/ml_models.md
+    - Overview: models/ml_models.md
     - Regressors:
       - Linear Regressor: models/reg/lin_reg.md
       - Polynomial Regressor: models/reg/poly_reg.md
@@ -131,10 +131,76 @@ nav:
       - Train Test Split: models/sup/train_test_split.md
     - Mlflow Integration: 
       - Mlflow Tracking: models/sup/mlflow.md
-  # deep learning vertical   
+  # deep learning vertical
   - Deep Learning:
-    - Magnet: magnet/magnet.md
+    - Overview: magnet/index.md
+    - Activations:
+      - Activation Layers: magnet/activations/index.md
+      - ReLU: magnet/activations/relu.md
+      - Sigmoid: magnet/activations/sigmoid.md
+      - Tanh: magnet/activations/tanh.md
+      - Softmax: magnet/activations/softmax.md
+      - Step: magnet/activations/step.md
+      - LeakyReLU: magnet/activations/leakyrelu.md
+      - ELU: magnet/activations/elu.md
+      - Softplus: magnet/activations/softplus.md
+      - Swish: magnet/activations/swish.md
+      - Square: magnet/activations/square.md
+      - Fi (Gnostic Fidelity): magnet/activations/fi.md
+      - Fj (Gnostic Infidelity): magnet/activations/fj.md
+      - Hi (Gnostic Relevance): magnet/activations/hi.md
+      - Hj (Gnostic Irrelevance): magnet/activations/hj.md
+      - Ei (Gnostic Entropy): magnet/activations/ei.md
+    - Losses:
+      - Loss Functions: magnet/losses.md
+      - MSE: magnet/losses/mse.md
+      - Binary Cross Entropy: magnet/losses/binary_cross_entropy.md
+      - Fidelity Loss: magnet/losses/fidelity_loss.md
+      - Infidelity Loss: magnet/losses/infidelity_loss.md
+      - Residual Entropy Loss: magnet/losses/residual_entropy_loss.md
+      - RSS Loss: magnet/losses/rss_loss.md
+      - ISS Loss: magnet/losses/iss_loss.md
+      - Information Loss: magnet/losses/information_loss.md
+    - Initializers:
+      - Weight Initializers: magnet/initializers.md
+      - Initializer (Base): magnet/initializers/initializer.md
+      - GlorotUniform: magnet/initializers/glorot_uniform.md
+      - GlorotNormal: magnet/initializers/glorot_normal.md
+      - HeUniform: magnet/initializers/he_uniform.md
+      - HeNormal: magnet/initializers/he_normal.md
+      - Normal: magnet/initializers/normal.md
+      - Uniform: magnet/initializers/uniform.md
+      - Ones: magnet/initializers/ones.md
+      - Zeros: magnet/initializers/zeros.md
+    - Optimizers:
+      - Optimization Algorithms: magnet/optimizers.md
+      - Optimizer (Base): magnet/optimizers/optimizer.md
+      - Adam: magnet/optimizers/adam.md
+      - SGD: magnet/optimizers/sgd.md
+      - RMSprop: magnet/optimizers/rmsprop.md
+      - Adagrad: magnet/optimizers/adagrad.md
+    - Models:
+      - Model Containers: magnet/models.md
+      - Model (Base): magnet/models/model.md
+      - Sequential: magnet/models/sequential.md
+      - GnosticNeuron: magnet/models/gnostic_neuron.md
+    - Layers:
+      - Layer Types: magnet/layers.md
+      - Dense: magnet/layers/dense.md
+      - iDense (Gnostic Estimating): magnet/layers/idense.md
+      - jDense (Gnostic Quantifying): magnet/layers/jdense.md
+      - BatchNorm: magnet/layers/batchnorm.md
+      - GnosticBatchNorm: magnet/layers/gnostic_batchnorm.md
+      - Flatten: magnet/layers/flatten.md
+      - Layer (Base): magnet/layers/layer.md
+    - Core:
+      - Core Infrastructure: magnet/core.md
+      - Tensor: magnet/core/tensor.md
+      - History: magnet/core/history.md
+      - Callback: magnet/core/callback.md
+      - Early Stopping: magnet/core/early_stopping.md
   - Metrics:
+    - Overview: metrics/metrics.md
     - Classical Metrics:
       - Accuracy: metrics/accuracy.md
       - Precision: metrics/precision.md
