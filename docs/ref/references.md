@@ -1,7 +1,7 @@
 !!! info "Machine Gnostics Publications"
-    Publications on Machine Gnostics will be available soon. This website is designed to provide the essential fundamentals to help you get started.
+    Research on Machine Gnostics has begun with recent peer-reviewed publications introducing the framework's non-statistical approach to data analysis and machine learning. Additional papers and results are actively being added.
 
-    Below is a curated list of key publications where the concept of Mathematical Gnostics is introduced, explained, and applied in research and practice.
+    This website provides the essential fundamentals, documentation, and code to help researchers and practitioners apply the framework. Below is a curated list of key publications where Mathematical Gnostics is introduced, explained, and applied in research and practice.
 
 ### Books
 
@@ -16,6 +16,10 @@ Kovanic, P.
 </span>
 
 ### Research Papers
+
+<span style="font-size:0.85em">
+Parmar, N., <i>Machine Gnostics — A Step Towards Non-Statistical Data Analysis and Machine Learning</i>. Conference: OSSConfAt, Zilina, Slovakia, September 2026, Volume: 2026: 137–146. <a href="https://www.researchgate.net/publication/414824809_MACHINE_GNOSTICS_-A_STEP_TOWARDS_NON-STATISTICAL_DATA_ANALYSIS_AND_MACHINE_LEARNING">ResearchGate</a>
+</span>
 
 <span style="font-size:0.85em">
 Parmar, N.; Bendová, M.; Wagner, Z., Heat capacity measurements by a Setaram μDSC3 evo microcalorimeter: Estimation of deviation in the measurement, advanced data analysis by mathematical gnostics, and prediction by the artificial neural network. <i>J Therm Anal Calorim</i> 150, 313–325 (2025). <a href="https://doi.org/10.1007/s10973-024-13505-w">https://doi.org/10.1007/s10973-024-13505-w</a>
