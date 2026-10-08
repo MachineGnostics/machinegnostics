@@ -1,7 +1,5 @@
 # Models - Machine Learning (Machine Gnostics)
 
-## Welcome to Machine Gnostics Machine Learning Models
-
 Machine Gnostics provides a growing suite of machine learning models for transparent, robust, and diagnostic predictive analytics.
 Our goal is to deliver interpretable, assumption-free machine learning solutions that combine classic algorithms with gnostic diagnostics. Whether you are working on classification, regression, clustering, or other tasks, Machine Gnostics models help you understand both predictions and underlying data structure.
 
