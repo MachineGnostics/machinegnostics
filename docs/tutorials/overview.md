@@ -22,24 +22,24 @@ Before you begin, please ensure that Machine Gnostics is installed correctly in 
 <div class="grid cards" markdown>
 
 -   :material-chart-bell-curve-cumulative: **Data Analysis**
-    - [Gnostic Distribution Function](./tutorials.md/#advanced-analysis)
-    - [Gnostic Data Tests](./tutorials.md/#data-tests)
-    - [Advanced Data Analysis](./tutorials.md/#advanced-analysis)
+    - [Gnostic Distribution Function](./tutorials.md#advanced-analysis)
+    - [Gnostic Data Tests](./tutorials.md#data-tests)
+    - [Advanced Data Analysis](./tutorials.md#advanced-analysis)
 
 -   :material-brain: **Machine Learning**
-    - [Regression](./tutorials.md/#__tabbed_1_2)
-    - [Classification](./tutorials.md/#__tabbed_1_2)
-    - [Clustering](./tutorials.md/#__tabbed_1_2)
-    - [Forecasting](./tutorials.md/#__tabbed_1_2)
-    - [MLflow Integration](./tutorials.md/#__tabbed_1_3)
+    - [Regression](tutorials.md/#regression)
+    - [Classification](tutorials.md/#classification)
+    - [Clustering](tutorials.md/#clustering)
+    - [Forecasting](tutorials.md/#forecasting)
+    - [MLflow Integration](./tutorials.md#mlflow)
 
 -   :material-ruler: **Metrics**
-    - [Regular ML Metrics](./tutorials.md/#metrics)
-    - [Gnostic Metrics](./tutorials.md/#metrics)
+    - [Regular ML Metrics](tutorials.md/#metrics)
+    - [Gnostic Metrics](tutorials.md/#metrics)
 
 -   :material-creation: **Deep Learning**
-    - [Neural Networks](../magnet/magnet.md)
-    - _Coming soon!_
+    - [MAGNET Overview](../magnet/index.md)
+    - [Neural Networks](../magnet/index.md)
 
 </div>
 
