@@ -1,36 +1,83 @@
 # Magnet: Machine Gnostic Neural Network
 
-**Magnet** is a next-generation neural network architecture inspired by Mathematical Gnostics (MG). Unlike traditional neural networks that rely on probabilistic backpropagation, Magnet is built on a deterministic, finite, and algebraic foundation—offering new possibilities for robust, interpretable learning.
-
-## What Makes Magnet Unique?
-
-- **Deterministic Learning:** All computations are finite, reproducible, and free from randomness.
-- **Event-Level Modeling:** Uncertainty and error are handled at the level of individual data events, not just populations.
-- **Algebraic Inference:** Magnet leverages gnostic algebra and error geometry for transparent, explainable results.
-- **Resilient Architecture:** Designed to withstand outliers, corrupted data, and distributional shifts.
-
-## Roadmap & Collaboration
-
-Magnet is currently under active development.  
-**Coming soon:**  
-- Detailed documentation and architecture diagrams  
-- Implementation guides and code examples  
-- Benchmarks and comparison studies
+**MAGNET** is the deep-learning framework of the Machine Gnostics library. It provides a deterministic, finite, and algebraic foundation for building neural networks—an alternative to traditional probabilistic backpropagation approaches.
 
 !!! tip "NOTE"
-    **We welcome collaboration and new ideas!**  
-    If you’re interested in contributing, sharing feedback, or exploring partnerships, please reach out—your insights can help shape the future of Machine Gnostic neural networks.
+    We are actively developing additional MAGNET neural network layers, models, and training methods. Stay tuned for updates as new tools and documentation become available.
+
+    We are open to collaboration and new ideas. If you’re interested in contributing, sharing feedback, or exploring partnerships in neural network design, feel free to connect with us—your insights and creativity are always welcome!
 
 ---
 
-Stay tuned for updates as we bring the next generation of neural networks to Machine Gnostics!
+## Key Magnet Modules
+
+<div class="grid cards" markdown>
+
+-   **[Activations](activations.md)**
+
+    Activation layers including standard nonlinearities (ReLU, Sigmoid, Tanh, Softmax) and dedicated gnostic activations (Fi, Fj, Hi, Hj, Ei) that implement fidelity and information characteristics.
+
+-   **[Losses](losses.md)**
+
+    Loss functions for training, including standard MSE and binary cross-entropy, plus dedicated gnostic losses: Fidelity, Infidelity, Residual Entropy, Information, and RSS Loss.
+
+-   **[Initializers](initializers.md)**
+
+    Weight initialization strategies (Glorot/Xavier, He, Normal, Uniform, Zeros, Ones) to stabilize training and gradient flow.
+
+-   **[Optimizers](optimizers.md)**
+
+    Optimization algorithms (SGD, Adam, RMSprop, Adagrad) with adaptive special-parameter scaling for gnostic layers.
+
+-   **[Models](models.md)**
+
+    Model containers (Sequential, Model) and the GnosticNeuron component for constructing and training networks.
+
+-   **[Layers](layers.md)**
+
+    Layer implementations including Dense, BatchNorm, GnosticBatchNorm, Flatten, iDense, and jDense.
+
+-   **[Core](core.md)**
+
+    Core infrastructure: Tensor, History, Callback, EarlyStopping, and runtime configuration.
+
+</div>
 
 ---
 
-**Suggestions for future additions:**
+## Why Use Magnet?
 
-- Add a high-level diagram or conceptual illustration of Magnet’s architecture.
-- Include a “Vision” or “Goals” section describing what Magnet aims to solve compared to existing neural networks.
-- Provide a link or contact for collaboration (email, GitHub, etc.).
-- List planned features or modules (e.g., layers, activation functions, training methods).
-- Share any preliminary results or benchmarks if available.
+- **Deterministic & Finite:** All computations are reproducible and free from randomness.
+- **Event-Level Modeling:** Uncertainty and error are handled at the level of individual data events.
+- **Algebraic Inference:** Leverages gnostic algebra and error geometry for transparent, explainable results.
+- **Resilient Architecture:** Designed to withstand outliers, corrupted data, and distributional shifts.
+- **PyTorch-Backed:** Built on PyTorch tensors under the hood. MAGNET is fully torch-compatible — gradients flow through PyTorch autograd automatically, and you can mix MAGNET layers with standard torch.nn modules when needed. The public API stays in MAGNET terms while leveraging PyTorch's efficient GPU acceleration and optimization.
+
+---
+
+## Quick Start
+
+```python
+from machinegnostics.magnet import Sequential, Dense, ReLU, MSE, Adam
+import numpy as np
+
+model = Sequential(layers=[
+    Dense(in_features=4, out_features=8),
+    ReLU(),
+    Dense(in_features=8, out_features=1)
+])
+model.compile(loss=MSE(), optimizer=Adam())
+model.fit(np.random.rand(100, 4), np.random.rand(100, 1), epochs=5)
+```
+
+---
+
+## Next Steps
+
+- Browse individual module pages for detailed class documentation.
+- Try hands-on notebooks and examples in the documentation examples folder.
+- Check [Magnet Concepts](../magnet/magnet.md) for the architectural vision and collaboration information.
+
+---
+
+**Author:** Nirmal Parmar  

@@ -219,6 +219,8 @@ class AutoRegressor(HistoryRegressorBase, DataProcessLayerBase):
         # For 'ct' trend, we need to know the next time index
         next_t = len(history) 
         
+        # Ensure steps is integer scalar
+        steps = int(np.asarray(steps).item()) if hasattr(np.asarray(steps), 'item') else int(steps)
         for _ in range(steps):
             # Extract lag features
             # Get last `lags` elements

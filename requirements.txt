@@ -137,3 +137,4 @@ zipp==3.21.0
 streamlit
 plotly
 narwhals
+torch

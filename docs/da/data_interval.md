@@ -20,21 +20,21 @@ DataIntervals is designed for advanced interval analysis in scientific, engineer
 
 ## Parameters
 
-| Parameter                  | Type                | Default | Description                                                     |
-| -------------------------- | ------------------- | ------- | --------------------------------------------------------------- |
-| `gdf`                      | ELDF/EGDF/QLDF/QGDF | -       | Fitted GDF (Gnostics Distribution Function) object.             |
-| `n_points`                 | int                 | 10      | Number of search points for interval estimation.                |
-| `dense_zone_fraction`      | float               | 0.4     | Fraction of the search domain near Z0 to search densely.        |
-| `dense_points_fraction`    | float               | 0.7     | Fraction of points allocated to the dense zone.                 |
-| `convergence_window`       | int                 | 15      | Number of points in the moving window for convergence.          |
-| `convergence_threshold`    | float               | 1e-6    | Threshold for standard deviation of Z0 in convergence window.   |
-| `min_search_points`        | int                 | 30      | Minimum number of search points before checking convergence.    |
-| `boundary_margin_factor`   | float               | 0.001   | Margin factor to avoid searching exactly at the boundaries.     |
-| `extrema_search_tolerance` | float               | 1e-6    | Tolerance for detecting extrema in Z0 variation.                |
-| `gnostic_filter`           | bool                | False   | If True, apply gnostic clustering to filter outlier Z0 values.  |
-| `catch`                    | bool                | True    | If True, catch and store warnings/errors internally.            |
-| `verbose`                  | bool                | False   | If True, print detailed progress and diagnostics.               |
-| `flush`                    | bool                | False   | If True, flush memory after fitting to save resources.          |
+| Parameter                    | Type                | Default | Description                                                    |
+| ---------------------------- | ------------------- | ------- | -------------------------------------------------------------- |
+| `gdf`                      | ELDF/EGDF/QLDF/QGDF | -       | Fitted GDF (Gnostics Distribution Function) object.            |
+| `n_points`                 | int                 | 10      | Number of search points for interval estimation.               |
+| `dense_zone_fraction`      | float               | 0.4     | Fraction of the search domain near Z0 to search densely.       |
+| `dense_points_fraction`    | float               | 0.7     | Fraction of points allocated to the dense zone.                |
+| `convergence_window`       | int                 | 15      | Number of points in the moving window for convergence.         |
+| `convergence_threshold`    | float               | 1e-6    | Threshold for standard deviation of Z0 in convergence window.  |
+| `min_search_points`        | int                 | 30      | Minimum number of search points before checking convergence.   |
+| `boundary_margin_factor`   | float               | 0.001   | Margin factor to avoid searching exactly at the boundaries.    |
+| `extrema_search_tolerance` | float               | 1e-6    | Tolerance for detecting extrema in Z0 variation.               |
+| `gnostic_filter`           | bool                | False   | If True, apply gnostic clustering to filter outlier Z0 values. |
+| `catch`                    | bool                | True    | If True, catch and store warnings/errors internally.           |
+| `verbose`                  | bool                | False   | If True, print detailed progress and diagnostics.              |
+| `flush`                    | bool                | False   | If True, flush memory after fitting to save resources.         |
 
 ---
 
@@ -116,11 +116,11 @@ None
     from machinegnostics.magcal import ELDF, DataIntervals
 
     data = np.array([-13.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    
+
     # 1. Fit ELDF first
-    eld = ELDF()
-    eld.fit(data)
-    
+    eldf = ELDF()
+    eldf.fit(data)
+
     # 2. Run Interval Analysis
     # create a DataIntervals object
     data_intervals = DataIntervals(gdf=eldf)
@@ -149,5 +149,5 @@ None
 
 ---
 
-**Author:** Nirmal Parmar   
+**Author:** Nirmal Parmar
 **Date:** 2025-10-10

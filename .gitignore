@@ -181,6 +181,12 @@ tests/exm/
 tests/exm/*.ipynb
 # docs/*
 tests/*
+!tests/test_magnet_phase7.py
+!tests/test_magnet_phase7_edge_cases.py
+!tests/test_magnet_phase7_gradients.py
+!tests/test_magnet_phase7_performance.py
+!tests/test_magnet_phase34.py
+!tests/test_magnet_phase56.py
 
 # take out old dist func
 .DS_Store
@@ -189,3 +195,8 @@ src/machinegnostics/magcal/x_gdf/
 
 # mlfruns
 mlruns/
+!tests/test_magnet_phase12.py
+!src/machinegnostics/magnet/AUTOGRAD_EXPLANATION.md
+
+# claude
+.claude/

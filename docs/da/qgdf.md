@@ -132,6 +132,7 @@ Returns a dictionary of all fitted parameters and results.
     ```
 
 === "Output"
+    ![QGDF Plot](image/qgdf/1774047025610.png)
 
 ## Notes
 

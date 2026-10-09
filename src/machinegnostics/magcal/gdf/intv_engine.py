@@ -926,9 +926,11 @@ class IntveEngine:
             # Sparse points (logarithmic spacing toward boundary)
             if n_sparse > 0 and dense_start > search_end:
                 # Logarithmic ratios for smooth transition
+                # (dense near Z0-side, sparse near boundary)
                 log_space = np.logspace(0, 2, n_sparse + 1)[1:]  # [10^0, 10^2] range
                 log_ratios = (log_space - 1) / (100 - 1)  # Normalize to [0, 1]
-                sparse_points = search_end + log_ratios * (dense_start - search_end)
+                # Start at Z0-side (dense_start) and taper toward boundary (search_end)
+                sparse_points = dense_start - log_ratios * (dense_start - search_end)
             else:
                 sparse_points = np.array([])
             
@@ -1140,8 +1142,7 @@ class IntveEngine:
         # Ordering validation
         ordering_valid = (self.zl < self.z0l < self.z0 < self.z0u < self.zu)
 
-        # self z0
-        self.z0 = self.z0
+        # Z0 remains unchanged (the original Z0 value from the fitted DF object)
         
         # Update params with complete results
         self.params.update({
@@ -1222,7 +1223,7 @@ class IntveEngine:
     def _update_df_object_params(self):
         """Update the original DF object's params with interval results."""
         
-        self.lower.info("Updating original DF object parameters with interval results...")
+        self.logger.info("Updating original DF object parameters with interval results...")
 
         if not hasattr(self.df_object, 'params'):
             self.df_object.params = {}
