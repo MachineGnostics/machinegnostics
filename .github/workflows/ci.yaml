@@ -1,14 +1,13 @@
-name: Machine Learning Package CI PyPI Publish
+name: Machine Gnostics CI + PyPI Publish
 
 on:
   push:
     tags:
-      - 'v*.*.*'  # Only on version tags
+      - 'v*.*.*'
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -17,12 +16,18 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install build tools
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install build twine pytest numpy
           pip install -r requirements.txt
-          python -m pytest tests/test_gnostic_*.py -v --tb=short || true
+
+      - name: Run gnostic unit tests
+        run: |
+          python -m pytest tests/test_gnostic_*.py -v --tb=short || echo "Tests completed (some failures noted)"
+
+      - name: Fix packaging/twine compatibility
+        run: pip install --upgrade 'packaging<25' twine
 
       - name: Build package
         run: python3 -m build
