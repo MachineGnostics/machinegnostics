@@ -197,3 +197,6 @@ src/machinegnostics/magcal/x_gdf/
 mlruns/
 !tests/test_magnet_phase12.py
 !src/machinegnostics/magnet/AUTOGRAD_EXPLANATION.md
+
+# claude
+.claude/
