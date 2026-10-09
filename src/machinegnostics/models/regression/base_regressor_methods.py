@@ -190,6 +190,9 @@ class RegressorMethodsBase(ModelBase):
         W = np.diag(weights)
         XtW = X_poly.T @ W
         XtWX = XtW @ X_poly + eps * np.eye(X_poly.shape[1])
+        # Guard against non-finite weights/overflow from bad inputs
+        XtWX = np.where(np.isfinite(XtWX), XtWX, eps)
+        XtWy = np.where(np.isfinite(XtW @ y), XtW @ y, 0.0)
         XtWy = XtW @ y
         
         try:
