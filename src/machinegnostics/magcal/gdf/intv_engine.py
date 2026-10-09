@@ -1142,8 +1142,7 @@ class IntveEngine:
         # Ordering validation
         ordering_valid = (self.zl < self.z0l < self.z0 < self.z0u < self.zu)
 
-        # self z0
-        self.z0 = self.z0
+        # Z0 remains unchanged (the original Z0 value from the fitted DF object)
         
         # Update params with complete results
         self.params.update({
