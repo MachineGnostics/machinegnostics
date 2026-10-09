@@ -22,7 +22,7 @@ Key design rules for future growth:
 
 Version: 0.0.6
 Author: Nirmal Parmar
-Project: Machine Gnostics (magcal + magnet calibration framework)
+Project: Machine Gnostics
 """
 
 # =============================================================================
