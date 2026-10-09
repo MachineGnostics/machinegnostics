@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use Machine Gnostics, please cite it using the metadata below."
 type: software
 title: "Machine Gnostics"
-version: "0.0.6"
+version: "0.0.7"
 date-released: 2026-10-09
 license: GPL-3.0-only
 repository-code: "https://github.com/MachineGnostics/machinegnostics"

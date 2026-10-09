@@ -20,7 +20,7 @@ Key design rules for future growth:
   5. New metrics: add import block + add to __all__ + add health check in _check_imports.
   6. New submodule: add try/except import + availability flag + __all__ entry + get_available_components entry.
 
-Version: 0.0.6
+Version: 0.0.7
 Author: Nirmal Parmar
 Project: Machine Gnostics
 """
@@ -161,7 +161,7 @@ __all__ = [
 # Module Metadata
 # =============================================================================
 __author__ = 'Nirmal Parmar'
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 # =============================================================================
 # Health Check / Component Availability
