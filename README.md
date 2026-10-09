@@ -1,7 +1,7 @@
 # [Machine Gnostics](https://machinegnostics.com)
 
 <div align="center">
-  <img src="docs/images/header.png" alt="Machine Gnostics" width="800"/>
+  <img src="https://raw.githubusercontent.com/MachineGnostics/machinegnostics/main/docs/images/header.png" alt="Machine Gnostics" width="800"/>
 </div>
 
 ---
@@ -57,11 +57,11 @@ Four datasets share **identical classical statistics** — mean x≈9, mean y≈
 <table>
 <tr>
 <td align="center" style="padding:8px;">
-<img src="docs/benchmark-image-1.png" alt="Benchmark comparison — MG structural read vs classical statistical summary" width="100%" style="max-width:520px; border-radius:8px; border:1px solid #ddd;"/>
+<img src="https://raw.githubusercontent.com/MachineGnostics/machinegnostics/main/docs/images/benchmark-image-1.png" alt="Benchmark comparison — MG structural read vs classical statistical summary" width="100%" style="max-width:520px; border-radius:8px; border:1px solid #ddd;"/>
 <br><i>Image 1 — MG structural read vs classical summary (Anscombe quartet)</i>
 </td>
 <td align="center" style="padding:8px;">
-<img src="docs/benchmark-image-2.png" alt="Benchmark radar — capability scores and regression/interval metrics" width="100%" style="max-width:520px; border-radius:8px; border:1px solid #ddd;"/>
+<img src="https://raw.githubusercontent.com/MachineGnostics/machinegnostics/main/docs/images/benchmark-image-2.png" alt="Benchmark radar — capability scores and regression/interval metrics" width="100%" style="max-width:520px; border-radius:8px; border:1px solid #ddd;"/>
 <br><i>Image 2 — Capability radar & metrics (MG 9.0 vs Classical 1.4)</i>
 </td>
 </tr>
