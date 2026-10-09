@@ -133,7 +133,7 @@ nav:
       - Mlflow Tracking: models/sup/mlflow.md
   # deep learning vertical
   - Deep Learning:
-    - Overview: magnet/index.md
+    - Overview: magnet/magnet.md
     - Activations:
       - Activation Layers: magnet/activations/index.md
       - ReLU: magnet/activations/relu.md

@@ -38,8 +38,8 @@ Before you begin, please ensure that Machine Gnostics is installed correctly in 
     - [Gnostic Metrics](tutorials.md/#metrics)
 
 -   :material-creation: **Deep Learning**
-    - [MAGNET Overview](../magnet/index.md)
-    - [Neural Networks](../magnet/index.md)
+    - [MAGNET Overview](../magnet/magnet.md)
+    - [Neural Networks](../magnet/magnet.md)
 
 </div>
 

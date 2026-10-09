@@ -76,7 +76,7 @@ model.fit(np.random.rand(100, 4), np.random.rand(100, 1), epochs=5)
 
 - Browse individual module pages for detailed class documentation.
 - Try hands-on notebooks and examples in the documentation examples folder.
-- Check [Magnet Concepts](../magnet/index.md) for the architectural vision and collaboration information.
+- Check [Magnet Concepts](../magnet/magnet.md) for the architectural vision and collaboration information.
 
 ---
 
