@@ -10,8 +10,8 @@ copyright:
 
 theme:
   name: material
-  logo: images/logo.png
-  favicon: images/logo.png
+  logo: images/logo-square-512.png
+  favicon: images/logo-square-512.png
   palette:
     - scheme: slate
       primary: teal
