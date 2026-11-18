@@ -209,8 +209,7 @@ class IntervalAnalysis:
             self.logger.error(f'Error: Data must be a 1D array.')
             raise ValueError("Data must be a 1D array.")
         if data.size < 4:
-            self.logger.error(f'Error: Data must contain at least 4 elements.')   
-            raise ValueError("Data must contain at least 4 elements.")
+            self.logger.warning(f"Only {data.size} data points provided; results may be unreliable.")   
         # no NaN or Inf values
         if np.any(np.isnan(data)) or np.any(np.isinf(data)):
             self.logger.error(f'Error: Data contains NaN or Inf values.')
