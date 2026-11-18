@@ -42,7 +42,10 @@ No question is too small. We're here to help and collaborate — please reach ou
     **Primary Contact:**
     
     **Dr. Nirmal Parmar**  
+    
     📧 [nirmalparmar@machinegnostics.com](mailto:nirmalparmar@machinegnostics.com)
+
+    📧 [info@machinegnostics.com](mailto:info@machinegnostics.com)
     
     **Community & Social:**  
     [Discord](https://discord.gg/WMMUaeJe2X) &nbsp;|&nbsp; 
