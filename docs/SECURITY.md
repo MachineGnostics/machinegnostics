@@ -15,7 +15,7 @@ We take the security of this project seriously. If you find a vulnerability, ple
 
 Instead, please report it via one of the following:
 
-* **Email:** [Email](info.machinegnostics@gmail.com)
+* **Email:** [Email](info@machinegnostics.com)
 * **GitHub:** Use the "Report a vulnerability" button under the Security tab.
 
 We will acknowledge your report within 72 hours and provide a timeline for a fix.
